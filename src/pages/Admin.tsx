@@ -75,8 +75,45 @@ export default function Admin() {
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const dragY = useRef<number | null>(null);
+  const scrollInterval = useRef<number | null>(null);
   
   const isDev = import.meta.env.DEV;
+
+  const startAutoScroll = () => {
+    if (scrollInterval.current) return;
+    
+    scrollInterval.current = window.setInterval(() => {
+      if (!containerRef.current || dragY.current === null) return;
+      
+      const container = containerRef.current;
+      const { top, bottom } = container.getBoundingClientRect();
+      const cursorY = dragY.current;
+      
+      const threshold = 100;
+      const baseSpeed = 15;
+
+      if (cursorY < top + threshold) {
+        const intensity = Math.max(0, (top + threshold - cursorY) / threshold);
+        container.scrollTop -= baseSpeed * intensity;
+      } else if (cursorY > bottom - threshold) {
+        const intensity = Math.max(0, (cursorY - (bottom - threshold)) / threshold);
+        container.scrollTop += baseSpeed * intensity;
+      }
+    }, 16); // ~60fps
+  };
+
+  const stopAutoScroll = () => {
+    if (scrollInterval.current) {
+      window.clearInterval(scrollInterval.current);
+      scrollInterval.current = null;
+    }
+    dragY.current = null;
+  };
+
+  const handleDrag = (_: any, info: any) => {
+    dragY.current = info.point.y;
+  };
 
   const handleAutoSaveAction = async (action: () => Promise<any>) => {
     setIsSaving(true);
@@ -87,25 +124,6 @@ export default function Admin() {
       console.error("Auto-save failed:", err);
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  const handleDrag = (_: any, info: any) => {
-    if (!containerRef.current || activeTab !== "manage") return;
-    
-    const container = containerRef.current;
-    const { top, bottom } = container.getBoundingClientRect();
-    const cursorY = info.point.y;
-    
-    const threshold = 100; 
-    const scrollSpeed = 10;
-    
-    if (cursorY < top + threshold) {
-      const intensity = (top + threshold - cursorY) / threshold;
-      container.scrollTop -= scrollSpeed * intensity;
-    } else if (cursorY > bottom - threshold) {
-      const intensity = (cursorY - (bottom - threshold)) / threshold;
-      container.scrollTop += scrollSpeed * intensity;
     }
   };
 
@@ -567,6 +585,8 @@ export default function Admin() {
                       <Reorder.Item 
                         key={post.id} 
                         value={post}
+                        onDragStart={startAutoScroll}
+                        onDragEnd={stopAutoScroll}
                         onDrag={handleDrag}
                         className="bg-white p-6 rounded-[32px] border border-zinc-200 flex items-center gap-6 group hover:shadow-xl hover:shadow-black/5 hover:border-black/10 transition-all relative"
                       >
