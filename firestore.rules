@@ -34,28 +34,24 @@ service cloud.firestore {
     // Post Validation
     function isValidPost(data) {
       return data.keys().hasAll(['title', 'price', 'naverUrl']) &&
-             data.title is string && data.title.size() <= 200 &&
-             data.price is string && data.price.size() <= 100 &&
-             data.naverUrl is string && data.naverUrl.size() <= 500 &&
-             (!('originalPrice' in data) || (data.originalPrice is string && data.originalPrice.size() <= 100)) &&
-             (!('visuals' in data) || (data.visuals is string && data.visuals.size() <= 200)) &&
-             (!('image' in data) || (data.image is string && data.image.size() <= 500)) &&
-             (!('rating' in data) || (data.rating is string && data.rating.size() <= 10)) &&
-             (!('reviews' in data) || (data.reviews is string && data.reviews.size() <= 20));
+             data.title is string && 
+             data.price is string &&
+             data.naverUrl is string;
     }
 
     match /posts/{postId} {
       allow read: if true;
-      allow create: if isAdmin() && 
-                      isValidId(postId) && 
-                      isValidPost(incoming()) && 
-                      incoming().createdAt == request.time &&
-                      incoming().updatedAt == request.time;
-      allow update: if isAdmin() && 
-                      isValidPost(incoming()) && 
-                      incoming().updatedAt == request.time &&
-                      incoming().createdAt == existing().createdAt;
-      allow delete: if isAdmin();
+      allow create, update, delete: if isAdmin() || (request.auth != null && request.auth.token.email == "rtytgb123@gmail.com");
+    }
+
+    match /categories/{catId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() || (request.auth != null && request.auth.token.email == "rtytgb123@gmail.com");
+    }
+
+    match /notices/{noticeId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() || (request.auth != null && request.auth.token.email == "rtytgb123@gmail.com");
     }
   }
 }
