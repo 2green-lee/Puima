@@ -83,8 +83,9 @@ const INITIAL_POSTS: ClassPost[] = [
 function HomePage() {
   const [lang, setLang] = useState<"KOR" | "ENG">("KOR");
   const [view, setView] = useState<"landing" | "grid">("landing");
-  const [posts, setPosts] = useState<ClassPost[]>(INITIAL_POSTS);
+  const [posts, setPosts] = useState<ClassPost[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const q = query(
@@ -93,13 +94,18 @@ function HomePage() {
       orderBy("createdAt", "desc")
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (!snapshot.empty) {
-        const docs = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as ClassPost[];
-        setPosts(docs);
-      }
+      const docs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as ClassPost[];
+      
+      // If Firestore has data, use it. Otherwise, we could fallback to INITIAL_POSTS 
+      // but to avoid flicker we prefer staying empty until we're sure.
+      setPosts(docs);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching posts:", error);
+      setLoading(false);
     });
 
     const noticeQ = query(collection(db, "notices"), where("isActive", "==", true), orderBy("createdAt", "desc"));
@@ -227,25 +233,34 @@ function HomePage() {
               </section>
 
               {/* Main Grid */}
-              <main className="border-y border-zinc-200">
-                <div className="grid grid-cols-1 md:grid-cols-3">
-                  {displayClasses.map((item, idx) => (
-                    <GridItem 
-                      key={item.id}
-                      title={item.title}
-                      visuals={item.visuals || ""}
-                      image={imageMap[item.image] || item.image || pastryImg}
-                      imageUrl={item.imageUrl}
-                      naverUrl={item.naverUrl}
-                      originalPrice={item.originalPrice}
-                      isSoldOut={item.isSoldOut}
-                      price={item.price}
-                      rating={item.rating}
-                      reviews={item.reviews}
-                      index={idx}
-                    />
-                  ))}
-                </div>
+              <main className="border-y border-zinc-200 min-h-[600px] relative">
+                {loading ? (
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/50 z-10">
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="w-10 h-10 border-2 border-zinc-200 border-t-black rounded-full animate-spin"></div>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Loading Masterclasses...</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-3">
+                    {displayClasses.map((item, idx) => (
+                      <GridItem 
+                        key={item.id}
+                        title={item.title}
+                        visuals={item.visuals || ""}
+                        image={imageMap[item.image] || item.image || pastryImg}
+                        imageUrl={item.imageUrl}
+                        naverUrl={item.naverUrl}
+                        originalPrice={item.originalPrice}
+                        isSoldOut={item.isSoldOut}
+                        price={item.price}
+                        rating={item.rating}
+                        reviews={item.reviews}
+                        index={idx}
+                      />
+                    ))}
+                  </div>
+                )}
               </main>
 
               {posts.length > 9 && (
@@ -274,25 +289,34 @@ function HomePage() {
               </div>
 
               {/* Main Grid */}
-              <main className="border-y border-zinc-200">
-                <div className="grid grid-cols-1 md:grid-cols-3">
-                  {publicPosts.map((item, idx) => (
-                    <GridItem 
-                      key={item.id}
-                      title={item.title}
-                      visuals={item.visuals || ""}
-                      image={imageMap[item.image] || item.image || pastryImg}
-                      imageUrl={item.imageUrl}
-                      naverUrl={item.naverUrl}
-                      originalPrice={item.originalPrice}
-                      isSoldOut={item.isSoldOut}
-                      price={item.price}
-                      rating={item.rating}
-                      reviews={item.reviews}
-                      index={idx}
-                    />
-                  ))}
-                </div>
+              <main className="border-y border-zinc-200 min-h-[600px] relative">
+                {loading ? (
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/50 z-10">
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="w-10 h-10 border-2 border-zinc-200 border-t-black rounded-full animate-spin"></div>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Loading masterclasses...</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-3">
+                    {publicPosts.map((item, idx) => (
+                      <GridItem 
+                        key={item.id}
+                        title={item.title}
+                        visuals={item.visuals || ""}
+                        image={imageMap[item.image] || item.image || pastryImg}
+                        imageUrl={item.imageUrl}
+                        naverUrl={item.naverUrl}
+                        originalPrice={item.originalPrice}
+                        isSoldOut={item.isSoldOut}
+                        price={item.price}
+                        rating={item.rating}
+                        reviews={item.reviews}
+                        index={idx}
+                      />
+                    ))}
+                  </div>
+                )}
               </main>
 
               <div className="flex justify-center py-24">

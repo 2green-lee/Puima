@@ -1,5 +1,6 @@
 import { Star } from "lucide-react";
 import { motion } from "motion/react";
+import { useState } from "react";
 
 interface GridItemProps {
   key?: string | number;
@@ -18,10 +19,15 @@ interface GridItemProps {
 }
 
 export default function GridItem({ title, visuals, image, naverUrl, index, imageUrl, category, isSoldOut, originalPrice, price, rating, reviews }: GridItemProps) {
+  const [isLoaded, setIsLoaded] = useState(false);
+  
   // Determine border classes based on index to mimic the grid look
   const borderClasses = "border-zinc-200 " + 
     (index % 3 !== 2 ? "md:border-r " : "") + 
     (index >= 3 ? "border-t " : "max-md:border-t");
+
+  // If there's an uploaded imageUrl, prioritize it without showing fallback during load
+  const displayImage = imageUrl || image;
 
   return (
     <motion.div 
@@ -29,15 +35,25 @@ export default function GridItem({ title, visuals, image, naverUrl, index, image
       whileInView={{ opacity: 1 }}
       viewport={{ once: true }}
       transition={{ delay: (index % 3) * 0.1, duration: 0.8 }}
-      className={`relative group ${borderClasses} bg-zinc-200 cursor-pointer overflow-hidden`}
+      className={`relative group ${borderClasses} bg-white cursor-pointer overflow-hidden`}
     >
       <div className="w-full h-full bg-white p-6 pb-4 md:p-10 transition-all duration-700 ease-in-out group-hover:bg-zinc-50/80 group-hover:rounded-[32px] group-hover:z-10 group-hover:shadow-2xl group-hover:shadow-zinc-200/50 overflow-hidden flex flex-col items-center">
         {/* Visual Image Container - Fixed Square */}
         <div className="relative w-full aspect-square mb-5 md:mb-6 overflow-hidden bg-zinc-100 flex items-center justify-center">
+          {/* Skeleton Loader */}
+          {!isLoaded && (
+            <div className="absolute inset-0 bg-zinc-100 animate-pulse flex items-center justify-center">
+              <div className="w-8 h-8 border-2 border-zinc-200 border-t-zinc-400 rounded-full animate-spin"></div>
+            </div>
+          )}
+          
           <img 
-            src={imageUrl || image} 
+            src={displayImage} 
             alt={title} 
-            className="w-full h-full object-cover transition-transform duration-1000 ease-out group-hover:scale-110"
+            onLoad={() => setIsLoaded(true)}
+            className={`w-full h-full object-cover transition-all duration-1000 ease-out group-hover:scale-110 ${
+              isLoaded ? "opacity-100 scale-100" : "opacity-0 scale-105"
+            }`}
             referrerPolicy="no-referrer"
           />
           {isSoldOut && (
