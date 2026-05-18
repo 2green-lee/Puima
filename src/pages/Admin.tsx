@@ -588,81 +588,87 @@ export default function Admin() {
                         onDragStart={startAutoScroll}
                         onDragEnd={stopAutoScroll}
                         onDrag={handleDrag}
-                        initial={{ opacity: 0, scale: 0.98 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.98 }}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
                         whileDrag={{ 
-                          scale: 1.02, 
-                          boxShadow: "0 20px 40px rgba(0,0,0,0.1)",
+                          scale: 1.01, 
+                          boxShadow: "0 10px 20px rgba(0,0,0,0.1)",
                           zIndex: 50
                         }}
                         transition={{
-                          layout: { type: "spring", stiffness: 350, damping: 40 },
-                          opacity: { duration: 0.2 }
+                          layout: { type: "spring", stiffness: 400, damping: 40 }
                         }}
-                        className="bg-white p-6 rounded-[32px] border border-zinc-200 flex items-center gap-6 group hover:shadow-xl hover:shadow-black/5 hover:border-black/10 transition-all relative"
+                        className="bg-white px-4 py-2 rounded-xl border border-zinc-200 flex items-center gap-4 group hover:border-black/20 transition-all relative"
                       >
-                        <div className="flex-shrink-0 text-zinc-300 cursor-grab active:cursor-grabbing hover:text-black transition-colors px-2">
-                          <GripVertical size={20} />
+                        {/* Drag Handle */}
+                        <div className="flex-shrink-0 text-zinc-300 cursor-grab active:cursor-grabbing hover:text-black transition-colors">
+                          <GripVertical size={16} />
                         </div>
 
-                        <div className="w-24 h-24 bg-zinc-50 rounded-2xl overflow-hidden flex-shrink-0 border border-zinc-100 flex items-center justify-center">
+                        {/* Thumbnail */}
+                        <div className="w-10 h-10 bg-zinc-50 rounded-lg overflow-hidden flex-shrink-0 border border-zinc-100 flex items-center justify-center">
                           {post.imageUrl ? (
                             <img src={post.imageUrl} alt={post.title} className="w-full h-full object-cover" />
                           ) : (
-                            <span className="text-[10px] font-black uppercase tracking-tighter text-zinc-300">{post.image}</span>
+                            <span className="text-[8px] font-black uppercase text-zinc-300">{post.image}</span>
                           )}
                         </div>
-                        <div className="flex-grow">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">{post.category || "No Category"}</span>
+
+                        {/* Title & Info */}
+                        <div className="flex-grow min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black uppercase text-zinc-400 tracking-tighter">[{post.category || "No Cat"}]</span>
+                            <h4 className="text-sm font-bold truncate tracking-tight">{post.title}</h4>
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[11px] font-bold text-black">{post.price}</span>
                             {post.isSoldOut && (
-                              <span className="px-2 py-0.5 bg-red-100 text-red-600 text-[8px] font-black uppercase tracking-widest rounded-full">Sold Out</span>
+                              <span className="bg-red-50 text-red-500 text-[8px] font-black uppercase px-1.5 py-0.5 rounded">Sold Out</span>
                             )}
                           </div>
-                          <h4 className="font-bold text-lg mb-2">{post.title}</h4>
-                          <div className="flex items-center gap-3 text-sm font-bold">
-                            <span className="text-black font-black">{post.price}</span>
-                            {post.originalPrice && <span className="text-zinc-300 line-through font-medium text-xs">{post.originalPrice}</span>}
-                            
-                            <div className="flex items-center gap-1 ml-4">
-                              <button 
-                                onClick={() => handleToggleStatus(post.id, post.status || "public")}
-                                className={`flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all ${
-                                  post.status === "hidden" 
-                                    ? "bg-zinc-100 border-zinc-200 text-zinc-400" 
-                                    : "bg-green-50 border-green-100 text-green-600"
-                                }`}
-                              >
-                                <span className={`w-1.5 h-1.5 rounded-full ${post.status === "hidden" ? "bg-zinc-300" : "bg-green-500"}`}></span>
-                                <span className="text-[10px] uppercase font-black tracking-widest">{post.status === "hidden" ? "Hidden" : "Public"}</span>
-                              </button>
-
-                              <button 
-                                onClick={() => handleToggleSoldOut(post.id, !!post.isSoldOut)}
-                                className={`px-3 py-1 rounded-full border text-[10px] uppercase font-black tracking-widest transition-all ${
-                                  post.isSoldOut 
-                                    ? "bg-red-50 border-red-100 text-red-600" 
-                                    : "bg-white border-zinc-200 text-zinc-400 hover:border-black hover:text-black"
-                                }`}
-                              >
-                                {post.isSoldOut ? "Restore" : "Set Sold Out"}
-                              </button>
-                            </div>
-                          </div>
                         </div>
-                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+
+                        {/* Quick Actions */}
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => handleToggleStatus(post.id, post.status || "public")}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all border ${
+                              post.status === "hidden" 
+                                ? "bg-zinc-50 border-zinc-100 text-zinc-400" 
+                                : "bg-green-50 border-green-100 text-green-600"
+                            }`}
+                          >
+                            {post.status === "hidden" ? "Hidden" : "Public"}
+                          </button>
+
+                          <button 
+                            onClick={() => handleToggleSoldOut(post.id, !!post.isSoldOut)}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all border ${
+                              post.isSoldOut 
+                                ? "bg-red-50 border-red-100 text-red-600" 
+                                : "bg-white border-zinc-200 text-zinc-400 hover:border-black hover:text-black"
+                            }`}
+                          >
+                            {post.isSoldOut ? "Restore" : "Sold Out"}
+                          </button>
+                        </div>
+
+                        {/* Edit/Delete Icons */}
+                        <div className="flex items-center gap-1 pl-4 border-l border-zinc-100">
                           <button 
                             onClick={() => startEdit(post)}
-                            className="p-4 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-2xl transition-all"
+                            className="p-2 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-lg transition-all"
+                            title="Edit"
                           >
-                            <Edit2 size={18} />
+                            <Edit2 size={16} />
                           </button>
                           <button 
                             onClick={() => handleDelete(post.id)}
-                            className="p-4 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"
+                            className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                            title="Delete"
                           >
-                            <Trash2 size={18} />
+                            <Trash2 size={16} />
                           </button>
                         </div>
                       </Reorder.Item>
