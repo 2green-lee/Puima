@@ -4,17 +4,20 @@ import { motion } from "motion/react";
 interface GridItemProps {
   key?: string | number;
   title: string;
-  visuals: string;
   image: string;
   naverUrl: string;
   index: number;
+  imageUrl?: string;
+  visuals?: string;
+  category?: string;
+  isSoldOut?: boolean;
   originalPrice?: string;
   price?: string;
   rating?: string;
   reviews?: string;
 }
 
-export default function GridItem({ title, visuals, image, naverUrl, index, originalPrice, price, rating, reviews }: GridItemProps) {
+export default function GridItem({ title, visuals, image, naverUrl, index, imageUrl, category, isSoldOut, originalPrice, price, rating, reviews }: GridItemProps) {
   // Determine border classes based on index to mimic the grid look
   const borderClasses = "border-zinc-200 " + 
     (index % 3 !== 2 ? "md:border-r " : "") + 
@@ -32,11 +35,16 @@ export default function GridItem({ title, visuals, image, naverUrl, index, origi
         {/* Visual Image Container - Fixed Square */}
         <div className="relative w-full aspect-square mb-5 md:mb-6 overflow-hidden bg-zinc-100 flex items-center justify-center">
           <img 
-            src={image} 
+            src={imageUrl || image} 
             alt={title} 
             className="w-full h-full object-cover transition-transform duration-1000 ease-out group-hover:scale-110"
             referrerPolicy="no-referrer"
           />
+          {isSoldOut && (
+            <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10">
+              <span className="text-white font-black text-xl tracking-[0.3em] uppercase border-2 border-white px-6 py-2">Sold Out</span>
+            </div>
+          )}
         </div>
 
         {/* Info */}

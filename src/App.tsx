@@ -7,7 +7,7 @@ import { Youtube, Instagram, MessageCircle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useState, useEffect } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
-import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy, where } from "firebase/firestore";
 import { db } from "./lib/firebase";
 import GridItem from "./components/GridItem";
 import Admin from "./pages/Admin";
@@ -35,13 +35,24 @@ const imageMap: Record<string, string> = {
 interface ClassPost {
   id: string;
   title: string;
-  visuals: string;
   image: string;
   naverUrl: string;
-  originalPrice?: string;
   price: string;
+  imageUrl?: string;
+  visuals?: string;
+  category?: string;
+  originalPrice?: string;
   rating?: string;
   reviews?: string;
+  status?: "public" | "hidden";
+  isSoldOut?: boolean;
+}
+
+interface Notice {
+  id: string;
+  title: string;
+  content: string;
+  isActive: boolean;
 }
 
 const INITIAL_POSTS: ClassPost[] = [
@@ -73,6 +84,7 @@ function HomePage() {
   const [lang, setLang] = useState<"KOR" | "ENG">("KOR");
   const [view, setView] = useState<"landing" | "grid">("landing");
   const [posts, setPosts] = useState<ClassPost[]>(INITIAL_POSTS);
+  const [notices, setNotices] = useState<Notice[]>([]);
 
   useEffect(() => {
     const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
@@ -85,7 +97,20 @@ function HomePage() {
         setPosts(docs);
       }
     });
-    return () => unsubscribe();
+
+    const noticeQ = query(collection(db, "notices"), where("isActive", "==", true), orderBy("createdAt", "desc"));
+    const unsubscribeNotices = onSnapshot(noticeQ, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Notice[];
+      setNotices(docs);
+    });
+
+    return () => {
+      unsubscribe();
+      unsubscribeNotices();
+    };
   }, []);
 
   const handleLoadMore = () => {
@@ -98,7 +123,8 @@ function HomePage() {
     window.scrollTo(0, 0);
   };
 
-  const displayClasses = view === "grid" ? posts : posts.slice(0, 9);
+  const publicPosts = posts.filter(post => post.status !== "hidden");
+  const displayClasses = view === "grid" ? publicPosts : publicPosts.slice(0, 9);
 
   return (
     <div className="min-h-screen bg-zinc-50 flex justify-center selection:bg-black selection:text-white">
@@ -142,6 +168,19 @@ function HomePage() {
             </motion.button>
           )}
         </header>
+
+        {/* Notices Section */}
+        {notices.length > 0 && (
+          <div className="bg-black text-white py-4 px-6 md:px-12 flex items-center justify-between border-y border-white/10">
+            <div className="flex gap-6 items-center flex-grow overflow-hidden">
+              <span className="bg-white text-black px-2 py-0.5 text-[10px] font-black uppercase tracking-widest rounded-sm flex-shrink-0">Notice</span>
+              <div className="flex flex-col gap-1 overflow-hidden">
+                <span className="text-sm font-bold tracking-tight truncate">{notices[0].title}</span>
+                <span className="text-[11px] text-zinc-500 font-medium truncate">{notices[0].content}</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         <AnimatePresence mode="wait">
           {view === "landing" ? (
@@ -190,10 +229,12 @@ function HomePage() {
                     <GridItem 
                       key={item.id}
                       title={item.title}
-                      visuals={item.visuals}
+                      visuals={item.visuals || ""}
                       image={imageMap[item.image] || item.image || pastryImg}
+                      imageUrl={item.imageUrl}
                       naverUrl={item.naverUrl}
                       originalPrice={item.originalPrice}
+                      isSoldOut={item.isSoldOut}
                       price={item.price}
                       rating={item.rating}
                       reviews={item.reviews}
@@ -231,14 +272,16 @@ function HomePage() {
               {/* Main Grid */}
               <main className="border-y border-zinc-200">
                 <div className="grid grid-cols-1 md:grid-cols-3">
-                  {posts.map((item, idx) => (
+                  {publicPosts.map((item, idx) => (
                     <GridItem 
                       key={item.id}
                       title={item.title}
-                      visuals={item.visuals}
+                      visuals={item.visuals || ""}
                       image={imageMap[item.image] || item.image || pastryImg}
+                      imageUrl={item.imageUrl}
                       naverUrl={item.naverUrl}
                       originalPrice={item.originalPrice}
+                      isSoldOut={item.isSoldOut}
                       price={item.price}
                       rating={item.rating}
                       reviews={item.reviews}
