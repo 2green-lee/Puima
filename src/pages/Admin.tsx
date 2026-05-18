@@ -597,9 +597,10 @@ export default function Admin() {
                           zIndex: 50
                         }}
                         transition={{
-                          layout: { type: "spring", stiffness: 400, damping: 40 }
+                          layout: { type: "spring", stiffness: 500, damping: 30, mass: 0.8 },
+                          opacity: { duration: 0.2 }
                         }}
-                        className="bg-white px-4 py-2 rounded-xl border border-zinc-200 flex items-center gap-4 group hover:border-black/20 transition-all relative"
+                        className="bg-white px-4 py-2 rounded-xl border border-zinc-200 flex items-center gap-4 group hover:border-black/20 transition-[border-color,box-shadow,background-color] relative"
                       >
                         {/* Drag Handle */}
                         <div className="flex-shrink-0 text-zinc-300 cursor-grab active:cursor-grabbing hover:text-black transition-colors">
