@@ -1,4 +1,4 @@
-import { useState, useEffect, ChangeEvent, FormEvent } from "react";
+import { useState, useEffect, ChangeEvent, FormEvent, useRef } from "react";
 import { 
   collection, 
   addDoc, 
@@ -74,6 +74,7 @@ export default function Admin() {
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   
   const isDev = import.meta.env.DEV;
 
@@ -86,6 +87,25 @@ export default function Admin() {
       console.error("Auto-save failed:", err);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDrag = (_: any, info: any) => {
+    if (!containerRef.current || activeTab !== "manage") return;
+    
+    const container = containerRef.current;
+    const { top, bottom } = container.getBoundingClientRect();
+    const cursorY = info.point.y;
+    
+    const threshold = 100; 
+    const scrollSpeed = 10;
+    
+    if (cursorY < top + threshold) {
+      const intensity = (top + threshold - cursorY) / threshold;
+      container.scrollTop -= scrollSpeed * intensity;
+    } else if (cursorY > bottom - threshold) {
+      const intensity = (cursorY - (bottom - threshold)) / threshold;
+      container.scrollTop += scrollSpeed * intensity;
     }
   };
 
@@ -509,7 +529,7 @@ export default function Admin() {
         </header>
 
         {/* Content Area */}
-        <div className="flex-grow overflow-y-auto p-8">
+        <div ref={containerRef} className="flex-grow overflow-y-auto p-8 scroll-smooth">
           <div className="max-w-6xl mx-auto">
             <AnimatePresence mode="wait">
               {/* Class Management View */}
@@ -547,6 +567,7 @@ export default function Admin() {
                       <Reorder.Item 
                         key={post.id} 
                         value={post}
+                        onDrag={handleDrag}
                         className="bg-white p-6 rounded-[32px] border border-zinc-200 flex items-center gap-6 group hover:shadow-xl hover:shadow-black/5 hover:border-black/10 transition-all relative"
                       >
                         <div className="flex-shrink-0 text-zinc-300 cursor-grab active:cursor-grabbing hover:text-black transition-colors px-2">
