@@ -90,17 +90,17 @@ export default function Admin() {
       const { top, bottom } = container.getBoundingClientRect();
       const cursorY = dragY.current;
       
-      const threshold = 100;
-      const baseSpeed = 15;
+      const threshold = 120;
+      const maxSpeed = 25;
 
       if (cursorY < top + threshold) {
         const intensity = Math.max(0, (top + threshold - cursorY) / threshold);
-        container.scrollTop -= baseSpeed * intensity;
+        container.scrollTop -= maxSpeed * Math.pow(intensity, 1.5);
       } else if (cursorY > bottom - threshold) {
         const intensity = Math.max(0, (cursorY - (bottom - threshold)) / threshold);
-        container.scrollTop += baseSpeed * intensity;
+        container.scrollTop += maxSpeed * Math.pow(intensity, 1.5);
       }
-    }, 16); // ~60fps
+    }, 10); // Higher frequency for smoother scrolling
   };
 
   const stopAutoScroll = () => {
@@ -547,7 +547,7 @@ export default function Admin() {
         </header>
 
         {/* Content Area */}
-        <div ref={containerRef} className="flex-grow overflow-y-auto p-8 scroll-smooth">
+        <div ref={containerRef} className="flex-grow overflow-y-auto p-8">
           <div className="max-w-6xl mx-auto">
             <AnimatePresence mode="wait">
               {/* Class Management View */}
@@ -588,6 +588,18 @@ export default function Admin() {
                         onDragStart={startAutoScroll}
                         onDragEnd={stopAutoScroll}
                         onDrag={handleDrag}
+                        initial={{ opacity: 0, scale: 0.98 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.98 }}
+                        whileDrag={{ 
+                          scale: 1.02, 
+                          boxShadow: "0 20px 40px rgba(0,0,0,0.1)",
+                          zIndex: 50
+                        }}
+                        transition={{
+                          layout: { type: "spring", stiffness: 350, damping: 40 },
+                          opacity: { duration: 0.2 }
+                        }}
                         className="bg-white p-6 rounded-[32px] border border-zinc-200 flex items-center gap-6 group hover:shadow-xl hover:shadow-black/5 hover:border-black/10 transition-all relative"
                       >
                         <div className="flex-shrink-0 text-zinc-300 cursor-grab active:cursor-grabbing hover:text-black transition-colors px-2">
