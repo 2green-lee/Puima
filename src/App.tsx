@@ -87,7 +87,11 @@ function HomePage() {
   const [notices, setNotices] = useState<Notice[]>([]);
 
   useEffect(() => {
-    const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
+    const q = query(
+      collection(db, "posts"), 
+      orderBy("order", "asc"),
+      orderBy("createdAt", "desc")
+    );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
         const docs = snapshot.docs.map(doc => ({

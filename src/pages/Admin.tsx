@@ -16,9 +16,10 @@ import {
   ArrowLeft, Plus, Edit2, Trash2, Save, X, LogIn, LogOut, 
   LayoutDashboard, PlusCircle, Tag, Megaphone, MessageSquare,
   Users, Clock, ShieldCheck, HelpCircle, UserX, ChevronRight,
-  Menu, Bell, Settings, Search, Upload, Image as ImageIcon
+  Menu, Bell, Settings, Search, Upload, Image as ImageIcon,
+  GripVertical
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, Reorder } from "framer-motion";
 
 const ADMIN_EMAIL = "rtytgb123@gmail.com";
 
@@ -36,6 +37,7 @@ interface Post {
   reviews?: string;
   status?: "public" | "hidden";
   isSoldOut?: boolean;
+  order?: number;
 }
 
 interface Category {
@@ -104,7 +106,11 @@ export default function Admin() {
 
   useEffect(() => {
     if (user?.email === ADMIN_EMAIL || designMode) {
-      const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
+      const q = query(
+        collection(db, "posts"), 
+        orderBy("order", "asc"),
+        orderBy("createdAt", "desc")
+      );
       const unsubscribePosts = onSnapshot(q, (snapshot) => {
         const docs = snapshot.docs.map(doc => ({
           id: doc.id,
@@ -139,6 +145,26 @@ export default function Admin() {
       };
     }
   }, [user, designMode]);
+
+  const handleReorder = async (newOrder: Post[]) => {
+    setPosts(newOrder);
+    
+    // Batch update order in Firestore
+    try {
+      const updates = newOrder.map((post, index) => {
+        if (post.order !== index) {
+          return updateDoc(doc(db, "posts", post.id), { order: index });
+        }
+        return null;
+      }).filter(Boolean);
+      
+      if (updates.length > 0) {
+        await Promise.all(updates);
+      }
+    } catch (err) {
+      console.error("Failed to update order:", err);
+    }
+  };
 
   const handleAddNotice = async (e: FormEvent) => {
     e.preventDefault();
@@ -206,6 +232,9 @@ export default function Admin() {
       } else {
         await addDoc(collection(db, "posts"), {
           ...data,
+          order: posts.length,
+          status: "public",
+          isSoldOut: false,
           createdAt: serverTimestamp(),
         });
       }
@@ -255,12 +284,14 @@ export default function Admin() {
         }
       }
 
-      // Add Posts with default status
-      for (const post of INITIAL_POSTS) {
+      // Add Posts with default status and order
+      for (let i = 0; i < INITIAL_POSTS.length; i++) {
+        const post = INITIAL_POSTS[i];
         await addDoc(collection(db, "posts"), {
           ...post,
           status: "public",
           isSoldOut: false,
+          order: i,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
@@ -531,16 +562,29 @@ export default function Admin() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-4">
+                  <Reorder.Group 
+                    axis="y" 
+                    values={posts} 
+                    onReorder={handleReorder}
+                    className="grid grid-cols-1 gap-4"
+                  >
                     {posts.map(post => (
-                      <div key={post.id} className="bg-white p-6 rounded-[32px] border border-zinc-200 flex items-center gap-6 group hover:shadow-xl hover:shadow-black/5 hover:border-black/10 transition-all relative">
+                      <Reorder.Item 
+                        key={post.id} 
+                        value={post}
+                        className="bg-white p-6 rounded-[32px] border border-zinc-200 flex items-center gap-6 group hover:shadow-xl hover:shadow-black/5 hover:border-black/10 transition-all relative"
+                      >
+                        <div className="flex-shrink-0 text-zinc-300 cursor-grab active:cursor-grabbing hover:text-black transition-colors px-2">
+                          <GripVertical size={20} />
+                        </div>
+
                         <div className="w-24 h-24 bg-zinc-50 rounded-2xl overflow-hidden flex-shrink-0 border border-zinc-100 flex items-center justify-center">
-                    {post.imageUrl ? (
-                      <img src={post.imageUrl} alt={post.title} className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-[10px] font-black uppercase tracking-tighter text-zinc-300">{post.image}</span>
-                    )}
-                  </div>
+                          {post.imageUrl ? (
+                            <img src={post.imageUrl} alt={post.title} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-[10px] font-black uppercase tracking-tighter text-zinc-300">{post.image}</span>
+                          )}
+                        </div>
                         <div className="flex-grow">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">{post.category || "No Category"}</span>
@@ -593,10 +637,11 @@ export default function Admin() {
                             <Trash2 size={18} />
                           </button>
                         </div>
-                      </div>
+                      </Reorder.Item>
                     ))}
-                    
-                    {posts.length === 0 && (
+                  </Reorder.Group>
+                  
+                  {posts.length === 0 && (
                       <div className="text-center py-32 bg-zinc-50 border-2 border-dashed border-zinc-200 rounded-[40px] flex flex-col items-center">
                         <p className="text-zinc-400 text-sm font-medium mb-6">데이터가 없습니다.<br />새로운 마스터클래스를 등록하거나 초기 데이터를 가져오세요.</p>
                         <div className="flex gap-3">
@@ -615,9 +660,8 @@ export default function Admin() {
                         </div>
                       </div>
                     )}
-                  </div>
-                </motion.div>
-              )}
+                  </motion.div>
+                )}
 
               {/* Class Registration/Edit View */}
               {activeTab === "register" && (
