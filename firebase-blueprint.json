@@ -1,0 +1,28 @@
+{
+  "entities": {
+    "Post": {
+      "title": "Class Post",
+      "description": "A class or product listing on the main grid.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "The title of the class" },
+        "visuals": { "type": "string", "description": "Description of visuals or category" },
+        "image": { "type": "string", "description": "URL of the image (or path)" },
+        "naverUrl": { "type": "string", "description": "Link to Naver store" },
+        "originalPrice": { "type": "string", "description": "Original price (optional)" },
+        "price": { "type": "string", "description": "Current price" },
+        "rating": { "type": "string", "description": "Rating out of 5" },
+        "reviews": { "type": "string", "description": "Number of reviews" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "price", "naverUrl"]
+    }
+  },
+  "firestore": {
+    "/posts/{postId}": {
+      "schema": "Post",
+      "description": "Collection of all class posts"
+    }
+  }
+}

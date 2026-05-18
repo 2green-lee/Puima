@@ -1,0 +1,8 @@
+{
+  "name": "puima - Premium Dessert & Baking Classes",
+  "description": "High-end dessert brand puima's official website featuring online baking classes and luxury confectionery.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
