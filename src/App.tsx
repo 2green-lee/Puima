@@ -44,21 +44,46 @@ interface ClassPost {
   reviews?: string;
 }
 
+const INITIAL_POSTS: ClassPost[] = [
+  { id: "1", title: "[마스터 클래스] 포카치아", visuals: "Deep character baking", image: "pastryImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", originalPrice: "₩69,900", price: "₩49,900" },
+  { id: "2", title: "[마스터 클래스] 데이지", visuals: "Elegant floral design", image: "cakeImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", originalPrice: "₩49,900", price: "₩39,900" },
+  { id: "3", title: "[특강] 에그타르트(쉬운 버전)", visuals: "Simple & Crispy", image: "heroImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900" },
+  { id: "4", title: "[마스터 클래스] 카페 앙브레", visuals: "Rich aromatic experience", image: "macaronsImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩49,900" },
+  { id: "5", title: "[마스터 클래스] 까눌레", visuals: "Classic French texture", image: "pastryImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩49,900" },
+  { id: "6", title: "[특강] 말차 쉬폰 케이크", visuals: "Light & Airy", image: "cakeImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", originalPrice: "₩39,900", price: "₩29,900" },
+  { id: "7", title: "[파티쉐 클래스] 10강 100% 피스타치오 (글라사주)", visuals: "Professional glazing tech", image: "heroImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900" },
+  { id: "8", title: "[파티쉐 클래스] 9강 마카롱 (이탈리안 머랭vs프렌치 머랭)", visuals: "Mastering textures", image: "macaronsImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900" },
+  { id: "9", title: "[파티쉐 클래스] 8강 사계절 파운드 (4종류)", visuals: "Year-round variety", image: "pastryImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900", rating: "5", reviews: "12" },
+  { id: "10", title: "[마스터 클래스] 에떼 뻬쉬", visuals: "Summer peach flavor", image: "cakeImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩49,900", rating: "5", reviews: "3" },
+  { id: "11", title: "[파티쉐 클래스] 7강 오렌지 민트 타르트 (퐁사주)", visuals: "Refreshing citrus", image: "heroImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900", rating: "5", reviews: "4" },
+  { id: "12", title: "[파티쉐 클래스] 6강 에그타르트 & 밀푀유", visuals: "Classic puff pastry", image: "macaronsImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900", rating: "4.88", reviews: "48" },
+  { id: "13", title: "[파티쉐 클래스] 5강 바닐라 무스 (무스 케이크)", visuals: "Silky smooth vanilla", image: "pastryImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900", rating: "5", reviews: "14" },
+  { id: "14", title: "[마스터 클래스] 유자 치즈케이크", visuals: "Zesty & Creamy", image: "cakeImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩49,900", rating: "4.94", reviews: "18" },
+  { id: "15", title: "[파티쉐 클래스] 4강 파리 브레스트 (파트 아 슈)", visuals: "French hazelnut classic", image: "heroImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900", rating: "5", reviews: "13" },
+  { id: "16", title: "[마스터 클래스] 둘세 무스 케이크", visuals: "Caramelized chocolate", image: "macaronsImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩49,900", rating: "5", reviews: "16" },
+  { id: "17", title: "[파티쉐 클래스] 3강 샌드쿠키 (사블레 vs 슈크레)", visuals: "Cookie base comparison", image: "pastryImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900", rating: "5", reviews: "25" },
+  { id: "18", title: "[파티쉐 클래스] 2강 프레지에", visuals: "Seasonal strawberry", image: "cakeImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900", rating: "4.96", reviews: "26" },
+  { id: "19", title: "[무료강의] 체리 다쿠아즈", visuals: "Free introductory class", image: "heroImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩10", rating: "4.94", reviews: "62" },
+  { id: "20", title: "[파티쉐 클래스] 1강 구움과자 (휘낭시에&마들렌)", visuals: "Fundamental tea cakes", image: "macaronsImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩49,900", rating: "4.9", reviews: "100" },
+  { id: "21", title: "[마스터 클래스] 딸기 크림치즈 타르트", visuals: "Rich & Sweet pairing", image: "pastryImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩49,900", rating: "4.95", reviews: "19" },
+  { id: "22", title: "[택배배송] 푸이마 휘낭시에 세트", visuals: "Fresh seasonal set", image: "cakeImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", originalPrice: "₩3,000", price: "₩2,700", rating: "4.98", reviews: "269" }
+];
+
 function HomePage() {
   const [lang, setLang] = useState<"KOR" | "ENG">("KOR");
   const [view, setView] = useState<"landing" | "grid">("landing");
-  const [posts, setPosts] = useState<ClassPost[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [posts, setPosts] = useState<ClassPost[]>(INITIAL_POSTS);
 
   useEffect(() => {
     const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as ClassPost[];
-      setPosts(docs);
-      setLoading(false);
+      if (!snapshot.empty) {
+        const docs = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as ClassPost[];
+        setPosts(docs);
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -74,8 +99,6 @@ function HomePage() {
   };
 
   const displayClasses = view === "grid" ? posts : posts.slice(0, 9);
-
-  if (loading) return <div className="min-h-screen bg-white flex items-center justify-center font-bold">Loading...</div>;
 
   return (
     <div className="min-h-screen bg-zinc-50 flex justify-center selection:bg-black selection:text-white">
