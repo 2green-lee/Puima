@@ -340,16 +340,79 @@ function HomePage() {
           </div>
         </section>
 
-        <footer className="py-12 flex flex-col items-center gap-8 border-t border-zinc-100">
-          <p className="text-[13px] font-bold uppercase tracking-widest text-zinc-400">
-            © PUIMA ATELIER, 2024
-          </p>
-          <button 
-            onClick={() => window.location.href='/admin'} 
-            className="text-[10px] text-zinc-300 hover:text-zinc-600 transition-colors uppercase tracking-widest"
-          >
-            Admin Access
-          </button>
+        <footer className="bg-zinc-50 border-t border-zinc-200 pt-16 pb-24 px-6 md:px-12">
+          <div className="max-w-[1200px] mx-auto">
+            {/* Upper Links */}
+            <div className="flex flex-wrap gap-x-4 gap-y-2 mb-10 text-[11px] font-bold text-zinc-500 uppercase tracking-tighter">
+              <a href="#" className="hover:text-black transition-colors">이용약관</a>
+              <span className="text-zinc-300">|</span>
+              <a href="#" className="hover:text-black transition-colors text-black">개인정보처리방침</a>
+              <span className="text-zinc-300">|</span>
+              <a href="#" className="hover:text-black transition-colors">법적고지</a>
+              <span className="text-zinc-300">|</span>
+              <a href="#" className="hover:text-black transition-colors">입점안내</a>
+              <span className="text-zinc-300">|</span>
+              <a href="#" className="hover:text-black transition-colors">안전거래센터</a>
+              <span className="text-zinc-300">|</span>
+              <a href="#" className="hover:text-black transition-colors">고객센터</a>
+            </div>
+
+            {/* Platform Disclaimer */}
+            <div className="mb-10 pb-10 border-b border-zinc-200">
+              <p className="text-[11px] leading-relaxed text-zinc-400 font-medium">
+                푸이마(PUIMA)는 통신판매중개자이며, 통신판매의 당사자가 아닙니다. 게시된 상품, 상품정보, 거래에 관한 의무와 책임은 각 판매자에게 있습니다.<br />
+                소비자 보호를 위해 안전한 거래 환경을 제공하며, 모든 클래스는 정식 라이선스 계약을 통해 운영됩니다.
+              </p>
+            </div>
+
+            {/* Business Details Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12 mb-16">
+              <div className="space-y-4">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Business Info</h4>
+                <div className="text-[11px] leading-relaxed text-zinc-600 space-y-1">
+                  <p><span className="text-zinc-400">상호명 :</span> 푸이마 아틀리에 (PUIMA ATELIER)</p>
+                  <p><span className="text-zinc-400">대표이사 :</span> 최수연 (Puima Choi)</p>
+                  <p><span className="text-zinc-400">사업자등록번호 :</span> 220-81-62517</p>
+                  <p><span className="text-zinc-400">통신판매업신고 :</span> 제2024-서울강남-0000호</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Contact & Address</h4>
+                <div className="text-[11px] leading-relaxed text-zinc-600 space-y-1">
+                  <p><span className="text-zinc-400">주소 :</span> 서울특별시 강남구 도산대로 1784, PUIMA 빌딩</p>
+                  <p><span className="text-zinc-400">이메일 :</span> support@puima-atelier.com</p>
+                  <p><span className="text-zinc-400">호스팅 서비스 제공 :</span> Google Cloud / Vercel</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Customer Support</h4>
+                <div className="text-[11px] leading-relaxed text-zinc-600 space-y-1">
+                  <p className="text-lg font-black text-black">1588-3820</p>
+                  <p><span className="text-zinc-400">운영시간 :</span> 평일 10:00 - 18:00 (주말/공휴일 제외)</p>
+                  <p><span className="text-zinc-400">점심시간 :</span> 12:30 - 13:30</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Bar */}
+            <div className="flex flex-col md:flex-row justify-between items-center gap-6 pt-10 border-t border-zinc-200">
+              <div className="flex items-center gap-6">
+                <span className="text-xl font-black tracking-tighter uppercase">Puima</span>
+                <p className="text-[10px] font-bold text-zinc-400 tracking-widest">
+                  COPYRIGHT © PUIMA ATELIER. ALL RIGHTS RESERVED.
+                </p>
+              </div>
+              
+              <button 
+                onClick={() => window.location.href='/admin'} 
+                className="text-[9px] font-bold text-zinc-300 hover:text-black transition-all uppercase tracking-widest border border-zinc-200 px-4 py-2 rounded-full hover:border-black"
+              >
+                Admin Panel
+              </button>
+            </div>
+          </div>
         </footer>
       </div>
     </div>

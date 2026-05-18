@@ -255,65 +255,6 @@ export default function Admin() {
     });
   };
 
-  const handleSeedData = async () => {
-    if (!confirm("홈페이지에 표시되는 초기 데이터를 관리자 데이터베이스로 가져오시겠습니까?")) return;
-    
-    const INITIAL_POSTS = [
-      { title: "[마스터 클래스] 포카치아", visuals: "Deep character baking", image: "pastryImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", originalPrice: "₩69,900", price: "₩49,900", category: "마스터 클래스" },
-      { title: "[마스터 클래스] 데이지", visuals: "Elegant floral design", image: "cakeImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", originalPrice: "₩49,900", price: "₩39,900", category: "마스터 클래스" },
-      { title: "[특강] 에그타르트(쉬운 버전)", visuals: "Simple & Crispy", image: "heroImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900", category: "특강" },
-      { title: "[마스터 클래스] 카페 앙브레", visuals: "Rich aromatic experience", image: "macaronsImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩49,900", category: "마스터 클래스" },
-      { title: "[마스터 클래스] 까눌레", visuals: "Classic French texture", image: "pastryImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩49,900", category: "마스터 클래스" },
-      { title: "[특강] 말차 쉬폰 케이크", visuals: "Light & Airy", image: "cakeImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", originalPrice: "₩39,900", price: "₩29,900", category: "특강" },
-      { title: "[파티쉐 클래스] 10강 100% 피스타치오 (글라사주)", visuals: "Professional glazing tech", image: "heroImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900", category: "파티쉐 클래스" },
-      { title: "[파티쉐 클래스] 9강 마카롱 (이탈리안 머랭vs프렌치 머랭)", visuals: "Mastering textures", image: "macaronsImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900", category: "파티쉐 클래스" },
-      { title: "[파티쉐 클래스] 8강 사계절 파운드 (4종류)", visuals: "Year-round variety", image: "pastryImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900", rating: "5", reviews: "12", category: "파티쉐 클래스" },
-      { title: "[마스터 클래스] 에떼 뻬쉬", visuals: "Summer peach flavor", image: "cakeImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩49,900", rating: "5", reviews: "3", category: "마스터 클래스" },
-      { title: "[파티쉐 클래스] 7강 오렌지 민트 타르트 (퐁사주)", visuals: "Refreshing citrus", image: "heroImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900", rating: "5", reviews: "4", category: "파티쉐 클래스" },
-      { title: "[파티쉐 클래스] 6강 에그타르트 & 밀푀유", visuals: "Classic puff pastry", image: "macaronsImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900", rating: "4.88", reviews: "48", category: "파티쉐 클래스" },
-      { title: "[파티쉐 클래스] 5강 바닐라 무스 (무스 케이크)", visuals: "Silky smooth vanilla", image: "pastryImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900", rating: "5", reviews: "14", category: "파티쉐 클래스" },
-      { title: "[마스터 클래스] 유자 치즈케이크", visuals: "Zesty & Creamy", image: "cakeImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩49,900", rating: "4.94", reviews: "18", category: "마스터 클래스" },
-      { title: "[파티쉐 클래스] 4강 파리 브레스트 (파트 아 슈)", visuals: "French hazelnut classic", image: "heroImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900", rating: "5", reviews: "13", category: "파티쉐 클래스" },
-      { title: "[마스터 클래스] 둘세 무스 케이크", visuals: "Caramelized chocolate", image: "macaronsImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩49,900", rating: "5", reviews: "16", category: "마스터 클래스" },
-      { title: "[파티쉐 클래스] 3강 샌드쿠키 (사블레 vs 슈크레)", visuals: "Cookie base comparison", image: "pastryImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900", rating: "5", reviews: "25", category: "파티쉐 클래스" },
-      { title: "[파티쉐 클래스] 2강 프레지에", visuals: "Seasonal strawberry", image: "cakeImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900", rating: "4.96", reviews: "26", category: "파티쉐 클래스" },
-      { title: "[무료강의] 체리 다쿠아즈", visuals: "Free introductory class", image: "heroImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩10", rating: "4.94", reviews: "62", category: "무료강의" },
-      { title: "[파티쉐 클래스] 1강 구움과자 (휘낭시에&마들렌)", visuals: "Fundamental tea cakes", image: "macaronsImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩49,900", rating: "4.9", reviews: "100", category: "파티쉐 클래스" },
-      { title: "[마스터 클래스] 딸기 크림치즈 타르트", visuals: "Rich & Sweet pairing", image: "pastryImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩49,900", rating: "4.95", reviews: "19", category: "마스터 클래스" },
-      { title: "[택배배송] 푸이마 휘낭시에 세트", visuals: "Fresh seasonal set", image: "cakeImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", originalPrice: "₩3,000", price: "₩2,700", rating: "4.98", reviews: "269", category: "택배배송" }
-    ];
-
-    setLoading(true);
-    try {
-      // Add Categories first
-      const cats = ["마스터 클래스", "파티쉐 클래스", "특강", "무료강의", "택배배송"];
-      for (const cat of cats) {
-        if (!categories.find(c => c.name === cat)) {
-          await addDoc(collection(db, "categories"), { name: cat });
-        }
-      }
-
-      // Add Posts with default status and order
-      for (let i = 0; i < INITIAL_POSTS.length; i++) {
-        const post = INITIAL_POSTS[i];
-        await addDoc(collection(db, "posts"), {
-          ...post,
-          status: "public",
-          isSoldOut: false,
-          order: i,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-      }
-      alert("데이터를 성공적으로 가져왔습니다.");
-    } catch (err) {
-      console.error(err);
-      alert("데이터를 가져오는 중 오류가 발생했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleToggleStatus = async (id: string, current: string) => {
     handleAutoSaveAction(async () => {
       await updateDoc(doc(db, "posts", id), { 
@@ -587,13 +528,6 @@ export default function Admin() {
                     </div>
                     <div className="flex gap-3">
                       <button 
-                        onClick={handleSeedData}
-                        className="bg-white border border-zinc-200 px-6 py-3 rounded-2xl font-bold text-xs hover:border-black transition-all flex items-center gap-2"
-                      >
-                        <ImageIcon size={16} />
-                        Sync Initial Data
-                      </button>
-                      <button 
                         onClick={() => setActiveTab("register")}
                         className="bg-black text-white px-6 py-3 rounded-2xl font-bold text-sm hover:bg-zinc-800 transition-all active:scale-95 flex items-center gap-2"
                       >
@@ -684,19 +618,13 @@ export default function Admin() {
                   
                   {posts.length === 0 && (
                       <div className="text-center py-32 bg-zinc-50 border-2 border-dashed border-zinc-200 rounded-[40px] flex flex-col items-center">
-                        <p className="text-zinc-400 text-sm font-medium mb-6">데이터가 없습니다.<br />새로운 마스터클래스를 등록하거나 초기 데이터를 가져오세요.</p>
+                        <p className="text-zinc-400 text-sm font-medium mb-6">데이터가 없습니다.<br />새로운 마스터클래스를 등록해보세요.</p>
                         <div className="flex gap-3">
                           <button 
                             onClick={() => setActiveTab("register")}
                             className="bg-black text-white px-8 py-3 rounded-full text-xs font-bold hover:bg-zinc-800 transition-all"
                           >
                             New Class
-                          </button>
-                          <button 
-                            onClick={handleSeedData}
-                            className="bg-white border border-zinc-200 px-8 py-3 rounded-full text-xs font-bold hover:border-black transition-all"
-                          >
-                            Import Default Data
                           </button>
                         </div>
                       </div>
