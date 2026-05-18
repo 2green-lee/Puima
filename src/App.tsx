@@ -297,6 +297,12 @@ function HomePage() {
           <p className="text-[13px] font-bold uppercase tracking-widest text-zinc-400">
             © PUIMA ATELIER, 2024
           </p>
+          <button 
+            onClick={() => window.location.href='/admin'} 
+            className="text-[10px] text-zinc-300 hover:text-zinc-600 transition-colors uppercase tracking-widest"
+          >
+            Admin Access
+          </button>
         </footer>
       </div>
     </div>
