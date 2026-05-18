@@ -71,8 +71,23 @@ export default function Admin() {
   const [activeTab, setActiveTab] = useState<TabType>("manage");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
   
   const isDev = import.meta.env.DEV;
+
+  const handleAutoSaveAction = async (action: () => Promise<any>) => {
+    setIsSaving(true);
+    try {
+      await action();
+      setLastSaved(new Date());
+    } catch (err) {
+      console.error("Auto-save failed:", err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -150,7 +165,7 @@ export default function Admin() {
     setPosts(newOrder);
     
     // Batch update order in Firestore
-    try {
+    handleAutoSaveAction(async () => {
       const updates = newOrder.map((post, index) => {
         if (post.order !== index) {
           return updateDoc(doc(db, "posts", post.id), { order: index });
@@ -161,61 +176,57 @@ export default function Admin() {
       if (updates.length > 0) {
         await Promise.all(updates);
       }
-    } catch (err) {
-      console.error("Failed to update order:", err);
-    }
+    });
   };
 
   const handleAddNotice = async (e: FormEvent) => {
     e.preventDefault();
     if (!newNotice.title.trim() || !newNotice.content.trim()) return;
-    try {
+    handleAutoSaveAction(async () => {
       await addDoc(collection(db, "notices"), {
         ...newNotice,
         createdAt: serverTimestamp(),
         isActive: true
       });
       setNewNotice({ title: "", content: "" });
-    } catch (err) {
-      console.error(err);
-    }
+    });
   };
 
   const handleDeleteNotice = async (id: string) => {
     if (!confirm("이 공지사항을 삭제하시겠습니까?")) return;
-    try {
+    handleAutoSaveAction(async () => {
       await deleteDoc(doc(db, "notices", id));
-    } catch (err) {
-      console.error(err);
-    }
+    });
   };
 
   const handleToggleNotice = async (id: string, current: boolean) => {
-    try {
+    handleAutoSaveAction(async () => {
       await updateDoc(doc(db, "notices", id), { isActive: !current });
-    } catch (err) {
-      console.error(err);
-    }
+    });
   };
 
   const handleAddCategory = async (e: FormEvent) => {
     e.preventDefault();
     if (!newCategoryName.trim()) return;
-    try {
+    handleAutoSaveAction(async () => {
       await addDoc(collection(db, "categories"), { name: newCategoryName.trim() });
       setNewCategoryName("");
-    } catch (err) {
-      console.error(err);
-    }
+    });
+  };
+
+  const handleUpdateCategory = async (id: string, newName: string) => {
+    if (!newName.trim()) return;
+    handleAutoSaveAction(async () => {
+      await updateDoc(doc(db, "categories", id), { name: newName.trim() });
+      setEditingCategory(null);
+    });
   };
 
   const handleDeleteCategory = async (id: string) => {
     if (!confirm("이 카테고리를 삭제하시겠습니까?")) return;
-    try {
+    handleAutoSaveAction(async () => {
       await deleteDoc(doc(db, "categories", id));
-    } catch (err) {
-      console.error(err);
-    }
+    });
   };
 
   const handleSave = async () => {
@@ -226,7 +237,7 @@ export default function Admin() {
       updatedAt: serverTimestamp(),
     };
 
-    try {
+    handleAutoSaveAction(async () => {
       if (editingId) {
         await updateDoc(doc(db, "posts", editingId), data);
       } else {
@@ -241,9 +252,7 @@ export default function Admin() {
       setEditingId(null);
       setFormData({});
       setActiveTab("manage");
-    } catch (error) {
-      console.error("Error saving post:", error);
-    }
+    });
   };
 
   const handleSeedData = async () => {
@@ -306,30 +315,24 @@ export default function Admin() {
   };
 
   const handleToggleStatus = async (id: string, current: string) => {
-    try {
+    handleAutoSaveAction(async () => {
       await updateDoc(doc(db, "posts", id), { 
         status: current === "hidden" ? "public" : "hidden" 
       });
-    } catch (err) {
-      console.error(err);
-    }
+    });
   };
 
   const handleToggleSoldOut = async (id: string, current: boolean) => {
-    try {
+    handleAutoSaveAction(async () => {
       await updateDoc(doc(db, "posts", id), { isSoldOut: !current });
-    } catch (err) {
-      console.error(err);
-    }
+    });
   };
 
   const handleDelete = async (id: string) => {
     if (window.confirm("Delete this post?")) {
-      try {
+      handleAutoSaveAction(async () => {
         await deleteDoc(doc(db, "posts", id));
-      } catch (error) {
-        console.error("Error deleting post:", error);
-      }
+      });
     }
   };
 
@@ -496,9 +499,47 @@ export default function Admin() {
             <a href="/" className="p-2 hover:bg-zinc-100 rounded-xl transition-all">
               <ArrowLeft size={20} />
             </a>
-            <h2 className="text-lg font-black tracking-tighter uppercase">
-              {sidebarItems.flatMap(s => s.items).find(i => i.id === activeTab)?.label}
-            </h2>
+            <div className="flex items-center gap-4">
+              <h2 className="text-lg font-black tracking-tighter uppercase whitespace-nowrap">
+                {sidebarItems.flatMap(s => s.items).find(i => i.id === activeTab)?.label}
+              </h2>
+              
+              {/* Auto-save Status Indicator */}
+              <div className="hidden lg:flex items-center gap-2 pl-4 border-l border-zinc-200">
+                <AnimatePresence mode="wait">
+                  {isSaving ? (
+                    <motion.div 
+                      key="saving"
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -5 }}
+                      className="flex items-center gap-2"
+                    >
+                      <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Syncing...</span>
+                    </motion.div>
+                  ) : lastSaved ? (
+                    <motion.div 
+                      key="saved"
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -5 }}
+                      className="flex items-center gap-2"
+                    >
+                      <ShieldCheck size={14} className="text-green-500" />
+                      <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                        Saved at {lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      </span>
+                    </motion.div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-zinc-200 rounded-full"></div>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">All changes saved</span>
+                    </div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
           </div>
           
           <div className="flex items-center gap-6">
@@ -856,7 +897,25 @@ export default function Admin() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                     {categories.map(cat => (
                       <div key={cat.id} className="bg-white p-4 pl-6 rounded-2xl border border-zinc-200 flex items-center justify-between group hover:border-black transition-all">
-                        <span className="font-bold text-sm">{cat.name}</span>
+                        {editingCategory === cat.id ? (
+                          <input 
+                            autoFocus
+                            defaultValue={cat.name}
+                            onBlur={(e) => handleUpdateCategory(cat.id, e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleUpdateCategory(cat.id, e.currentTarget.value);
+                              if (e.key === 'Escape') setEditingCategory(null);
+                            }}
+                            className="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0"
+                          />
+                        ) : (
+                          <span 
+                            onClick={() => setEditingCategory(cat.id)}
+                            className="font-bold text-sm cursor-pointer hover:text-blue-600 transition-colors"
+                          >
+                            {cat.name}
+                          </span>
+                        )}
                         <button 
                           onClick={() => handleDeleteCategory(cat.id)}
                           className="p-2 text-zinc-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
