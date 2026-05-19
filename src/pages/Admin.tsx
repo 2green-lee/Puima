@@ -11,13 +11,14 @@ import {
   serverTimestamp 
 } from "firebase/firestore";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { db, auth, loginWithGoogle, logout } from "../lib/firebase";
+import { db, auth, loginWithGoogle, logout, handleFirestoreError, OperationType } from "../lib/firebase";
+import { useAuth } from "../contexts/AuthContext";
 import { 
   ArrowLeft, Plus, Edit2, Trash2, Save, X, LogIn, LogOut, 
   LayoutDashboard, PlusCircle, Tag, Megaphone, MessageSquare,
   Users, Clock, ShieldCheck, HelpCircle, UserX, ChevronRight,
   Menu, Bell, Settings, Search, Upload, Image as ImageIcon,
-  GripVertical
+  GripVertical, Eye
 } from "lucide-react";
 import { motion, AnimatePresence, Reorder } from "framer-motion";
 
@@ -58,7 +59,7 @@ type TabType =
   | "users" | "history" | "roles" | "inquiry" | "blacklist";
 
 export default function Admin() {
-  const [user, setUser] = useState<User | null>(null);
+  const { user, loading, isAdmin } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
@@ -66,7 +67,7 @@ export default function Admin() {
   const [newCategoryName, setNewCategoryName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<Post>>({});
-  const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true);
   const [designMode, setDesignMode] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("manage");
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -197,15 +198,7 @@ export default function Admin() {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (user?.email === ADMIN_EMAIL || designMode) {
+    if (user?.email === ADMIN_EMAIL || isAdmin || designMode) {
       const q = query(
         collection(db, "posts"), 
         orderBy("order", "asc"),
@@ -217,7 +210,7 @@ export default function Admin() {
           ...doc.data()
         })) as Post[];
         setPosts(docs);
-        setLoading(false);
+        setDataLoading(false);
       });
 
       const catQ = query(collection(db, "categories"), orderBy("name", "asc"));
@@ -399,7 +392,7 @@ export default function Admin() {
     ]}
   ];
 
-  if (loading) return (
+  if (loading || dataLoading) return (
     <div className="min-h-screen bg-white flex items-center justify-center">
       <motion.h1 
         animate={{ opacity: [0.3, 1, 0.3] }}
@@ -411,7 +404,7 @@ export default function Admin() {
     </div>
   );
 
-  if (!designMode && (!user || user.email !== ADMIN_EMAIL)) {
+  if (!designMode && (!user || (!isAdmin && user.email !== ADMIN_EMAIL))) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-50 p-6">
         <div className="max-w-md w-full bg-white p-8 rounded-[32px] shadow-sm border border-zinc-200">
@@ -522,13 +515,27 @@ export default function Admin() {
         {/* Top Header */}
         <header className="h-20 bg-white/80 backdrop-blur-md border-b border-zinc-200 px-8 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-4">
-            <a href="/" className="p-2 hover:bg-zinc-100 rounded-xl transition-all">
-              <ArrowLeft size={20} />
-            </a>
+            <button 
+              onClick={() => window.location.href = '/'} 
+              className="group flex items-center gap-2 pr-6 border-r border-zinc-200 mr-2"
+            >
+              <div className="w-8 h-8 bg-zinc-50 rounded-lg flex items-center justify-center text-zinc-400 group-hover:bg-black group-hover:text-white transition-all">
+                <ArrowLeft size={16} />
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 group-hover:text-black transition-colors">Site</span>
+            </button>
             <div className="flex items-center gap-4">
               <h2 className="text-lg font-black tracking-tighter uppercase whitespace-nowrap">
                 {sidebarItems.flatMap(s => s.items).find(i => i.id === activeTab)?.label}
               </h2>
+
+              <button 
+                onClick={() => window.open('/', '_blank')}
+                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-zinc-50 hover:bg-black hover:text-white text-zinc-400 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ml-4"
+              >
+                <Eye size={14} />
+                Preview Site
+              </button>
               
               {/* Auto-save Status Indicator */}
               <div className="hidden lg:flex items-center gap-2 pl-4 border-l border-zinc-200">

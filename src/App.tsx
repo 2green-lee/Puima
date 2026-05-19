@@ -5,12 +5,37 @@
 
 import { Youtube, Instagram, MessageCircle, ChevronDown, Settings, ArrowRight, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { collection, onSnapshot, query, orderBy, where } from "firebase/firestore";
 import { db } from "./lib/firebase";
 import GridItem from "./components/GridItem";
 import Admin from "./pages/Admin";
+import Login from "./pages/Login";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
+
+const ProtectedRoute = ({ children, adminOnly = false }: { children: React.ReactNode, adminOnly?: boolean }) => {
+  const { user, loading, isAdmin } = useAuth();
+  
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="w-8 h-8 border-2 border-zinc-100 border-t-black rounded-full animate-spin"></div>
+    </div>
+  );
+  
+  if (!user) return <Login />;
+  if (adminOnly && !isAdmin) return (
+    <div className="min-h-screen flex items-center justify-center bg-white p-6 text-center">
+      <div>
+        <h1 className="text-2xl font-black mb-4">Access Denied</h1>
+        <p className="text-zinc-500 mb-8">You do not have administrative privileges.</p>
+        <button onClick={() => window.location.href = '/'} className="px-8 py-3 bg-black text-white rounded-full text-xs font-black uppercase tracking-widest">Back Home</button>
+      </div>
+    </div>
+  );
+  
+  return <>{children}</>;
+};
 
 const NaverIcon = ({ size = 18 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -62,6 +87,7 @@ const INITIAL_POSTS: ClassPost[] = [
   { id: "4", title: "[마스터 클래스] 카페 앙브레", category: "Masterclass", visuals: "Rich aromatic experience", image: "macaronsImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩49,900" },
   { id: "5", title: "[마스터 클래스] 까눌레", category: "Masterclass", visuals: "Classic French texture", image: "pastryImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩49,900" },
   { id: "6", title: "[특강] 말차 쉬폰 케이크", category: "One-day", visuals: "Light & Airy", image: "cakeImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", originalPrice: "₩39,900", price: "₩29,900" },
+  { id: "16", title: "[마스터 클래스] 둘세 무스 케이크", category: "Masterclass", visuals: "Caramelized chocolate", image: "macaronsImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩49,900" },
   { id: "7", title: "[파티쉐 클래스] 10강 100% 피스타치오 (글라사주)", category: "Patissier", visuals: "Professional glazing tech", image: "heroImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900" },
   { id: "8", title: "[파티쉐 클래스] 9강 마카롱 (이탈리안 머랭vs프렌치 머랭)", category: "Patissier", visuals: "Mastering textures", image: "macaronsImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900" },
   { id: "9", title: "[파티쉐 클래스] 8강 사계절 파운드 (4종류)", category: "Patissier", visuals: "Year-round variety", image: "pastryImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900" },
@@ -71,7 +97,6 @@ const INITIAL_POSTS: ClassPost[] = [
   { id: "13", title: "[파티쉐 클래스] 5강 바닐라 무스 (무스 케이크)", category: "Patissier", visuals: "Silky smooth vanilla", image: "pastryImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900" },
   { id: "14", title: "[마스터 클래스] 유자 치즈케이크", category: "Masterclass", visuals: "Zesty & Creamy", image: "cakeImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩49,900" },
   { id: "15", title: "[파티쉐 클래스] 4강 파리 브레스트 (파트 아 슈)", category: "Patissier", visuals: "French hazelnut classic", image: "heroImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900" },
-  { id: "16", title: "[마스터 클래스] 둘세 무스 케이크", category: "Masterclass", visuals: "Caramelized chocolate", image: "macaronsImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩49,900" },
   { id: "17", title: "[파티쉐 클래스] 3강 샌드쿠키 (사블레 vs 슈크레)", category: "Patissier", visuals: "Cookie base comparison", image: "pastryImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900" },
   { id: "18", title: "[파티쉐 클래스] 2강 프레지에", visuals: "Seasonal strawberry", image: "cakeImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩39,900" },
   { id: "19", title: "[무료강의] 체리 다쿠아즈", visuals: "Free introductory class", image: "heroImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩10" },
@@ -84,6 +109,7 @@ function HomePage() {
   const [lang, setLang] = useState<"KOR" | "ENG">("KOR");
   const [view, setView] = useState<"landing" | "grid">("landing");
   const [posts, setPosts] = useState<ClassPost[]>([]);
+  const { user } = useAuth();
   const [notices, setNotices] = useState<Notice[]>([]);
   const [banners, setBanners] = useState<Notice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -140,13 +166,17 @@ function HomePage() {
   const displayClasses = view === "grid" ? publicPosts : publicPosts.slice(0, 9);
 
   return (
-    <div className="min-h-screen bg-white flex justify-center selection:bg-black selection:text-white">
-      <div className="w-full max-w-[1200px] bg-white text-black font-sans relative">
-        {/* Language Toggle */}
-        <div className="absolute top-10 right-6 md:right-0 flex gap-3 text-[11px] font-bold tracking-widest z-20">
+    <div className="min-h-screen bg-white selection:bg-black selection:text-white pt-[100px]">
+      {/* Fixed Top Bar */}
+      <div className="fixed top-0 left-0 w-full h-[100px] bg-white border-b border-zinc-100 z-50 flex items-center justify-center px-6 md:px-12">
+        <span className="font-script text-4xl cursor-pointer" onClick={handleBackToHome}>Puima</span>
+        
+        {/* Language Toggle & Login moved here */}
+        <div className="absolute right-6 md:right-12 flex gap-3 text-[11px] font-bold tracking-widest">
           <button 
             onClick={() => setLang("KOR")} 
             className={`${lang === "KOR" ? "text-black" : "text-zinc-300"} cursor-pointer transition-colors hover:text-black pb-0.5 ${lang === "KOR" ? "border-b border-black" : ""}`}
+            id="bar-lang-kor"
           >
             KOR
           </button>
@@ -154,46 +184,43 @@ function HomePage() {
           <button 
             onClick={() => setLang("ENG")} 
             className={`${lang === "ENG" ? "text-black" : "text-zinc-300"} cursor-pointer transition-colors hover:text-black pb-0.5 ${lang === "ENG" ? "border-b border-black" : ""}`}
+            id="bar-lang-eng"
           >
             ENG
           </button>
-        </div>
-
-        {/* Huge Title Header */}
-        <header className="px-6 md:px-0 py-12 flex justify-between items-end">
-          <motion.h1 
-            layoutId="logo"
-            onClick={handleBackToHome}
-            className="text-hero cursor-pointer"
+          <span className="text-zinc-200 ml-2">/</span>
+          <button 
+            onClick={() => navigate('/admin')}
+            className="text-zinc-300 hover:text-black transition-colors"
+            id="bar-login"
           >
-            Puima
-          </motion.h1>
-          {view === "grid" && (
-            <motion.button
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              whileHover={{ y: -2, scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={handleBackToHome}
-              className="mb-4 text-[13px] font-bold border-b-2 border-black pb-1 hover:text-zinc-500 hover:border-zinc-500 transition-colors"
-            >
-              Back to Home
-            </motion.button>
-          )}
-        </header>
+            {user ? "ADMIN" : "LOGIN"}
+          </button>
+        </div>
+      </div>
 
-        {/* Notices Section */}
-        {notices.length > 0 && (
-          <div className="bg-black text-white py-4 px-6 md:px-12 flex items-center justify-between border-y border-white/10">
-            <div className="flex gap-6 items-center flex-grow overflow-hidden">
-              <span className="bg-white text-black px-2 py-0.5 text-[10px] font-black uppercase tracking-widest rounded-sm flex-shrink-0">Notice</span>
-              <div className="flex flex-col gap-1 overflow-hidden">
-                <span className="text-sm font-bold tracking-tight truncate">{notices[0].title}</span>
-                <span className="text-[11px] text-zinc-500 font-medium truncate">{notices[0].content}</span>
+      <div className="flex justify-center px-6 md:px-12 lg:px-0">
+        <div className="w-full max-w-[1200px] bg-white text-black font-sans relative pt-[100px]">
+          {/* Main Content */}
+          <div className="w-full">
+            {/* Notice Bar Section */}
+            {notices.length > 0 && (
+              <div className="bg-black text-white py-4 px-6 flex items-center justify-between border-y border-white/10 mb-12">
+                <div className="flex gap-6 items-center flex-grow overflow-hidden">
+                  <span className="bg-white text-black px-2 py-0.5 text-[10px] font-black uppercase tracking-widest rounded-sm flex-shrink-0">Notice</span>
+                  <div className="flex flex-col gap-1 overflow-hidden">
+                    <span className="text-sm font-bold tracking-tight truncate">{notices[0].title}</span>
+                    <span className="text-[11px] text-zinc-500 font-medium truncate">{notices[0].content}</span>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => navigate('/notice')}
+                  className="ml-6 text-[10px] font-black uppercase tracking-widest border-b border-white/70 hover:border-white transition-colors flex-shrink-0"
+                >
+                  Learn More
+                </button>
               </div>
-            </div>
-          </div>
-        )}
+            )}
 
         <AnimatePresence mode="wait">
           {view === "landing" ? (
@@ -202,146 +229,59 @@ function HomePage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.4, ease: "easeInOut" }}
+              transition={{ duration: 0.6 }}
             >
-              {/* Bio Section */}
-              <section className="px-6 md:px-0 flex flex-col md:flex-row justify-between items-start gap-12 pb-24">
-                <div className="max-w-xl space-y-8">
-                  <div className="space-y-1">
-                    <p className="text-[18px] font-bold tracking-tight text-black">
-                      BAKE HAPPINESS, EAT HAPPINESS
-                    </p>
-                    <p className="text-[14px] font-bold text-zinc-400">
-                      {lang === "KOR" ? "함께 행복을 굽고, 먹어요." : "Bake happiness, eat happiness together."}
-                    </p>
+
+              {/* Journal & News Section (Banners) */}
+              {banners.length > 0 && (
+                <section className="px-6 md:px-0 mb-32">
+                  <div className="flex justify-between items-end mb-8">
+                    <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-300">Notice</h2>
+                    <button 
+                      onClick={() => navigate('/notice')}
+                      className="text-[11px] font-bold text-zinc-900 border-b border-zinc-900 pb-0.5 hover:text-zinc-400 hover:border-zinc-400 transition-colors"
+                    >
+                      View More
+                    </button>
                   </div>
-                </div>
-                
-                <div className="flex flex-wrap gap-8 text-[13px] font-bold">
-                  <a href="https://www.youtube.com/@%ED%91%B8%EC%9D%B4%EB%A7%88" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:opacity-50 transition-opacity">
-                    <Youtube size={18} />
-                    Youtube
-                  </a>
-                  <a href="https://www.instagram.com/puima_official/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:opacity-50 transition-opacity">
-                    <Instagram size={18} />
-                    Instagram
-                  </a>
-                  <a href="https://smartstore.naver.com/putitinyourmouth" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:opacity-50 transition-opacity">
-                    <NaverIcon size={18} />
-                    Naver
-                  </a>
-                  <a href="#" className="hidden md:flex items-center gap-2 hover:opacity-50 transition-opacity">
-                    <MessageCircle size={18} />
-                    Kakao
-                  </a>
-                </div>
-              </section>
 
-              {/* Notice Preview Section */}
-              <section className="mb-16 md:mb-32">
-                <div className="px-6 md:px-0 py-12 flex justify-between items-end">
-                  <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-zinc-300">Latest Updates</h2>
-                  <button 
-                    onClick={() => navigate("/notice")} 
-                    className="text-[10px] font-black uppercase tracking-widest border-b border-black pb-1 hover:text-zinc-400 hover:border-zinc-400 transition-all flex items-center gap-2"
-                  >
-                    View More <ArrowRight size={14} />
-                  </button>
-                </div>
-                
-                <div className="px-6 md:px-0 grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {bannersLoading ? (
-                    <>
-                      {[...Array(3)].map((_, i) => (
-                        <div key={i} className="h-[80px] bg-zinc-50 rounded-2xl animate-pulse border border-zinc-100" />
-                      ))}
-                    </>
-                  ) : (
-                    <>
-                      {/* Banner Items from Firestore */}
-                      {banners.slice(0, 2).map((banner) => (
-                        <a 
-                          key={banner.id}
-                          href={banner.url || "#"} 
-                          target={banner.url?.startsWith("http") ? "_blank" : "_self"}
-                          rel="noopener noreferrer" 
-                          className="group bg-white rounded-2xl px-8 py-6 hover:bg-zinc-50 transition-all flex items-center justify-between min-h-[80px] border border-zinc-100 shadow-sm hover:shadow-md"
-                        >
-                          <p className="text-[15px] font-bold leading-tight group-hover:translate-x-1 transition-transform text-zinc-800">
-                            {banner.title}
-                          </p>
-                          <ArrowRight size={18} className="text-zinc-300 group-hover:text-black transition-colors shrink-0 ml-4" />
-                        </a>
-                      ))}
-
-                      {/* Fallback if less than 2 banners */}
-                      {banners.length < 2 && (
-                        <>
-                          {banners.length === 0 && (
-                            <a 
-                              href="https://smartstore.naver.com/putitinyourmouth" 
-                              target="_blank" 
-                              rel="noopener noreferrer" 
-                              className="group bg-white rounded-2xl px-8 py-6 hover:bg-zinc-50 transition-all flex items-center justify-between min-h-[80px] border border-zinc-100 shadow-sm hover:shadow-md"
-                            >
-                              <p className="text-[15px] font-bold leading-tight group-hover:translate-x-1 transition-transform text-zinc-800">
-                                시그니처 구움과자 주문하기
-                              </p>
-                              <ArrowRight size={18} className="text-zinc-300 group-hover:text-black transition-colors shrink-0 ml-4" />
-                            </a>
-                          )}
-                          {(banners.length === 0 || banners.length === 1) && (
-                            <a 
-                              href="#" 
-                              className="group bg-white rounded-2xl px-8 py-6 hover:bg-zinc-50 transition-all flex items-center justify-between min-h-[80px] border border-zinc-100 shadow-sm hover:shadow-md"
-                            >
-                              <p className="text-[15px] font-bold leading-tight group-hover:translate-x-1 transition-transform text-zinc-800">
-                                푸이마 101 온라인 클래스
-                              </p>
-                              <ArrowRight size={18} className="text-zinc-300 group-hover:text-black transition-colors shrink-0 ml-4" />
-                            </a>
-                          )}
-                        </>
-                      )}
-
-                      <div 
-                        onClick={() => navigate('/notice')}
-                        className="group cursor-pointer bg-white rounded-2xl px-8 py-6 hover:bg-zinc-50 transition-all flex items-center justify-between min-h-[80px] border border-zinc-100 shadow-sm hover:shadow-md"
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {banners.slice(0, 3).map((banner, i) => (
+                      <motion.div 
+                        key={banner.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ delay: i * 0.1 }}
+                        onClick={() => banner.url && window.open(banner.url, "_blank")}
+                        className="group cursor-pointer bg-white border border-zinc-100 rounded-2xl h-[80px] px-6 flex items-center justify-center text-center hover:shadow-xl hover:shadow-zinc-200/50 transition-all duration-500"
                       >
-                        {notices.length > 0 ? (
-                          <>
-                            <div className="space-y-1">
-                              <p className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold">New Post</p>
-                              <p className="text-[15px] font-bold leading-tight line-clamp-1 group-hover:translate-x-1 transition-transform text-zinc-800">
-                                {notices[0].title}
-                              </p>
-                            </div>
-                            <ArrowRight size={18} className="text-zinc-300 group-hover:text-black transition-colors shrink-0 ml-4" />
-                          </>
-                        ) : (
-                          <div className="opacity-40">
-                            <p className="text-[15px] font-bold leading-tight italic text-zinc-300">
-                              New update coming soon...
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </section>
+                        <h3 className="text-[14px] font-bold tracking-tight leading-tight group-hover:text-black transition-colors line-clamp-2">
+                          {banner.title}
+                        </h3>
+                      </motion.div>
+                    ))}
+                  </div>
+                </section>
+              )}
 
-              {/* Main Grid */}
-              <main className="border border-zinc-200 min-h-[600px] relative">
+              {/* Collection Section */}
+              <div className="px-6 md:px-0 pb-12 flex justify-between items-end border-b border-zinc-100 mb-12">
+                <h2 className="text-[14px] font-black uppercase tracking-[0.3em] text-black">Collection</h2>
+                {view === "landing" && (
+                  <p className="text-[12px] font-bold text-zinc-400 uppercase tracking-widest">
+                    {posts.length} Curated classes
+                  </p>
+                )}
+              </div>
+
+              <main className="min-h-[600px] mb-8">
                 {loading ? (
-                  <div className="absolute inset-0 flex items-center justify-center bg-white/50 z-10">
-                    <div className="flex flex-col items-center gap-4">
-                      <div className="w-10 h-10 border-2 border-zinc-200 border-t-black rounded-full animate-spin"></div>
-                      <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Loading Masterclasses...</span>
-                    </div>
+                  <div className="py-32 flex flex-col items-center gap-4">
+                    <div className="w-8 h-8 border border-zinc-200 border-t-black rounded-full animate-spin"></div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-4">
                     {displayClasses.map((item, idx) => (
                       <GridItem 
                         key={item.id}
@@ -362,7 +302,7 @@ function HomePage() {
               </main>
 
               {posts.length > 9 && (
-                <div className="flex justify-center py-24">
+                <div className="flex justify-center pt-8 pb-32">
                   <button 
                     onClick={handleLoadMore}
                     className="px-10 py-3 bg-black text-white rounded-full text-[13px] font-bold hover:bg-zinc-800 transition-all active:scale-95"
@@ -373,7 +313,7 @@ function HomePage() {
               )}
 
               {/* Student Review Ticker Section */}
-              <section className="pb-32 overflow-hidden border-t border-zinc-100">
+              <section className="pb-32 overflow-hidden border-t border-zinc-100 bg-zinc-50 pt-32">
                 <div className="px-6 md:px-12 py-12 flex flex-col md:flex-row justify-between items-end gap-6 mb-12">
                   <div>
                     <h2 className="text-[12px] font-black uppercase tracking-[0.3em] text-zinc-300 mb-4">Student Masterpieces</h2>
@@ -396,13 +336,12 @@ function HomePage() {
                       ease: "linear" 
                     }}
                   >
-                    {/* Double the images for seamless loop */}
                     {[...Array(2)].map((_, i) => (
                       <div key={i} className="flex gap-4">
                         {[heroImg, pastryImg, macaronsImg, cakeImg, heroImg, cakeImg].map((img, idx) => (
                           <div 
                             key={idx} 
-                            className="w-[280px] md:w-[320px] aspect-[4/5] bg-zinc-100 overflow-hidden group border border-zinc-200"
+                            className="w-[280px] md:w-[320px] aspect-[4/5] bg-white overflow-hidden group border border-zinc-100 relative"
                           >
                             <img 
                               src={img} 
@@ -427,25 +366,25 @@ function HomePage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.4, ease: "easeInOut" }}
+              transition={{ duration: 0.6 }}
             >
-              <div className="px-6 md:px-12 pb-12">
-                <p className="text-[13px] font-bold uppercase tracking-[0.2em] text-zinc-400">
-                  Collection • {posts.length} masterclasses
+              <div className="px-6 md:px-0 pb-16 flex flex-col md:flex-row justify-between items-end gap-8 border-b border-zinc-100 mb-16">
+                <div className="space-y-4">
+                  <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-400">Class Index</h2>
+                  <p className="text-[48px] md:text-[64px] font-script leading-none">The Collection</p>
+                </div>
+                <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest">
+                  Total {posts.length} Curated Masterclasses
                 </p>
               </div>
 
-              {/* Main Grid */}
-              <main className="border border-zinc-200 min-h-[600px] relative">
+              <main className="min-h-[600px] mb-32">
                 {loading ? (
-                  <div className="absolute inset-0 flex items-center justify-center bg-white/50 z-10">
-                    <div className="flex flex-col items-center gap-4">
-                      <div className="w-10 h-10 border-2 border-zinc-200 border-t-black rounded-full animate-spin"></div>
-                      <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Loading masterclasses...</span>
-                    </div>
+                  <div className="py-32 flex flex-col items-center gap-4">
+                    <div className="w-8 h-8 border border-zinc-200 border-t-black rounded-full animate-spin"></div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-4">
                     {publicPosts.map((item, idx) => (
                       <GridItem 
                         key={item.id}
@@ -465,78 +404,19 @@ function HomePage() {
                 )}
               </main>
 
-              <div className="flex justify-center py-24">
+              <div className="flex justify-center py-24 border-t border-zinc-100">
                 <motion.button 
-                  whileHover={{ scale: 1.05, backgroundColor: "#000", color: "#fff" }}
-                  whileTap={{ scale: 0.95 }}
+                  whileHover={{ y: -2 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={handleBackToHome}
-                  className="px-10 py-3 border border-black text-black rounded-full text-[13px] font-bold transition-all"
+                  className="px-12 py-4 bg-black text-white rounded-full text-[10px] font-black uppercase tracking-[0.3em] transition-all"
                 >
-                  Return to Home
+                  Return to Journal
                 </motion.button>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* Contact Section */}
-        <section className="bg-black text-white pt-48 pb-32 px-6 md:px-12 text-center">
-          <motion.h2 
-            initial={{ opacity: 0, y: 50 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-[4vw] md:text-[3vw] leading-[1.2] font-black tracking-tight mb-12 uppercase"
-          >
-            {lang === "KOR" ? (
-              <div className="space-y-8">
-                <p>
-                  유튜브 무료 레시피만 찾고<br />
-                  <span className="underline decoration-white/30 underline-offset-8">행동을 미루는</span> 분들께는<br />
-                  죄송하지만,<br />
-                  <span className="text-amber-400 font-serif italic normal-case">이 수업은 맞지 않습니다.</span>
-                </p>
-                <p>
-                  우리는 <span className="underline decoration-white/30 underline-offset-8">직접 손을 더럽히고</span>,<br />
-                  현장에서 결과를 내는<br />
-                  <span className="text-amber-400 font-serif italic normal-case">행동하는 사람을 위한<br />수업입니다.</span>
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-8">
-                <p>
-                  For those who only look for free recipes<br />
-                  and <span className="underline decoration-white/30 underline-offset-8">procrastinate taking action</span>,<br />
-                  we are sorry, but<br />
-                  <span className="text-amber-400 font-serif italic normal-case">this class is not for you.</span>
-                </p>
-                <p>
-                  We are a class for<br />
-                  <span className="underline decoration-white/30 underline-offset-8">those who get their hands dirty</span>,<br />
-                  and <span className="text-amber-400 font-serif italic normal-case">take action to get results<br />in the field.</span>
-                </p>
-              </div>
-            )}
-          </motion.h2>
-          
-          <div className="flex flex-wrap justify-center gap-x-10 gap-y-6 text-[13px] font-bold">
-            <a href="https://www.youtube.com/@%ED%91%B8%EC%9D%B4%EB%A7%88" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:opacity-50 transition-opacity">
-              <Youtube size={18} />
-              Youtube
-            </a>
-            <a href="https://www.instagram.com/puima_official/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:opacity-50 transition-opacity">
-              <Instagram size={18} />
-              Instagram
-            </a>
-            <a href="https://smartstore.naver.com/putitinyourmouth" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:opacity-50 transition-opacity">
-              <NaverIcon size={18} />
-              {lang === "KOR" ? "네이버 스토어" : "Naver Store"}
-            </a>
-            <a href="#" className="hidden md:flex items-center gap-2 hover:opacity-50 transition-opacity">
-              <MessageCircle size={18} />
-              Kakao
-            </a>
-          </div>
-        </section>
 
         <footer className="bg-white border-t border-zinc-100 pt-16 pb-24 px-6 md:px-12">
           <div className="max-w-[1200px] mx-auto">
@@ -557,7 +437,7 @@ function HomePage() {
 
             {/* Platform Disclaimer */}
             <div className="mb-10 pb-10 border-b border-zinc-200">
-              <p className="text-[11px] leading-relaxed text-zinc-400 font-medium">
+              <p className="text-[11px] leading-relaxed text-zinc-400 font-medium font-sans">
                 푸이마(PUIMA)는 통신판매중개자이며, 통신판매의 당사자가 아닙니다. 게시된 상품, 상품정보, 거래에 관한 의무와 책임은 각 판매자에게 있습니다.<br />
                 소비자 보호를 위해 안전한 거래 환경을 제공하며, 모든 클래스는 정식 라이선스 계약을 통해 운영됩니다.
               </p>
@@ -598,23 +478,25 @@ function HomePage() {
             <div className="flex flex-col md:flex-row justify-between items-center gap-6 pt-10 border-t border-zinc-200">
               <div className="flex items-center gap-6">
                 <span className="text-3xl font-script leading-none">Puima</span>
-                <p className="text-[10px] font-bold text-zinc-400 tracking-widest">
+                <p className="text-[10px] font-bold text-zinc-400 tracking-widest uppercase">
                   COPYRIGHT © PUIMA ATELIER. ALL RIGHTS RESERVED.
                 </p>
               </div>
               
               <button 
-                onClick={() => window.location.href='/admin'} 
-                className="text-[9px] font-bold text-zinc-300 hover:text-black transition-all uppercase tracking-widest border border-zinc-200 px-4 py-2 rounded-full hover:border-black"
+                onClick={() => navigate('/admin')} 
+                className="text-[11px] font-black text-black hover:bg-black hover:text-white transition-all uppercase tracking-widest border-2 border-black px-6 py-2 rounded-full active:scale-95"
               >
-                Admin Panel
+                {user ? "ADMIN" : "ADMIN LOGIN"}
               </button>
             </div>
           </div>
         </footer>
       </div>
     </div>
-  );
+  </div>
+</div>
+);
 }
 
 function NoticePage() {
@@ -678,10 +560,20 @@ function NoticePage() {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<HomePage />} />
-      <Route path="/admin" element={<Admin />} />
-      <Route path="/notice" element={<NoticePage />} />
-    </Routes>
+    <AuthProvider>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route 
+          path="/admin" 
+          element={
+            <ProtectedRoute adminOnly>
+              <Admin />
+            </ProtectedRoute>
+          } 
+        />
+        <Route path="/login" element={<Login />} />
+        <Route path="/notice" element={<NoticePage />} />
+      </Routes>
+    </AuthProvider>
   );
 }

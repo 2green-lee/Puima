@@ -19,71 +19,77 @@ interface GridItemProps {
 export default function GridItem({ title, visuals, image, naverUrl, index, imageUrl, category, isSoldOut, originalPrice, price }: GridItemProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   
-  // Determine border classes based on index to mimic the grid look
-  const borderClasses = "border-zinc-200 " + 
-    (index % 3 !== 2 ? "md:border-r " : "") + 
-    (index >= 3 ? "border-t " : "max-md:border-t");
-
-  // If there's an uploaded imageUrl, prioritize it without showing fallback during load
+  // Create an editorial feel by varying the layout based on index
+  const isLarge = index % 5 === 0; // Every 5th item is larger
+  const isWide = index % 7 === 0;  // Every 7th item is wider
+  
   const displayImage = imageUrl || image;
 
   return (
     <motion.div 
-      initial={{ opacity: 0 }}
-      whileInView={{ opacity: 1 }}
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      transition={{ delay: (index % 3) * 0.1, duration: 0.8 }}
-      className={`relative group ${borderClasses} bg-white cursor-pointer overflow-hidden`}
+      transition={{ delay: (index % 3) * 0.05, duration: 0.8 }}
+      className={`relative group bg-white cursor-pointer overflow-hidden pb-12 ${
+        isLarge ? "md:col-span-2 md:row-span-2" : isWide ? "md:col-span-2" : ""
+      }`}
+      onClick={() => window.open(naverUrl, "_blank")}
     >
-      <div className="w-full h-full bg-white p-6 pb-4 md:p-10 transition-all duration-700 ease-in-out group-hover:bg-zinc-50/80 group-hover:rounded-[32px] group-hover:z-10 group-hover:shadow-2xl group-hover:shadow-zinc-200/50 overflow-hidden flex flex-col items-center">
-        {/* Visual Image Container - Fixed Square */}
-        <div className="relative w-full aspect-square mb-5 md:mb-6 overflow-hidden bg-zinc-100 flex items-center justify-center">
-          {/* Skeleton Loader */}
+      <div className="w-full h-full flex flex-col">
+        {/* Visual Image Container */}
+        <div className={`relative w-full overflow-hidden bg-zinc-50 ${
+          isLarge ? "aspect-[4/5]" : isWide ? "aspect-[21/9]" : "aspect-[3/4]"
+        }`}>
           {!isLoaded && (
-            <div className="absolute inset-0 bg-zinc-100 animate-pulse flex items-center justify-center">
-              <div className="w-8 h-8 border-2 border-zinc-200 border-t-zinc-400 rounded-full animate-spin"></div>
-            </div>
+            <div className="absolute inset-0 bg-zinc-50 animate-pulse" />
           )}
           
           <img 
             src={displayImage} 
             alt={title} 
             onLoad={() => setIsLoaded(true)}
-            className={`w-full h-full object-cover transition-all duration-1000 ease-out group-hover:scale-110 ${
-              isLoaded ? "opacity-100 scale-100" : "opacity-0 scale-105"
+            className={`w-full h-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105 ${
+              isLoaded ? "opacity-100" : "opacity-0"
             }`}
             referrerPolicy="no-referrer"
           />
+          
           {isSoldOut && (
-            <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10">
-              <span className="text-white font-black text-xl tracking-[0.3em] uppercase border-2 border-white px-6 py-2">Sold Out</span>
+            <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] flex items-center justify-center z-10">
+              <span className="text-black font-black text-[10px] tracking-[0.4em] uppercase border border-black px-4 py-2">Sold Out</span>
             </div>
           )}
+
+          {/* Hover Overlay - Minimalist */}
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/[0.02] transition-colors duration-500" />
         </div>
 
-        {/* Info */}
-        <div className="text-center px-4 flex-grow flex flex-col justify-between w-full">
-          <div>
-            {category && (
-              <span className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-2">
-                {category}
-              </span>
-            )}
-            <h3 className="text-[17px] font-bold leading-tight mb-3 h-11 line-clamp-2 tracking-tight">{title}</h3>
-            
-            <div className="flex flex-col items-center mt-2">
-              <span className="text-[16px] font-bold text-black tracking-tight">
-                {price}
-              </span>
-              {originalPrice ? (
-                <p className="text-[11px] text-zinc-300 line-through font-mono uppercase tracking-wider mt-0.5">
-                  {originalPrice}
-                </p>
-              ) : (
-                <div className="h-[16.5px] mt-0.5" aria-hidden="true" />
+        {/* Info - Editorial Style */}
+        <div className="mt-6 px-1">
+          <div className="flex justify-between items-start gap-4">
+            <div className="space-y-1.5 flex-1">
+              {category && (
+                <span className="block text-[9px] font-black uppercase tracking-[0.25em] text-zinc-400">
+                  {category}
+                </span>
+              )}
+              <h3 className="text-[14px] font-bold leading-tight tracking-tight text-zinc-900 group-hover:text-zinc-500 transition-colors">
+                {title}
+              </h3>
+            </div>
+            <div className="text-right flex-shrink-0">
+              <p className="text-[13px] font-bold text-zinc-900">{price}</p>
+              {originalPrice && (
+                <p className="text-[10px] text-zinc-300 line-through font-medium mt-0.5">{originalPrice}</p>
               )}
             </div>
           </div>
+          {visuals && (
+            <p className="mt-3 text-[11px] font-medium text-zinc-400 italic leading-relaxed">
+              {visuals}
+            </p>
+          )}
         </div>
       </div>
     </motion.div>
