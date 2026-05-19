@@ -3,12 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Youtube, Instagram, MessageCircle, ChevronDown, Settings, ArrowRight, X } from "lucide-react";
+import { Youtube, Instagram, MessageCircle, ChevronDown, Settings, ArrowRight, X, ShieldCheck } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import React, { useState, useEffect } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { collection, onSnapshot, query, orderBy, where } from "firebase/firestore";
-import { db } from "./lib/firebase";
+import { db, auth } from "./lib/firebase";
+import { signOut } from "firebase/auth";
 import GridItem from "./components/GridItem";
 import Admin from "./pages/Admin";
 import Login from "./pages/Login";
@@ -26,10 +27,19 @@ const ProtectedRoute = ({ children, adminOnly = false }: { children: React.React
   if (!user) return <Login />;
   if (adminOnly && !isAdmin) return (
     <div className="min-h-screen flex items-center justify-center bg-white p-6 text-center">
-      <div>
-        <h1 className="text-2xl font-black mb-4">Access Denied</h1>
-        <p className="text-zinc-500 mb-8">You do not have administrative privileges.</p>
-        <button onClick={() => window.location.href = '/'} className="px-8 py-3 bg-black text-white rounded-full text-xs font-black uppercase tracking-widest">Back Home</button>
+      <div className="max-w-md w-full">
+        <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
+          <ShieldCheck size={32} />
+        </div>
+        <h1 className="text-2xl font-black mb-2 tracking-tighter uppercase">Access Denied</h1>
+        <p className="text-zinc-500 mb-8 text-sm font-medium leading-relaxed">
+          You are logged in as <span className="text-black font-bold">{user.email}</span>,<br />
+          but you do not have administrative privileges.
+        </p>
+        <div className="flex flex-col gap-3">
+          <button onClick={() => window.location.href = '/'} className="w-full px-8 py-4 bg-black text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-zinc-800 transition-all">Back Home</button>
+          <button onClick={() => { signOut(auth); window.location.reload(); }} className="w-full px-8 py-4 bg-white border border-zinc-200 text-black rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-zinc-50 transition-all">Sign Out</button>
+        </div>
       </div>
     </div>
   );

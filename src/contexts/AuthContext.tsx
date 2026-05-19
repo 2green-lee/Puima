@@ -24,31 +24,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
-      
-      if (firebaseUser) {
-        // Sync user profile to Firestore
-        const userRef = doc(db, 'users', firebaseUser.uid);
-        const userDoc = await getDoc(userRef);
+      try {
+        setUser(firebaseUser);
         
-        if (!userDoc.exists()) {
-          const isHardcodedAdmin = firebaseUser.email === 'rtytgb123@gmail.com';
-          await setDoc(userRef, {
-            email: firebaseUser.email,
-            displayName: firebaseUser.displayName,
-            photoURL: firebaseUser.photoURL,
-            isAdmin: isHardcodedAdmin, // Default to true for creator
-            createdAt: serverTimestamp(),
-          });
-          setIsAdmin(isHardcodedAdmin);
+        if (firebaseUser) {
+          console.log("AuthContext: User logged in:", firebaseUser.email);
+          // Sync user profile to Firestore
+          const userRef = doc(db, 'users', firebaseUser.uid);
+          
+          let adminStatus = false;
+          try {
+            const userDoc = await getDoc(userRef);
+            
+            if (!userDoc.exists()) {
+              adminStatus = firebaseUser.email === 'rtytgb123@gmail.com';
+              console.log("AuthContext: Creating new user doc, adminStatus:", adminStatus);
+              await setDoc(userRef, {
+                email: firebaseUser.email,
+                displayName: firebaseUser.displayName,
+                photoURL: firebaseUser.photoURL,
+                isAdmin: adminStatus,
+                createdAt: serverTimestamp(),
+              });
+            } else {
+              adminStatus = userDoc.data()?.isAdmin || firebaseUser.email === 'rtytgb123@gmail.com';
+              console.log("AuthContext: Existing user doc, isAdmin from doc:", userDoc.data()?.isAdmin, "hardcoded check:", firebaseUser.email === 'rtytgb123@gmail.com');
+            }
+          } catch (docErr) {
+            console.error("AuthContext: Error fetching/setting user doc:", docErr);
+            // Fallback to email check even if doc fetch fails
+            adminStatus = firebaseUser.email === 'rtytgb123@gmail.com';
+          }
+          setIsAdmin(adminStatus);
         } else {
-          setIsAdmin(userDoc.data()?.isAdmin || firebaseUser.email === 'rtytgb123@gmail.com');
+          console.log("AuthContext: No firebase user");
+          setIsAdmin(false);
         }
-      } else {
-        setIsAdmin(false);
+      } catch (err) {
+        console.error("AuthContext: Global error in onAuthStateChanged:", err);
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
     });
 
     return unsubscribe;
