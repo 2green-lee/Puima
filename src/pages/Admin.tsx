@@ -74,7 +74,10 @@ export default function Admin() {
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [editingNoticeId, setEditingNoticeId] = useState<string | null>(null);
+  const [noticeFormData, setNoticeFormData] = useState<Partial<Notice>>({});
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const noticeAutoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const dragY = useRef<number | null>(null);
   const scrollInterval = useRef<number | null>(null);
@@ -100,6 +103,27 @@ export default function Admin() {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
   }, [formData, editingId]);
+
+  // Autosave for Notice/Banner editing
+  useEffect(() => {
+    if (editingNoticeId && noticeFormData.title) {
+      if (noticeAutoSaveTimerRef.current) clearTimeout(noticeAutoSaveTimerRef.current);
+      
+      noticeAutoSaveTimerRef.current = setTimeout(() => {
+        handleAutoSaveAction(async () => {
+          const { id, createdAt, ...updateData } = noticeFormData;
+          await updateDoc(doc(db, "notices", editingNoticeId), {
+            ...updateData,
+            updatedAt: serverTimestamp(),
+          });
+        });
+      }, 800);
+    }
+    
+    return () => {
+      if (noticeAutoSaveTimerRef.current) clearTimeout(noticeAutoSaveTimerRef.current);
+    };
+  }, [noticeFormData, editingNoticeId]);
 
   const isDev = import.meta.env.DEV;
 
@@ -1011,34 +1035,113 @@ export default function Admin() {
 
                   <div className="space-y-4">
                     {notices.map(notice => (
-                      <div key={notice.id} className="p-6 bg-white border border-zinc-200 rounded-[32px] flex items-center gap-6 group hover:border-black/20 transition-all">
-                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${notice.isBanner ? 'bg-amber-100 text-amber-600' : 'bg-zinc-100 text-zinc-400'}`}>
-                          {notice.isBanner ? <Tag size={20} /> : <Megaphone size={20} />}
-                        </div>
-                        <div className="flex-grow min-w-0">
-                          <div className="flex items-center gap-2 mb-0.5">
-                            {notice.isBanner && <span className="text-[9px] font-black uppercase tracking-widest bg-amber-200 text-amber-800 px-2 py-0.5 rounded">Banner</span>}
-                            <h4 className="font-bold text-base truncate">{notice.title}</h4>
+                      <div key={notice.id} className="p-6 bg-white border border-zinc-200 rounded-[32px] flex flex-col gap-4 group hover:border-black/20 transition-all">
+                        {editingNoticeId === notice.id ? (
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-[8px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-1">Title</label>
+                                <input 
+                                  type="text"
+                                  value={noticeFormData.title || ""}
+                                  onChange={e => setNoticeFormData({...noticeFormData, title: e.target.value})}
+                                  placeholder="제목"
+                                  className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-black/10"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[8px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-1">Redirect URL</label>
+                                <input 
+                                  type="text"
+                                  value={noticeFormData.url || ""}
+                                  onChange={e => setNoticeFormData({...noticeFormData, url: e.target.value})}
+                                  placeholder="리다이렉트 URL"
+                                  className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-black/10"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-[8px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-1">Content</label>
+                              <textarea 
+                                value={noticeFormData.content || ""}
+                                onChange={e => setNoticeFormData({...noticeFormData, content: e.target.value})}
+                                placeholder="상세 내용"
+                                rows={2}
+                                className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black/10"
+                              />
+                            </div>
+                            <div className="flex justify-between items-center bg-zinc-50 p-3 rounded-xl">
+                              <div className="flex items-center gap-3">
+                                <button 
+                                  type="button"
+                                  onClick={() => setNoticeFormData({...noticeFormData, isBanner: !noticeFormData.isBanner})}
+                                  className={`w-10 h-5 rounded-full relative transition-colors ${noticeFormData.isBanner ? 'bg-black' : 'bg-zinc-200'}`}
+                                >
+                                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${noticeFormData.isBanner ? 'left-5.5' : 'left-0.5'}`} />
+                                </button>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Mark as 'Banner'</span>
+                              </div>
+                              <button 
+                                onClick={() => {
+                                  setEditingNoticeId(null);
+                                  setNoticeFormData({});
+                                }}
+                                className="text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-black transition-all flex items-center gap-1"
+                              >
+                                <X size={12} />
+                                Close Edit
+                              </button>
+                            </div>
                           </div>
-                          <p className="text-sm text-zinc-400 font-medium line-clamp-1">{notice.content}</p>
-                          {notice.url && <p className="text-[10px] text-zinc-300 font-mono truncate mt-1">{notice.url}</p>}
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <button 
-                            onClick={() => handleToggleNotice(notice.id, notice.isActive)}
-                            className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
-                              notice.isActive ? "bg-green-100 text-green-700" : "bg-zinc-100 text-zinc-400"
-                            }`}
-                          >
-                            {notice.isActive ? "Active" : "Hidden"}
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteNotice(notice.id)}
-                            className="p-3 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </div>
+                        ) : (
+                          <div className="flex items-center gap-6">
+                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${notice.isBanner ? 'bg-amber-100 text-amber-600' : 'bg-zinc-100 text-zinc-400'}`}>
+                              {notice.isBanner ? <Tag size={20} /> : <Megaphone size={20} />}
+                            </div>
+                            <div className="flex-grow min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                {notice.isBanner && <span className="text-[9px] font-black uppercase tracking-widest bg-amber-200 text-amber-800 px-2 py-0.5 rounded">Banner</span>}
+                                <h4 className="font-bold text-base truncate">{notice.title}</h4>
+                              </div>
+                              <div className="space-y-1">
+                                <p className="text-sm text-zinc-500 font-medium line-clamp-1">{notice.content}</p>
+                                {notice.url && (
+                                  <div className="flex items-center gap-2 text-[11px] font-bold text-zinc-900 group-hover:text-black">
+                                    <span className="text-zinc-400 text-[9px] uppercase tracking-widest font-black">Link:</span>
+                                    <span className="truncate underline underline-offset-4 decoration-zinc-300">{notice.url}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <button 
+                                onClick={() => handleToggleNotice(notice.id, notice.isActive)}
+                                className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
+                                  notice.isActive ? "bg-green-100 text-green-700" : "bg-zinc-100 text-zinc-400"
+                                }`}
+                              >
+                                {notice.isActive ? "Active" : "Hidden"}
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  setEditingNoticeId(notice.id);
+                                  setNoticeFormData(notice);
+                                }}
+                                className="p-3 text-zinc-300 hover:text-black hover:bg-zinc-100 rounded-2xl transition-all"
+                                title="Edit Notice"
+                              >
+                                <Edit2 size={18} />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteNotice(notice.id)}
+                                className="p-3 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"
+                                title="Delete Notice"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                     {notices.length === 0 && (
