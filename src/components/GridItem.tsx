@@ -14,11 +14,9 @@ interface GridItemProps {
   isSoldOut?: boolean;
   originalPrice?: string;
   price?: string;
-  rating?: string;
-  reviews?: string;
 }
 
-export default function GridItem({ title, visuals, image, naverUrl, index, imageUrl, category, isSoldOut, originalPrice, price, rating, reviews }: GridItemProps) {
+export default function GridItem({ title, visuals, image, naverUrl, index, imageUrl, category, isSoldOut, originalPrice, price }: GridItemProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   
   // Determine border classes based on index to mimic the grid look
@@ -64,29 +62,25 @@ export default function GridItem({ title, visuals, image, naverUrl, index, image
         </div>
 
         {/* Info */}
-        <div className="text-center px-2 flex-grow flex flex-col justify-between">
+        <div className="text-center px-4 flex-grow flex flex-col justify-between w-full">
           <div>
-            <h3 className="text-[16px] font-medium leading-tight mb-2 h-10 line-clamp-2">{title}</h3>
-            
-            {rating && (
-              <div className="flex items-center justify-center gap-1 mb-2">
-                <Star size={10} fill="currentColor" className="text-black" />
-                <span className="text-[10px] font-bold tracking-widest">{rating}</span>
-                {reviews && <span className="text-[10px] text-zinc-400 font-medium ml-1">({reviews})</span>}
-              </div>
+            {category && (
+              <span className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-2">
+                {category}
+              </span>
             )}
-
-            {originalPrice && (
-              <p className="text-[11px] text-zinc-300 line-through font-mono uppercase tracking-wider mb-1">{originalPrice}</p>
-            )}
+            <h3 className="text-[17px] font-bold leading-tight mb-3 h-11 line-clamp-2 tracking-tight">{title}</h3>
             
-            <div className="mt-1">
-              {price && (
-                <div className="flex flex-col items-center">
-                  <span className="text-[15px] font-bold text-black font-mono">
-                    {price}
-                  </span>
-                </div>
+            <div className="flex flex-col items-center mt-2">
+              <span className="text-[16px] font-bold text-black tracking-tight">
+                {price}
+              </span>
+              {originalPrice ? (
+                <p className="text-[11px] text-zinc-300 line-through font-mono uppercase tracking-wider mt-0.5">
+                  {originalPrice}
+                </p>
+              ) : (
+                <div className="h-[16.5px] mt-0.5" aria-hidden="true" />
               )}
             </div>
           </div>

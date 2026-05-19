@@ -33,8 +33,6 @@ interface Post {
   visuals?: string;
   category?: string;
   originalPrice?: string;
-  rating?: string;
-  reviews?: string;
   status?: "public" | "hidden";
   isSoldOut?: boolean;
   order?: number;
@@ -823,12 +821,6 @@ export default function Admin() {
                           <option value="macaronsImg">Creamy Gray</option>
                           <option value="cakeImg">Minimal White</option>
                         </select>
-                      </div>
-
-                      <div className="bg-zinc-50 p-6 rounded-[32px] border border-zinc-100 italic">
-                        <p className="text-[11px] text-zinc-400 leading-relaxed">
-                          * Rating and Reviews are automatically synced with the store data when valid Naver Store link is provided (Feature coming soon).
-                        </p>
                       </div>
                     </div>
                   </div>
