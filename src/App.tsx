@@ -87,6 +87,7 @@ function HomePage() {
   const [notices, setNotices] = useState<Notice[]>([]);
   const [banners, setBanners] = useState<Notice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [bannersLoading, setBannersLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -116,6 +117,7 @@ function HomePage() {
       })) as Notice[];
       setNotices(docs.filter(n => !n.isBanner));
       setBanners(docs.filter(n => n.isBanner));
+      setBannersLoading(false);
     });
 
     return () => {
@@ -265,7 +267,7 @@ function HomePage() {
                   ))}
 
                   {/* Fallback if less than 2 banners */}
-                  {banners.length < 2 && (
+                  {!bannersLoading && banners.length < 2 && (
                     <>
                       {banners.length === 0 && (
                         <a 
