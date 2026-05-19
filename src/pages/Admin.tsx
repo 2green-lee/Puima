@@ -243,6 +243,36 @@ export default function Admin() {
     });
   };
 
+  const handleSeedDefaultBanners = async () => {
+    if (!confirm("기본 배너 데이터(주문하기, 온라인 클래스)를 추가하시겠습니까?")) return;
+    
+    handleAutoSaveAction(async () => {
+      const defaultBanners = [
+        {
+          title: "시그니처 구움과자 주문하기",
+          content: "푸이마 시그니처 구움과자 네이버 스마트스토어에서 주문하기",
+          url: "https://smartstore.naver.com/putitinyourmouth",
+          isBanner: true,
+          isActive: true,
+          createdAt: serverTimestamp()
+        },
+        {
+          title: "푸이마 101 온라인 클래스",
+          content: "푸이마와 함께하는 온라인 베이킹 클래스 커리큘럼 보기",
+          url: "#",
+          isBanner: true,
+          isActive: true,
+          createdAt: serverTimestamp()
+        }
+      ];
+
+      for (const banner of defaultBanners) {
+        await addDoc(collection(db, "notices"), banner);
+      }
+      alert("기본 배너가 추가되었습니다.");
+    });
+  };
+
   const handleAddCategory = async (e: FormEvent) => {
     e.preventDefault();
     if (!newCategoryName.trim()) return;
@@ -924,9 +954,18 @@ export default function Admin() {
                   exit={{ opacity: 0, x: -20 }}
                   className="bg-white p-10 rounded-[40px] border border-zinc-200 shadow-sm"
                 >
-                  <div className="mb-10">
-                    <h3 className="text-3xl font-black tracking-tighter uppercase mb-2">Notices / Banners</h3>
-                    <p className="text-zinc-500 font-medium">배포 페이지 상단에 노출될 소식을 기록하세요.</p>
+                  <div className="mb-10 flex justify-between items-start">
+                    <div>
+                      <h3 className="text-3xl font-black tracking-tighter uppercase mb-2">Notices / Banners</h3>
+                      <p className="text-zinc-500 font-medium">배포 페이지 상단에 노출될 소식을 기록하세요.</p>
+                    </div>
+                    <button 
+                      onClick={handleSeedDefaultBanners}
+                      className="text-[10px] font-black uppercase tracking-widest border border-zinc-200 px-4 py-2 rounded-xl h-fit hover:bg-zinc-50 transition-all flex items-center gap-2"
+                    >
+                      <PlusCircle size={14} />
+                      Seed Defaults
+                    </button>
                   </div>
 
                   <form onSubmit={handleAddNotice} className="space-y-6 mb-16 bg-zinc-50 p-8 rounded-[32px] border border-zinc-100">
