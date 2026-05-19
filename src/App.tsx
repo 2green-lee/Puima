@@ -597,7 +597,7 @@ function HomePage() {
             {/* Bottom Bar */}
             <div className="flex flex-col md:flex-row justify-between items-center gap-6 pt-10 border-t border-zinc-200">
               <div className="flex items-center gap-6">
-                <span className="text-xl font-black tracking-tighter uppercase">Puima</span>
+                <span className="text-3xl font-script leading-none">Puima</span>
                 <p className="text-[10px] font-bold text-zinc-400 tracking-widest">
                   COPYRIGHT © PUIMA ATELIER. ALL RIGHTS RESERVED.
                 </p>
@@ -637,7 +637,7 @@ function NoticePage() {
     <div className="min-h-screen bg-white flex justify-center selection:bg-black selection:text-white">
       <div className="w-full max-w-[1200px] bg-white text-black font-sans relative min-h-screen">
         <header className="px-6 md:px-12 py-12 flex justify-between items-center border-b border-zinc-100 sticky top-0 bg-white/80 backdrop-blur-md z-50">
-          <h1 onClick={() => navigate('/')} className="text-[32px] font-serif italic tracking-tighter cursor-pointer">Puima</h1>
+          <h1 onClick={() => navigate('/')} className="font-script text-[40px] leading-none cursor-pointer">Puima</h1>
           <button onClick={() => navigate('/')} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:opacity-50">
             <X size={16} />
             Close
