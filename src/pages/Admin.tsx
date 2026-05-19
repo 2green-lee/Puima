@@ -49,6 +49,8 @@ interface Notice {
   content: string;
   createdAt: any;
   isActive: boolean;
+  url?: string;
+  isBanner?: boolean;
 }
 
 type TabType = 
@@ -60,7 +62,7 @@ export default function Admin() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
-  const [newNotice, setNewNotice] = useState({ title: "", content: "" });
+  const [newNotice, setNewNotice] = useState({ title: "", content: "", url: "", isBanner: false });
   const [newCategoryName, setNewCategoryName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<Post>>({});
@@ -224,7 +226,7 @@ export default function Admin() {
         createdAt: serverTimestamp(),
         isActive: true
       });
-      setNewNotice({ title: "", content: "" });
+      setNewNotice({ title: "", content: "", url: "", isBanner: false });
     });
   };
 
@@ -928,41 +930,75 @@ export default function Admin() {
                   </div>
 
                   <form onSubmit={handleAddNotice} className="space-y-6 mb-16 bg-zinc-50 p-8 rounded-[32px] border border-zinc-100">
-                    <div>
-                      <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-2">Notice Title</label>
-                      <input 
-                        type="text" 
-                        value={newNotice.title}
-                        onChange={e => setNewNotice({...newNotice, title: e.target.value})}
-                        placeholder="공지사항 제목"
-                        className="w-full p-4 bg-white border border-zinc-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-black/5"
-                      />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-2">Notice Title</label>
+                        <input 
+                          type="text" 
+                          value={newNotice.title}
+                          onChange={e => setNewNotice({...newNotice, title: e.target.value})}
+                          placeholder="공지 또는 배너 제목"
+                          className="w-full p-4 bg-white border border-zinc-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-black/5"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-2">Redirect URL (Optional)</label>
+                        <input 
+                          type="text" 
+                          value={newNotice.url}
+                          onChange={e => setNewNotice({...newNotice, url: e.target.value})}
+                          placeholder="https://smartstore.naver.com/..."
+                          className="w-full p-4 bg-white border border-zinc-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-black/5"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-2">Content</label>
-                      <textarea 
-                        value={newNotice.content}
-                        onChange={e => setNewNotice({...newNotice, content: e.target.value})}
-                        placeholder="공지 내용을 입력하세요"
-                        rows={3}
-                        className="w-full p-4 bg-white border border-zinc-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5"
-                      />
+
+                    <div className="flex items-center gap-6">
+                      <div className="flex-1">
+                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-2">Content</label>
+                        <textarea 
+                          value={newNotice.content}
+                          onChange={e => setNewNotice({...newNotice, content: e.target.value})}
+                          placeholder="상세 내용을 입력하세요"
+                          rows={2}
+                          className="w-full p-4 bg-white border border-zinc-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5"
+                        />
+                      </div>
+                      <div className="flex flex-col items-center justify-center p-6 bg-white rounded-2xl border border-zinc-100 min-w-[140px]">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-3 block text-center">Update Grid</label>
+                        <button 
+                          type="button"
+                          onClick={() => setNewNotice({...newNotice, isBanner: !newNotice.isBanner})}
+                          className={`w-12 h-6 rounded-full relative transition-colors ${newNotice.isBanner ? 'bg-black' : 'bg-zinc-200'}`}
+                        >
+                          <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${newNotice.isBanner ? 'left-7' : 'left-1'}`} />
+                        </button>
+                        <span className="text-[9px] font-bold mt-2 text-zinc-400">Mark as 'Banner'</span>
+                      </div>
                     </div>
+                    
                     <button 
                       type="submit"
                       className="bg-black text-white px-10 py-4 rounded-2xl font-black text-sm hover:bg-zinc-800 transition-all active:scale-95 flex items-center gap-2"
                     >
                       <Plus size={18} />
-                      Publish Notice
+                      Publish Item
                     </button>
                   </form>
 
                   <div className="space-y-4">
                     {notices.map(notice => (
-                      <div key={notice.id} className="p-6 bg-white border border-zinc-200 rounded-[32px] flex items-center gap-6 group">
-                        <div className="flex-grow">
-                          <h4 className="font-bold text-base mb-1">{notice.title}</h4>
+                      <div key={notice.id} className="p-6 bg-white border border-zinc-200 rounded-[32px] flex items-center gap-6 group hover:border-black/20 transition-all">
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${notice.isBanner ? 'bg-amber-100 text-amber-600' : 'bg-zinc-100 text-zinc-400'}`}>
+                          {notice.isBanner ? <Tag size={20} /> : <Megaphone size={20} />}
+                        </div>
+                        <div className="flex-grow min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            {notice.isBanner && <span className="text-[9px] font-black uppercase tracking-widest bg-amber-200 text-amber-800 px-2 py-0.5 rounded">Banner</span>}
+                            <h4 className="font-bold text-base truncate">{notice.title}</h4>
+                          </div>
                           <p className="text-sm text-zinc-400 font-medium line-clamp-1">{notice.content}</p>
+                          {notice.url && <p className="text-[10px] text-zinc-300 font-mono truncate mt-1">{notice.url}</p>}
                         </div>
                         <div className="flex items-center gap-4">
                           <button 
@@ -975,7 +1011,7 @@ export default function Admin() {
                           </button>
                           <button 
                             onClick={() => handleDeleteNotice(notice.id)}
-                            className="p-3 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all opacity-0 group-hover:opacity-100"
+                            className="p-3 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"
                           >
                             <Trash2 size={18} />
                           </button>

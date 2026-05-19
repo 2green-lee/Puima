@@ -51,6 +51,8 @@ interface Notice {
   title: string;
   content: string;
   isActive: boolean;
+  url?: string;
+  isBanner?: boolean;
 }
 
 const INITIAL_POSTS: ClassPost[] = [
@@ -83,6 +85,7 @@ function HomePage() {
   const [view, setView] = useState<"landing" | "grid">("landing");
   const [posts, setPosts] = useState<ClassPost[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
+  const [banners, setBanners] = useState<Notice[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -98,8 +101,6 @@ function HomePage() {
         ...doc.data()
       })) as ClassPost[];
       
-      // If Firestore has data, use it. Otherwise, we could fallback to INITIAL_POSTS 
-      // but to avoid flicker we prefer staying empty until we're sure.
       setPosts(docs);
       setLoading(false);
     }, (error) => {
@@ -113,7 +114,8 @@ function HomePage() {
         id: doc.id,
         ...doc.data()
       })) as Notice[];
-      setNotices(docs);
+      setNotices(docs.filter(n => !n.isBanner));
+      setBanners(docs.filter(n => n.isBanner));
     });
 
     return () => {
@@ -246,27 +248,51 @@ function HomePage() {
                 </div>
                 
                 <div className="px-6 md:px-0 grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <a 
-                    href="https://smartstore.naver.com/putitinyourmouth" 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="group bg-white rounded-2xl px-8 py-6 hover:bg-zinc-50 transition-all flex items-center justify-between min-h-[80px] border border-zinc-100 shadow-sm hover:shadow-md"
-                  >
-                    <p className="text-[15px] font-bold leading-tight group-hover:translate-x-1 transition-transform text-zinc-800">
-                      시그니처 구움과자 주문하기
-                    </p>
-                    <ArrowRight size={18} className="text-zinc-300 group-hover:text-black transition-colors shrink-0 ml-4" />
-                  </a>
+                  {/* Banner Items from Firestore */}
+                  {banners.slice(0, 2).map((banner) => (
+                    <a 
+                      key={banner.id}
+                      href={banner.url || "#"} 
+                      target={banner.url?.startsWith("http") ? "_blank" : "_self"}
+                      rel="noopener noreferrer" 
+                      className="group bg-white rounded-2xl px-8 py-6 hover:bg-zinc-50 transition-all flex items-center justify-between min-h-[80px] border border-zinc-100 shadow-sm hover:shadow-md"
+                    >
+                      <p className="text-[15px] font-bold leading-tight group-hover:translate-x-1 transition-transform text-zinc-800">
+                        {banner.title}
+                      </p>
+                      <ArrowRight size={18} className="text-zinc-300 group-hover:text-black transition-colors shrink-0 ml-4" />
+                    </a>
+                  ))}
 
-                  <a 
-                    href="#" 
-                    className="group bg-white rounded-2xl px-8 py-6 hover:bg-zinc-50 transition-all flex items-center justify-between min-h-[80px] border border-zinc-100 shadow-sm hover:shadow-md"
-                  >
-                    <p className="text-[15px] font-bold leading-tight group-hover:translate-x-1 transition-transform text-zinc-800">
-                      푸이마 101 온라인 클래스
-                    </p>
-                    <ArrowRight size={18} className="text-zinc-300 group-hover:text-black transition-colors shrink-0 ml-4" />
-                  </a>
+                  {/* Fallback if less than 2 banners */}
+                  {banners.length < 2 && (
+                    <>
+                      {banners.length === 0 && (
+                        <a 
+                          href="https://smartstore.naver.com/putitinyourmouth" 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="group bg-white rounded-2xl px-8 py-6 hover:bg-zinc-50 transition-all flex items-center justify-between min-h-[80px] border border-zinc-100 shadow-sm hover:shadow-md"
+                        >
+                          <p className="text-[15px] font-bold leading-tight group-hover:translate-x-1 transition-transform text-zinc-800">
+                            시그니처 구움과자 주문하기
+                          </p>
+                          <ArrowRight size={18} className="text-zinc-300 group-hover:text-black transition-colors shrink-0 ml-4" />
+                        </a>
+                      )}
+                      {(banners.length === 0 || banners.length === 1) && (
+                        <a 
+                          href="#" 
+                          className="group bg-white rounded-2xl px-8 py-6 hover:bg-zinc-50 transition-all flex items-center justify-between min-h-[80px] border border-zinc-100 shadow-sm hover:shadow-md"
+                        >
+                          <p className="text-[15px] font-bold leading-tight group-hover:translate-x-1 transition-transform text-zinc-800">
+                            푸이마 101 온라인 클래스
+                          </p>
+                          <ArrowRight size={18} className="text-zinc-300 group-hover:text-black transition-colors shrink-0 ml-4" />
+                        </a>
+                      )}
+                    </>
+                  )}
 
                   <div 
                     onClick={() => navigate('/notice')}
