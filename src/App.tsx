@@ -250,74 +250,84 @@ function HomePage() {
                 </div>
                 
                 <div className="px-6 md:px-0 grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* Banner Items from Firestore */}
-                  {banners.slice(0, 2).map((banner) => (
-                    <a 
-                      key={banner.id}
-                      href={banner.url || "#"} 
-                      target={banner.url?.startsWith("http") ? "_blank" : "_self"}
-                      rel="noopener noreferrer" 
-                      className="group bg-white rounded-2xl px-8 py-6 hover:bg-zinc-50 transition-all flex items-center justify-between min-h-[80px] border border-zinc-100 shadow-sm hover:shadow-md"
-                    >
-                      <p className="text-[15px] font-bold leading-tight group-hover:translate-x-1 transition-transform text-zinc-800">
-                        {banner.title}
-                      </p>
-                      <ArrowRight size={18} className="text-zinc-300 group-hover:text-black transition-colors shrink-0 ml-4" />
-                    </a>
-                  ))}
-
-                  {/* Fallback if less than 2 banners */}
-                  {!bannersLoading && banners.length < 2 && (
+                  {bannersLoading ? (
                     <>
-                      {banners.length === 0 && (
+                      {[...Array(3)].map((_, i) => (
+                        <div key={i} className="h-[80px] bg-zinc-50 rounded-2xl animate-pulse border border-zinc-100" />
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      {/* Banner Items from Firestore */}
+                      {banners.slice(0, 2).map((banner) => (
                         <a 
-                          href="https://smartstore.naver.com/putitinyourmouth" 
-                          target="_blank" 
+                          key={banner.id}
+                          href={banner.url || "#"} 
+                          target={banner.url?.startsWith("http") ? "_blank" : "_self"}
                           rel="noopener noreferrer" 
                           className="group bg-white rounded-2xl px-8 py-6 hover:bg-zinc-50 transition-all flex items-center justify-between min-h-[80px] border border-zinc-100 shadow-sm hover:shadow-md"
                         >
                           <p className="text-[15px] font-bold leading-tight group-hover:translate-x-1 transition-transform text-zinc-800">
-                            시그니처 구움과자 주문하기
+                            {banner.title}
                           </p>
                           <ArrowRight size={18} className="text-zinc-300 group-hover:text-black transition-colors shrink-0 ml-4" />
                         </a>
+                      ))}
+
+                      {/* Fallback if less than 2 banners */}
+                      {banners.length < 2 && (
+                        <>
+                          {banners.length === 0 && (
+                            <a 
+                              href="https://smartstore.naver.com/putitinyourmouth" 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="group bg-white rounded-2xl px-8 py-6 hover:bg-zinc-50 transition-all flex items-center justify-between min-h-[80px] border border-zinc-100 shadow-sm hover:shadow-md"
+                            >
+                              <p className="text-[15px] font-bold leading-tight group-hover:translate-x-1 transition-transform text-zinc-800">
+                                시그니처 구움과자 주문하기
+                              </p>
+                              <ArrowRight size={18} className="text-zinc-300 group-hover:text-black transition-colors shrink-0 ml-4" />
+                            </a>
+                          )}
+                          {(banners.length === 0 || banners.length === 1) && (
+                            <a 
+                              href="#" 
+                              className="group bg-white rounded-2xl px-8 py-6 hover:bg-zinc-50 transition-all flex items-center justify-between min-h-[80px] border border-zinc-100 shadow-sm hover:shadow-md"
+                            >
+                              <p className="text-[15px] font-bold leading-tight group-hover:translate-x-1 transition-transform text-zinc-800">
+                                푸이마 101 온라인 클래스
+                              </p>
+                              <ArrowRight size={18} className="text-zinc-300 group-hover:text-black transition-colors shrink-0 ml-4" />
+                            </a>
+                          )}
+                        </>
                       )}
-                      {(banners.length === 0 || banners.length === 1) && (
-                        <a 
-                          href="#" 
-                          className="group bg-white rounded-2xl px-8 py-6 hover:bg-zinc-50 transition-all flex items-center justify-between min-h-[80px] border border-zinc-100 shadow-sm hover:shadow-md"
-                        >
-                          <p className="text-[15px] font-bold leading-tight group-hover:translate-x-1 transition-transform text-zinc-800">
-                            푸이마 101 온라인 클래스
-                          </p>
-                          <ArrowRight size={18} className="text-zinc-300 group-hover:text-black transition-colors shrink-0 ml-4" />
-                        </a>
-                      )}
+
+                      <div 
+                        onClick={() => navigate('/notice')}
+                        className="group cursor-pointer bg-white rounded-2xl px-8 py-6 hover:bg-zinc-50 transition-all flex items-center justify-between min-h-[80px] border border-zinc-100 shadow-sm hover:shadow-md"
+                      >
+                        {notices.length > 0 ? (
+                          <>
+                            <div className="space-y-1">
+                              <p className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold">New Post</p>
+                              <p className="text-[15px] font-bold leading-tight line-clamp-1 group-hover:translate-x-1 transition-transform text-zinc-800">
+                                {notices[0].title}
+                              </p>
+                            </div>
+                            <ArrowRight size={18} className="text-zinc-300 group-hover:text-black transition-colors shrink-0 ml-4" />
+                          </>
+                        ) : (
+                          <div className="opacity-40">
+                            <p className="text-[15px] font-bold leading-tight italic text-zinc-300">
+                              New update coming soon...
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </>
                   )}
-
-                  <div 
-                    onClick={() => navigate('/notice')}
-                    className="group cursor-pointer bg-white rounded-2xl px-8 py-6 hover:bg-zinc-50 transition-all flex items-center justify-between min-h-[80px] border border-zinc-100 shadow-sm hover:shadow-md"
-                  >
-                    {notices.length > 0 ? (
-                      <>
-                        <div className="space-y-1">
-                          <p className="text-[9px] uppercase tracking-widest text-zinc-400 font-bold">New Post</p>
-                          <p className="text-[15px] font-bold leading-tight line-clamp-1 group-hover:translate-x-1 transition-transform text-zinc-800">
-                            {notices[0].title}
-                          </p>
-                        </div>
-                        <ArrowRight size={18} className="text-zinc-300 group-hover:text-black transition-colors shrink-0 ml-4" />
-                      </>
-                    ) : (
-                      <div className="opacity-40">
-                        <p className="text-[15px] font-bold leading-tight italic text-zinc-300">
-                          New update coming soon...
-                        </p>
-                      </div>
-                    )}
-                  </div>
                 </div>
               </section>
 
