@@ -1,4 +1,4 @@
-import { useState, useEffect, ChangeEvent, FormEvent, useRef } from "react";
+import { useState, useEffect, ChangeEvent, FormEvent, useRef, MouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
   collection, 
@@ -120,6 +120,8 @@ export default function Admin() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [searchUserQuery, setSearchUserQuery] = useState("");
   const [searchProductQuery, setSearchProductQuery] = useState("");
+  const [selectedPostIds, setSelectedPostIds] = useState<string[]>([]);
+  const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null);
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<"all" | "admin" | "customer">("all");
   const [isUpdatingUser, setIsUpdatingUser] = useState<string | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -614,9 +616,130 @@ export default function Admin() {
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm("Delete this post?")) {
+    if (window.confirm("정말 삭제하시겠습니까?")) {
       handleAutoSaveAction(async () => {
-        await deleteDoc(doc(db, "posts", id));
+        try {
+          await deleteDoc(doc(db, "posts", id));
+          setSelectedPostIds(prev => prev.filter(selectedId => selectedId !== id));
+          alert("성공적으로 삭제되었습니다.");
+        } catch (error: any) {
+          console.error("Delete failed:", error);
+          alert("삭제 중 오류가 발생했습니다: " + (error.message || error.toString()));
+          throw error;
+        }
+      });
+    }
+  };
+
+  const handleRowClick = (e: MouseEvent, post: Post, idx: number) => {
+    const target = e.target as HTMLElement;
+    // Don't select if the user clicked on standard operational buttons, action anchors, or draggable handle
+    if (target.closest('button') || target.closest('a') || target.closest('.cursor-grab') || target.closest('.cursor-grabbing')) {
+      return;
+    }
+
+    const isSelected = selectedPostIds.includes(post.id);
+
+    if (e.shiftKey && lastClickedIndex !== null) {
+      const start = Math.min(lastClickedIndex, idx);
+      const end = Math.max(lastClickedIndex, idx);
+      const rangePostIds = filteredPosts.slice(start, end + 1).map(p => p.id);
+
+      const shouldSelect = !isSelected;
+      if (shouldSelect) {
+        setSelectedPostIds(prev => {
+          const next = [...prev];
+          rangePostIds.forEach(id => {
+            if (!next.includes(id)) {
+              next.push(id);
+            }
+          });
+          return next;
+        });
+      } else {
+        setSelectedPostIds(prev => prev.filter(id => !rangePostIds.includes(id)));
+      }
+    } else {
+      if (isSelected) {
+        setSelectedPostIds(prev => prev.filter(id => id !== post.id));
+      } else {
+        setSelectedPostIds(prev => [...prev, post.id]);
+      }
+    }
+
+    setLastClickedIndex(idx);
+  };
+
+  const handleBulkStatus = async (status: "public" | "hidden") => {
+    if (selectedPostIds.length === 0) {
+      alert("선택된 상품이 없습니다.");
+      return;
+    }
+    const count = selectedPostIds.length;
+    const actionLabel = status === "public" ? "공개" : "숨김";
+    if (window.confirm(`선택한 ${count}개 상품의 상태를 [${actionLabel}]으로 변경하시겠습니까?`)) {
+      handleAutoSaveAction(async () => {
+        try {
+          const promises = selectedPostIds.map(id => 
+            updateDoc(doc(db, "posts", id), { status })
+          );
+          await Promise.all(promises);
+          setSelectedPostIds([]);
+          alert(`${count}개 상품이 성공적으로 [${actionLabel}] 상태로 변경되었습니다.`);
+        } catch (error: any) {
+          console.error("Bulk status change failed:", error);
+          alert("일괄 상태 변경 중 오류가 발생했습니다: " + (error.message || error.toString()));
+          throw error;
+        }
+      });
+    }
+  };
+
+  const handleBulkSoldOut = async (isSoldOut: boolean) => {
+    if (selectedPostIds.length === 0) {
+      alert("선택된 상품이 없습니다.");
+      return;
+    }
+    const count = selectedPostIds.length;
+    const actionLabel = isSoldOut ? "품절" : "판매중";
+    if (window.confirm(`선택한 ${count}개 상품을 [${actionLabel}] 상태로 지정하시겠습니까?`)) {
+      handleAutoSaveAction(async () => {
+        try {
+          const promises = selectedPostIds.map(id => 
+            updateDoc(doc(db, "posts", id), { isSoldOut })
+          );
+          await Promise.all(promises);
+          setSelectedPostIds([]);
+          alert(`${count}개 상품이 성공적으로 [${actionLabel}] 상태로 변경되었습니다.`);
+        } catch (error: any) {
+          console.error("Bulk sold out change failed:", error);
+          alert("일괄 품절 상태 변경 중 오류가 발생했습니다: " + (error.message || error.toString()));
+          throw error;
+        }
+      });
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedPostIds.length === 0) {
+      alert("선택된 상품이 없습니다.");
+      return;
+    }
+    const count = selectedPostIds.length;
+    if (window.confirm(`정말로 선택한 ${count}개 상품을 일괄 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
+      handleAutoSaveAction(async () => {
+        try {
+          const promises = selectedPostIds.map(id => 
+            deleteDoc(doc(db, "posts", id))
+          );
+          await Promise.all(promises);
+          setSelectedPostIds([]);
+          alert(`${count}개의 상품이 전량 성공적으로 삭제되었습니다.`);
+        } catch (error: any) {
+          console.error("Bulk delete failed:", error);
+          alert("일괄 삭제 중 오류가 발생했습니다: " + (error.message || error.toString()));
+          throw error;
+        }
       });
     }
   };
@@ -651,9 +774,7 @@ export default function Admin() {
       { id: "reviews", label: "수강생 리뷰 관리", icon: MessageSquare },
     ]},
     { section: "회원 관리", items: [
-      { id: "users", label: "전체 회원 조회", icon: Users },
-      { id: "history", label: "예약 및 수강 히스토리", icon: Clock },
-      { id: "roles", label: "회원 등급 및 권한", icon: ShieldCheck },
+      { id: "users", label: "회원 관리", icon: Users },
       { id: "inquiry", label: "1:1 문의 및 상담", icon: HelpCircle },
       { id: "blacklist", label: "이용 제한 관리", icon: UserX },
     ]},
@@ -983,30 +1104,111 @@ export default function Admin() {
                   </div>
 
                   {/* Local Product Search Panel */}
-                  <div className="bg-white p-6 rounded-[28px] border border-zinc-200 shadow-sm flex flex-col sm:flex-row gap-4 items-center justify-between">
-                    <div className="relative w-full sm:w-96">
-                      <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" />
-                      <input 
-                        type="text"
-                        value={searchProductQuery}
-                        onChange={e => setSearchProductQuery(e.target.value)}
-                        placeholder="상품명, 영문명, 카테고리를 입력하여 검색..."
-                        className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl py-3 pl-11 pr-10 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-black/10 transition-all placeholder:text-zinc-400"
-                      />
+                  <div className="bg-white p-6 rounded-[28px] border border-zinc-200 shadow-sm flex flex-col lg:flex-row gap-4 items-center justify-between">
+                    <div className="flex flex-col sm:flex-row gap-4 items-center w-full lg:w-auto">
+                      <div className="relative w-full sm:w-80">
+                        <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" />
+                        <input 
+                          type="text"
+                          value={searchProductQuery}
+                          onChange={e => setSearchProductQuery(e.target.value)}
+                          placeholder="상품명, 영문명, 카테고리를 입력하여 검색..."
+                          className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl py-3 pl-11 pr-10 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-black/10 transition-all placeholder:text-zinc-400"
+                        />
+                        {searchProductQuery && (
+                          <button 
+                            onClick={() => setSearchProductQuery("")}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-black transition-colors"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
                       {searchProductQuery && (
-                        <button 
-                          onClick={() => setSearchProductQuery("")}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-black transition-colors"
-                        >
-                          <X size={14} />
-                        </button>
+                        <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider select-none shrink-0">
+                          검색 결과 • {filteredPosts.length}개 발견
+                        </span>
                       )}
                     </div>
-                    {searchProductQuery && (
-                      <span className="text-[10px] text-zinc-400 font-black uppercase tracking-wider select-none">
-                        검색 내용 반영됨 • {filteredPosts.length}개 발견 (검색 중 드래그 정렬 제한)
-                      </span>
-                    )}
+
+                    <div className="flex items-center gap-2 flex-wrap w-full lg:w-auto justify-end">
+                      <div className="flex items-center gap-2 mr-3 bg-zinc-50 px-3 py-2 rounded-xl border border-zinc-150 shrink-0">
+                        <input 
+                          type="checkbox"
+                          id="selectAllPosts"
+                          checked={filteredPosts.length > 0 && filteredPosts.every(p => selectedPostIds.includes(p.id))}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              const allFilteredIds = filteredPosts.map(p => p.id);
+                              setSelectedPostIds(prev => Array.from(new Set([...prev, ...allFilteredIds])));
+                            } else {
+                              const allFilteredIds = filteredPosts.map(p => p.id);
+                              setSelectedPostIds(prev => prev.filter(id => !allFilteredIds.includes(id)));
+                            }
+                          }}
+                          className="w-4 h-4 text-black border-zinc-350 rounded focus:ring-black accent-black cursor-pointer"
+                        />
+                        <label htmlFor="selectAllPosts" className="text-xs font-black text-zinc-650 select-none cursor-pointer">
+                          전체 선택 {selectedPostIds.length > 0 && `(${selectedPostIds.length})`}
+                        </label>
+                      </div>
+
+                      <button
+                        disabled={selectedPostIds.length === 0}
+                        onClick={() => handleBulkStatus("public")}
+                        className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 ${
+                          selectedPostIds.length > 0 
+                            ? "bg-green-50 text-green-600 border border-green-200 hover:bg-green-100" 
+                            : "bg-zinc-50 text-zinc-300 border border-zinc-100 cursor-not-allowed"
+                        }`}
+                      >
+                        공개
+                      </button>
+                      <button
+                        disabled={selectedPostIds.length === 0}
+                        onClick={() => handleBulkStatus("hidden")}
+                        className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 ${
+                          selectedPostIds.length > 0 
+                            ? "bg-zinc-100 text-zinc-600 border border-zinc-200 hover:bg-zinc-200" 
+                            : "bg-zinc-50 text-zinc-300 border border-zinc-100 cursor-not-allowed"
+                        }`}
+                      >
+                        숨김
+                      </button>
+                      <button
+                        disabled={selectedPostIds.length === 0}
+                        onClick={() => handleBulkSoldOut(true)}
+                        className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 ${
+                          selectedPostIds.length > 0 
+                            ? "bg-red-50 text-red-600 border border-red-200 hover:bg-red-100" 
+                            : "bg-zinc-50 text-zinc-300 border border-zinc-100 cursor-not-allowed"
+                        }`}
+                      >
+                        품절
+                      </button>
+                      <button
+                        disabled={selectedPostIds.length === 0}
+                        onClick={() => handleBulkSoldOut(false)}
+                        className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 ${
+                          selectedPostIds.length > 0 
+                            ? "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100" 
+                            : "bg-zinc-50 text-zinc-300 border border-zinc-100 cursor-not-allowed"
+                        }`}
+                      >
+                        판매중
+                      </button>
+                      <button
+                        disabled={selectedPostIds.length === 0}
+                        onClick={handleBulkDelete}
+                        className={`px-4 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 ${
+                          selectedPostIds.length > 0 
+                            ? "bg-red-600 text-white hover:bg-red-700 shadow-sm animate-pulse-subtle" 
+                            : "bg-zinc-50 text-zinc-300 border border-zinc-100 cursor-not-allowed"
+                        }`}
+                      >
+                        삭제
+                      </button>
+                    </div>
                   </div>
 
                   <Reorder.Group 
@@ -1015,7 +1217,7 @@ export default function Admin() {
                     onReorder={handleReorder}
                     className="grid grid-cols-1 gap-4"
                   >
-                    {filteredPosts.map(post => (
+                    {filteredPosts.map((post, idx) => (
                       <Reorder.Item 
                         key={post.id} 
                         value={post}
@@ -1035,7 +1237,12 @@ export default function Admin() {
                           layout: { type: "spring", stiffness: 500, damping: 30, mass: 0.8 },
                           opacity: { duration: 0.2 }
                         }}
-                        className="bg-white px-4 py-2 rounded-xl border border-zinc-200 flex items-center gap-4 group hover:border-black/20 transition-[border-color,box-shadow,background-color] relative"
+                        onClick={(e) => handleRowClick(e, post, idx)}
+                        className={`px-4 py-2 rounded-xl border flex items-center gap-4 group transition-[border-color,box-shadow,background-color] relative cursor-pointer select-none ${
+                          selectedPostIds.includes(post.id) 
+                            ? "bg-zinc-50/80 border-black/30 shadow-sm" 
+                            : "bg-white border-zinc-200 hover:border-black/20"
+                        }`}
                       >
                         {/* Drag Handle */}
                         {!searchProductQuery ? (
@@ -1047,6 +1254,16 @@ export default function Admin() {
                             •
                           </div>
                         )}
+
+                        {/* Checkbox for selection */}
+                        <div className="flex-shrink-0 flex items-center justify-center pl-1 pointer-events-none">
+                          <input 
+                            type="checkbox"
+                            checked={selectedPostIds.includes(post.id)}
+                            readOnly
+                            className="w-4 h-4 text-black border-zinc-350 rounded focus:ring-black accent-black cursor-pointer"
+                          />
+                        </div>
 
                         {/* Thumbnail */}
                         <div className="w-10 h-10 bg-zinc-50 rounded-lg overflow-hidden flex-shrink-0 border border-zinc-100 flex items-center justify-center">
@@ -1077,7 +1294,10 @@ export default function Admin() {
                         {/* Quick Actions */}
                         <div className="flex items-center gap-2">
                           <button 
-                            onClick={() => handleToggleStatus(post.id, post.status || "public")}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleStatus(post.id, post.status || "public");
+                            }}
                             className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all border ${
                               post.status === "hidden" 
                                 ? "bg-zinc-50 border-zinc-100 text-zinc-400" 
@@ -1088,7 +1308,10 @@ export default function Admin() {
                           </button>
 
                           <button 
-                            onClick={() => handleToggleSoldOut(post.id, !!post.isSoldOut)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleSoldOut(post.id, !!post.isSoldOut);
+                            }}
                             className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all border ${
                               post.isSoldOut 
                                 ? "bg-red-50 border-red-100 text-red-600" 
@@ -1102,14 +1325,20 @@ export default function Admin() {
                         {/* Edit/Delete Icons */}
                         <div className="flex items-center gap-1 pl-4 border-l border-zinc-100">
                           <button 
-                            onClick={() => startEdit(post)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startEdit(post);
+                            }}
                             className="p-2 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-lg transition-all"
                             title="Edit"
                           >
                             <Edit2 size={16} />
                           </button>
                           <button 
-                            onClick={() => handleDelete(post.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(post.id);
+                            }}
                             className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                             title="Delete"
                           >
@@ -2110,7 +2339,7 @@ export default function Admin() {
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                       <h3 className="text-3xl font-black tracking-tighter uppercase mb-2 flex items-center gap-2">
-                        Member Management <span className="text-xs bg-black text-white font-normal px-2.5 py-1 rounded-full uppercase tracking-widest scale-90 origin-left">전체 회원 조회</span>
+                        Member Management <span className="text-xs bg-black text-white font-normal px-2.5 py-1 rounded-full uppercase tracking-widest scale-90 origin-left">회원 관리</span>
                       </h3>
                       <p className="text-zinc-500 font-medium">서비스에 가입된 모든 회원을 조회하고 어드민 접속 권한 등급을 지정합니다.</p>
                     </div>
