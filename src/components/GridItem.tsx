@@ -5,25 +5,41 @@ import { useState } from "react";
 interface GridItemProps {
   key?: string | number;
   title: string;
+  titleEn?: string;
+  lang?: "KOR" | "ENG";
   image: string;
   naverUrl: string;
   index: number;
   imageUrl?: string;
-  visuals?: string;
   category?: string;
   isSoldOut?: boolean;
   originalPrice?: string;
   price?: string;
+  uniform?: boolean;
 }
 
-export default function GridItem({ title, visuals, image, naverUrl, index, imageUrl, category, isSoldOut, originalPrice, price }: GridItemProps) {
+export default function GridItem({ 
+  title, 
+  titleEn,
+  lang = "KOR",
+  image, 
+  naverUrl, 
+  index, 
+  imageUrl, 
+  category, 
+  isSoldOut, 
+  originalPrice, 
+  price, 
+  uniform = false 
+}: GridItemProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   
-  // Create an editorial feel by varying the layout based on index
-  const isLarge = index % 5 === 0; // Every 5th item is larger
-  const isWide = index % 7 === 0;  // Every 7th item is wider
+  // Create an editorial feel by varying the layout based on index (disable if uniform)
+  const isLarge = !uniform && index % 5 === 0; // Every 5th item is larger
+  const isWide = !uniform && index % 7 === 0;  // Every 7th item is wider
   
   const displayImage = imageUrl || image;
+  const displayTitle = lang === "ENG" && titleEn ? titleEn : title;
 
   return (
     <motion.div 
@@ -39,7 +55,7 @@ export default function GridItem({ title, visuals, image, naverUrl, index, image
       <div className="w-full h-full flex flex-col">
         {/* Visual Image Container */}
         <div className={`relative w-full overflow-hidden bg-zinc-50 ${
-          isLarge ? "aspect-[4/5]" : isWide ? "aspect-[21/9]" : "aspect-[3/4]"
+          uniform ? "aspect-square" : (isLarge ? "aspect-[4/5]" : isWide ? "aspect-[21/9]" : "aspect-[3/4]")
         }`}>
           {!isLoaded && (
             <div className="absolute inset-0 bg-zinc-50 animate-pulse" />
@@ -47,7 +63,7 @@ export default function GridItem({ title, visuals, image, naverUrl, index, image
           
           <img 
             src={displayImage} 
-            alt={title} 
+            alt={displayTitle} 
             onLoad={() => setIsLoaded(true)}
             className={`w-full h-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105 ${
               isLoaded ? "opacity-100" : "opacity-0"
@@ -75,21 +91,16 @@ export default function GridItem({ title, visuals, image, naverUrl, index, image
                 </span>
               )}
               <h3 className="text-[14px] font-bold leading-tight tracking-tight text-zinc-900 group-hover:text-zinc-500 transition-colors">
-                {title}
+                {displayTitle}
               </h3>
             </div>
             <div className="text-right flex-shrink-0">
               <p className="text-[13px] font-bold text-zinc-900">{price}</p>
               {originalPrice && (
-                <p className="text-[10px] text-zinc-300 line-through font-medium mt-0.5">{originalPrice}</p>
+                <p className="text-[12px] text-zinc-600 line-through font-medium mt-0.5">{originalPrice}</p>
               )}
             </div>
           </div>
-          {visuals && (
-            <p className="mt-3 text-[11px] font-medium text-zinc-400 italic leading-relaxed">
-              {visuals}
-            </p>
-          )}
         </div>
       </div>
     </motion.div>

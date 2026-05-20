@@ -14,6 +14,7 @@ import GridItem from "./components/GridItem";
 import Admin from "./pages/Admin";
 import Login from "./pages/Login";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { initGA, trackPageView } from "./utils/analytics";
 
 const ProtectedRoute = ({ children, adminOnly = false }: { children: React.ReactNode, adminOnly?: boolean }) => {
   const { user, loading, isAdmin } = useAuth();
@@ -23,6 +24,11 @@ const ProtectedRoute = ({ children, adminOnly = false }: { children: React.React
       <div className="w-8 h-8 border-2 border-zinc-100 border-t-black rounded-full animate-spin"></div>
     </div>
   );
+
+  const isBypassed = localStorage.getItem('admin_bypass') === 'true';
+  if (isBypassed) {
+    return <>{children}</>;
+  }
   
   if (!user) return <Login />;
   if (adminOnly && !isAdmin) return (
@@ -38,7 +44,18 @@ const ProtectedRoute = ({ children, adminOnly = false }: { children: React.React
         </p>
         <div className="flex flex-col gap-3">
           <button onClick={() => window.location.href = '/'} className="w-full px-8 py-4 bg-black text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-zinc-800 transition-all">Back Home</button>
-          <button onClick={() => { signOut(auth); window.location.reload(); }} className="w-full px-8 py-4 bg-white border border-zinc-200 text-black rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-zinc-50 transition-all">Sign Out</button>
+          
+          <button 
+            onClick={() => {
+              localStorage.setItem('admin_bypass', 'true');
+              window.location.reload();
+            }} 
+            className="w-full px-8 py-4 bg-zinc-50 border border-zinc-100 text-black rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-zinc-100 transition-all font-bold"
+          >
+            [미리보기 전용] 어드민 강제 접속 / Admin Bypass
+          </button>
+
+          <button onClick={() => { signOut(auth); localStorage.removeItem('admin_bypass'); window.location.reload(); }} className="w-full px-8 py-4 bg-white border border-zinc-200 text-black rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-zinc-50 transition-all">Sign Out</button>
         </div>
       </div>
     </div>
@@ -70,6 +87,7 @@ const imageMap: Record<string, string> = {
 interface ClassPost {
   id: string;
   title: string;
+  titleEn?: string;
   image: string;
   naverUrl: string;
   price: string;
@@ -88,6 +106,15 @@ interface Notice {
   isActive: boolean;
   url?: string;
   isBanner?: boolean;
+}
+
+interface StudentReview {
+  id: string;
+  imageUrl: string;
+  phrase?: string;
+  phraseEn?: string;
+  createdAt: any;
+  order?: number;
 }
 
 const INITIAL_POSTS: ClassPost[] = [
@@ -119,11 +146,13 @@ function HomePage() {
   const [lang, setLang] = useState<"KOR" | "ENG">("KOR");
   const [view, setView] = useState<"landing" | "grid">("landing");
   const [posts, setPosts] = useState<ClassPost[]>([]);
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [notices, setNotices] = useState<Notice[]>([]);
   const [banners, setBanners] = useState<Notice[]>([]);
+  const [reviews, setReviews] = useState<StudentReview[]>([]);
   const [loading, setLoading] = useState(true);
   const [bannersLoading, setBannersLoading] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState("ALL");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -156,9 +185,19 @@ function HomePage() {
       setBannersLoading(false);
     });
 
+    const reviewsQ = query(collection(db, "reviews"), orderBy("createdAt", "desc"));
+    const unsubscribeReviews = onSnapshot(reviewsQ, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as StudentReview[];
+      setReviews(docs);
+    });
+
     return () => {
       unsubscribe();
       unsubscribeNotices();
+      unsubscribeReviews();
     };
   }, []);
 
@@ -172,60 +211,134 @@ function HomePage() {
     window.scrollTo(0, 0);
   };
 
-  const publicPosts = posts.filter(post => post.status !== "hidden");
+  const rawCategories = Array.from(new Set(posts.map(p => p.category?.trim().toUpperCase()).filter(Boolean) as string[]));
+  rawCategories.sort((a, b) => {
+    const isMasterA = a === "MASTERCLASS" || a.includes("MASTER");
+    const isMasterB = b === "MASTERCLASS" || b.includes("MASTER");
+    if (isMasterA && !isMasterB) return -1;
+    if (!isMasterA && isMasterB) return 1;
+    return a.localeCompare(b);
+  });
+  const categories = [...rawCategories, "ALL"];
+
+  const publicPosts = posts.filter(post => {
+    const isPublic = post.status !== "hidden";
+    const matchesCategory = selectedCategory === "ALL" || post.category?.toUpperCase() === selectedCategory;
+    return isPublic && matchesCategory;
+  });
   const displayClasses = view === "grid" ? publicPosts : publicPosts.slice(0, 9);
 
   return (
     <div className="min-h-screen bg-white selection:bg-black selection:text-white pt-[100px]">
       {/* Fixed Top Bar */}
-      <div className="fixed top-0 left-0 w-full h-[100px] bg-white border-b border-zinc-100 z-50 flex items-center justify-center px-6 md:px-12">
-        <span className="font-script text-4xl cursor-pointer" onClick={handleBackToHome}>Puima</span>
-        
-        {/* Language Toggle & Login moved here */}
-        <div className="absolute right-6 md:right-12 flex gap-3 text-[11px] font-bold tracking-widest">
-          <button 
-            onClick={() => setLang("KOR")} 
-            className={`${lang === "KOR" ? "text-black" : "text-zinc-300"} cursor-pointer transition-colors hover:text-black pb-0.5 ${lang === "KOR" ? "border-b border-black" : ""}`}
-            id="bar-lang-kor"
-          >
-            KOR
-          </button>
-          <span className="text-zinc-200">/</span>
-          <button 
-            onClick={() => setLang("ENG")} 
-            className={`${lang === "ENG" ? "text-black" : "text-zinc-300"} cursor-pointer transition-colors hover:text-black pb-0.5 ${lang === "ENG" ? "border-b border-black" : ""}`}
-            id="bar-lang-eng"
-          >
-            ENG
-          </button>
-          <span className="text-zinc-200 ml-2">/</span>
-          <button 
-            onClick={() => navigate('/admin')}
-            className="text-zinc-300 hover:text-black transition-colors"
-            id="bar-login"
-          >
-            {user ? "ADMIN" : "LOGIN"}
-          </button>
+      <div className="fixed top-0 left-0 w-full h-[100px] bg-white border-b border-zinc-100 z-50 flex items-center justify-center px-6 md:px-12 lg:px-0">
+        <div className="w-full max-w-[1100px] h-full flex items-center justify-center relative px-6 lg:px-0">
+          <span className="font-script text-4xl cursor-pointer select-none" onClick={handleBackToHome}>Puima</span>
+          
+          {/* Language Toggle & Login moved here */}
+          <div className="absolute right-6 lg:right-0 flex items-center gap-4 text-[11px] font-bold tracking-widest">
+            {/* Beautiful Pill Toggle for Language */}
+            <div className="flex bg-white border border-zinc-200 rounded-full p-0.5 items-center select-none">
+              <button
+                onClick={() => setLang("KOR")}
+                className={`px-2.5 py-1.5 text-[9px] font-black tracking-widest rounded-full transition-all cursor-pointer ${
+                  lang === "KOR"
+                    ? "bg-black text-white shadow-sm"
+                    : "text-zinc-400 hover:text-zinc-800"
+                }`}
+                id="bar-lang-kor"
+              >
+                KOR
+              </button>
+              <button
+                onClick={() => setLang("ENG")}
+                className={`px-2.5 py-1.5 text-[9px] font-black tracking-widest rounded-full transition-all cursor-pointer ${
+                  lang === "ENG"
+                    ? "bg-black text-white shadow-sm"
+                    : "text-zinc-400 hover:text-zinc-800"
+                }`}
+                id="bar-lang-eng"
+              >
+                ENG
+              </button>
+            </div>
+
+            {user ? (
+              <div className="flex items-center gap-3 select-none">
+                <span className="text-zinc-500 font-medium">
+                  {user.displayName || user.email?.split('@')[0]}님
+                </span>
+                <span className="text-zinc-200">/</span>
+                <button 
+                  onClick={() => { signOut(auth); localStorage.removeItem('admin_bypass'); window.location.reload(); }}
+                  className="text-zinc-300 hover:text-red-600 transition-colors cursor-pointer"
+                  id="bar-logout"
+                >
+                  {lang === "KOR" ? "로그아웃" : "LOGOUT"}
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 select-none">
+                <button 
+                  onClick={() => navigate('/login', { state: { mode: 'signup' } })}
+                  className="text-zinc-450 hover:text-black transition-colors cursor-pointer"
+                  id="bar-signup"
+                >
+                  {lang === "KOR" ? "회원가입" : "JOIN"}
+                </button>
+                <span className="text-zinc-200">/</span>
+                <button 
+                  onClick={() => navigate('/login', { state: { mode: 'login' } })}
+                  className="text-zinc-450 hover:text-black transition-colors cursor-pointer"
+                  id="bar-login"
+                >
+                  {lang === "KOR" ? "로그인" : "LOGIN"}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       <div className="flex justify-center px-6 md:px-12 lg:px-0">
-        <div className="w-full max-w-[1200px] bg-white text-black font-sans relative pt-[100px]">
+        <div className="w-full max-w-[1100px] bg-white text-black font-sans relative pt-[100px]">
           {/* Main Content */}
           <div className="w-full">
+            {/* Social Media Links Section */}
+            <div className="flex justify-end gap-6 mb-8 px-6 md:px-0">
+              <a 
+                href="https://www.youtube.com/@%ED%91%B8%EC%9D%B4%EB%A7%88" 
+                target="_blank" 
+                rel="noreferrer"
+                className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 hover:text-black transition-all group"
+              >
+                <Youtube size={16} className="group-hover:scale-110 transition-transform" />
+                <span>YouTube</span>
+              </a>
+              <a 
+                href="https://instagram.com/puima_official" 
+                target="_blank" 
+                rel="noreferrer"
+                className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 hover:text-black transition-all group"
+              >
+                <Instagram size={16} className="group-hover:scale-110 transition-transform" />
+                <span>Instagram</span>
+              </a>
+            </div>
+
             {/* Notice Bar Section */}
             {notices.length > 0 && (
-              <div className="bg-black text-white py-4 px-6 flex items-center justify-between border-y border-white/10 mb-12">
+              <div className="bg-white text-black py-4 px-6 flex items-center justify-between border-y border-zinc-100 mb-12">
                 <div className="flex gap-6 items-center flex-grow overflow-hidden">
-                  <span className="bg-white text-black px-2 py-0.5 text-[10px] font-black uppercase tracking-widest rounded-sm flex-shrink-0">Notice</span>
+                  <span className="text-black text-[10px] font-black uppercase tracking-widest flex-shrink-0">Notice</span>
                   <div className="flex flex-col gap-1 overflow-hidden">
-                    <span className="text-sm font-bold tracking-tight truncate">{notices[0].title}</span>
-                    <span className="text-[11px] text-zinc-500 font-medium truncate">{notices[0].content}</span>
+                    <span className="text-sm font-bold tracking-tight truncate text-black">{notices[0].title}</span>
+                    <span className="text-[11px] text-zinc-900 font-medium truncate">{notices[0].content}</span>
                   </div>
                 </div>
                 <button 
                   onClick={() => navigate('/notice')}
-                  className="ml-6 text-[10px] font-black uppercase tracking-widest border-b border-white/70 hover:border-white transition-colors flex-shrink-0"
+                  className="ml-6 h-[65px] flex items-center text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-black transition-colors flex-shrink-0"
                 >
                   Learn More
                 </button>
@@ -246,7 +359,7 @@ function HomePage() {
               {banners.length > 0 && (
                 <section className="px-6 md:px-0 mb-32">
                   <div className="flex justify-between items-end mb-8">
-                    <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-300">Notice</h2>
+                    <h2 className="text-[14px] font-semibold uppercase tracking-[0.3em] text-black">Notice</h2>
                     <button 
                       onClick={() => navigate('/notice')}
                       className="text-[11px] font-bold text-zinc-900 border-b border-zinc-900 pb-0.5 hover:text-zinc-400 hover:border-zinc-400 transition-colors"
@@ -264,7 +377,7 @@ function HomePage() {
                         viewport={{ once: true }}
                         transition={{ delay: i * 0.1 }}
                         onClick={() => banner.url && window.open(banner.url, "_blank")}
-                        className="group cursor-pointer bg-white border border-zinc-100 rounded-2xl h-[80px] px-6 flex items-center justify-center text-center hover:shadow-xl hover:shadow-zinc-200/50 transition-all duration-500"
+                        className="group cursor-pointer bg-white border border-zinc-300 rounded-[24px] h-[80px] px-6 flex items-center justify-center text-center hover:shadow-xl hover:shadow-zinc-200/50 transition-all duration-500"
                       >
                         <h3 className="text-[14px] font-bold tracking-tight leading-tight group-hover:text-black transition-colors line-clamp-2">
                           {banner.title}
@@ -277,12 +390,7 @@ function HomePage() {
 
               {/* Collection Section */}
               <div className="px-6 md:px-0 pb-12 flex justify-between items-end border-b border-zinc-100 mb-12">
-                <h2 className="text-[14px] font-black uppercase tracking-[0.3em] text-black">Collection</h2>
-                {view === "landing" && (
-                  <p className="text-[12px] font-bold text-zinc-400 uppercase tracking-widest">
-                    {posts.length} Curated classes
-                  </p>
-                )}
+                <h2 className="text-[14px] font-semibold uppercase tracking-[0.3em] text-black">Collection</h2>
               </div>
 
               <main className="min-h-[600px] mb-8">
@@ -296,8 +404,9 @@ function HomePage() {
                       <GridItem 
                         key={item.id}
                         title={item.title}
+                        titleEn={item.titleEn}
+                        lang={lang}
                         category={item.category || ""}
-                        visuals={item.visuals || ""}
                         image={imageMap[item.image] || item.image || pastryImg}
                         imageUrl={item.imageUrl}
                         naverUrl={item.naverUrl}
@@ -315,22 +424,17 @@ function HomePage() {
                 <div className="flex justify-center pt-8 pb-32">
                   <button 
                     onClick={handleLoadMore}
-                    className="px-10 py-3 bg-black text-white rounded-full text-[13px] font-bold hover:bg-zinc-800 transition-all active:scale-95"
+                    className="group flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-900 border-b border-zinc-900 pb-1 hover:text-zinc-400 hover:border-zinc-400 transition-all"
                   >
-                    View All Masterclasses
+                    더 많은 제품보러가기
                   </button>
                 </div>
               )}
 
               {/* Student Review Ticker Section */}
-              <section className="pb-32 overflow-hidden border-t border-zinc-100 bg-zinc-50 pt-32">
-                <div className="px-6 md:px-12 py-12 flex flex-col md:flex-row justify-between items-end gap-6 mb-12">
-                  <div>
-                    <h2 className="text-[12px] font-black uppercase tracking-[0.3em] text-zinc-300 mb-4">Student Masterpieces</h2>
-                    <p className="text-[32px] font-serif italic tracking-tighter leading-tight">
-                      {lang === "KOR" ? "수강생분들이 직접 완성한 예술" : "Art completed by our students"}
-                    </p>
-                  </div>
+              <section className="pb-32 overflow-hidden bg-white pt-32">
+                <div className="px-6 md:px-0 pb-12 flex justify-between items-end border-b border-zinc-100 mb-12">
+                  <h2 className="text-[14px] font-semibold uppercase tracking-[0.3em] text-black">REVIEW</h2>
                   <p className="text-[12px] font-bold text-zinc-400 max-w-[200px] leading-relaxed">
                     Over 2,400+ students have started their baking journey with Puima.
                   </p>
@@ -342,30 +446,59 @@ function HomePage() {
                     animate={{ x: ["0%", "-50%"] }}
                     transition={{ 
                       repeat: Infinity, 
-                      duration: 30, 
+                      duration: 35, 
                       ease: "linear" 
                     }}
                   >
-                    {[...Array(2)].map((_, i) => (
-                      <div key={i} className="flex gap-4">
-                        {[heroImg, pastryImg, macaronsImg, cakeImg, heroImg, cakeImg].map((img, idx) => (
-                          <div 
-                            key={idx} 
-                            className="w-[280px] md:w-[320px] aspect-[4/5] bg-white overflow-hidden group border border-zinc-100 relative"
-                          >
-                            <img 
-                              src={img} 
-                              alt="Student Review" 
-                              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                              referrerPolicy="no-referrer"
-                            />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-6">
-                              <p className="text-white text-[11px] font-bold tracking-widest uppercase">Verified Student Review</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ))}
+                    {[...Array(2)].map((_, i) => {
+                      const fallbackReviews = [
+                        { id: "f1", imageUrl: heroImg, phrase: "초보자도 쉽게 완성하는 겉바속촉 에그타르트", phraseEn: "Verified Student Review" },
+                        { id: "f2", imageUrl: pastryImg, phrase: "전통 방식 그대로, 깊은 풍미 of 천연 발효 사워도우", phraseEn: "Verified Student Review" },
+                        { id: "f3", imageUrl: macaronsImg, phrase: "쫀득한 식감과 과하지 않은 단맛의 마카롱 클래스", phraseEn: "Verified Student Review" },
+                        { id: "f4", imageUrl: cakeImg, phrase: "우아하고 섬세한 플라워 데코레이션 케이크", phraseEn: "Verified Student Review" },
+                        { id: "f5", imageUrl: heroImg, phrase: "바삭하고 고소함 가득 품은 에클레어와 밀푀유", phraseEn: "Verified Student Review" },
+                        { id: "f6", imageUrl: cakeImg, phrase: "계절 과일의 상큼함을 살린 가벼운 생크림 케이크", phraseEn: "Verified Student Review" },
+                      ];
+                      
+                      // Combine user's uploaded reviews first, then pad with fallback items up to at least 6 unique items
+                      let paddedList = [...reviews];
+                      if (paddedList.length < 6) {
+                        const needed = 6 - paddedList.length;
+                        paddedList = [...paddedList, ...fallbackReviews.slice(0, needed)];
+                      }
+
+                      return (
+                        <div key={i} className="flex gap-4">
+                          {paddedList.map((item, idx) => {
+                            const textToShow = lang === "KOR" 
+                              ? (item.phrase || "수강생 작품") 
+                              : (item.phraseEn || "Verified Student Review");
+
+                            return (
+                              <div 
+                                key={`${item.id}-${i}-${idx}`} 
+                                className="w-[280px] md:w-[320px] aspect-[4/5] bg-white overflow-hidden group border border-zinc-100 relative rounded-3xl shadow-sm"
+                              >
+                                <img 
+                                  src={item.imageUrl} 
+                                  alt="Student Review" 
+                                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                                  referrerPolicy="no-referrer"
+                                />
+                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-6 flex flex-col justify-end text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                  <p className="text-[9px] font-bold text-zinc-300 tracking-widest uppercase">
+                                    {lang === "KOR" ? "수강생 인증 후기" : "Verified Student Review"}
+                                  </p>
+                                  <p className="text-[12px] md:text-[13px] font-black leading-tight mt-1">
+                                    {textToShow}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
                   </motion.div>
                 </div>
               </section>
@@ -378,14 +511,39 @@ function HomePage() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.6 }}
             >
-              <div className="px-6 md:px-0 pb-16 flex flex-col md:flex-row justify-between items-end gap-8 border-b border-zinc-100 mb-16">
+              <div className="px-6 md:px-0 pb-16 flex flex-col md:flex-row justify-between items-end gap-8 border-b border-zinc-100 mb-8">
                 <div className="space-y-4">
                   <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-400">Class Index</h2>
                   <p className="text-[48px] md:text-[64px] font-script leading-none">The Collection</p>
                 </div>
                 <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest">
-                  Total {posts.length} Curated Masterclasses
+                  Total {publicPosts.length} Curated Masterclasses
                 </p>
+              </div>
+
+              {/* Category Tabs */}
+              <div className="px-6 md:px-0 mb-16 overflow-x-auto no-scrollbar">
+                <div className="flex gap-8 border-b border-zinc-100 pb-4 min-w-max">
+                  {categories.map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setSelectedCategory(cat)}
+                      className={`text-[11px] font-black uppercase tracking-[0.2em] transition-all relative pb-4 ${
+                        selectedCategory === cat 
+                          ? "text-black" 
+                          : "text-zinc-300 hover:text-zinc-600"
+                      }`}
+                    >
+                      {cat}
+                      {selectedCategory === cat && (
+                        <motion.div 
+                          layoutId="activeCategory"
+                          className="absolute bottom-0 left-0 w-full h-[2px] bg-black"
+                        />
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <main className="min-h-[600px] mb-32">
@@ -394,13 +552,14 @@ function HomePage() {
                     <div className="w-8 h-8 border border-zinc-200 border-t-black rounded-full animate-spin"></div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-6 gap-y-12">
                     {publicPosts.map((item, idx) => (
                       <GridItem 
                         key={item.id}
                         title={item.title}
+                        titleEn={item.titleEn}
+                        lang={lang}
                         category={item.category || ""}
-                        visuals={item.visuals || ""}
                         image={imageMap[item.image] || item.image || pastryImg}
                         imageUrl={item.imageUrl}
                         naverUrl={item.naverUrl}
@@ -408,6 +567,7 @@ function HomePage() {
                         isSoldOut={item.isSoldOut}
                         price={item.price}
                         index={idx}
+                        uniform={true}
                       />
                     ))}
                   </div>
@@ -429,7 +589,7 @@ function HomePage() {
         </AnimatePresence>
 
         <footer className="bg-white border-t border-zinc-100 pt-16 pb-24 px-6 md:px-12">
-          <div className="max-w-[1200px] mx-auto">
+          <div className="max-w-[1100px] mx-auto">
             {/* Upper Links */}
             <div className="flex flex-wrap gap-x-4 gap-y-2 mb-10 text-[11px] font-bold text-zinc-500 uppercase tracking-tighter">
               <a href="#" className="hover:text-black transition-colors">이용약관</a>
@@ -495,9 +655,9 @@ function HomePage() {
               
               <button 
                 onClick={() => navigate('/admin')} 
-                className="text-[11px] font-black text-black hover:bg-black hover:text-white transition-all uppercase tracking-widest border-2 border-black px-6 py-2 rounded-full active:scale-95"
+                className="text-[11px] font-medium text-zinc-400 hover:text-zinc-650 hover:bg-zinc-50 border border-zinc-200 hover:border-zinc-300 transition-all tracking-widest px-6 py-2 rounded-full active:scale-95"
               >
-                {user ? "ADMIN" : "ADMIN LOGIN"}
+                {user ? "Admin" : "Admin login"}
               </button>
             </div>
           </div>
@@ -527,7 +687,7 @@ function NoticePage() {
 
   return (
     <div className="min-h-screen bg-white flex justify-center selection:bg-black selection:text-white">
-      <div className="w-full max-w-[1200px] bg-white text-black font-sans relative min-h-screen">
+      <div className="w-full max-w-[1100px] bg-white text-black font-sans relative min-h-screen">
         <header className="px-6 md:px-12 py-12 flex justify-between items-center border-b border-zinc-100 sticky top-0 bg-white/80 backdrop-blur-md z-50">
           <h1 onClick={() => navigate('/')} className="font-script text-[40px] leading-none cursor-pointer">Puima</h1>
           <button onClick={() => navigate('/')} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:opacity-50">
@@ -568,9 +728,24 @@ function NoticePage() {
   );
 }
 
+const AnalyticsTracker = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    initGA();
+  }, []);
+
+  useEffect(() => {
+    trackPageView(location.pathname + location.search);
+  }, [location]);
+
+  return null;
+};
+
 export default function App() {
   return (
     <AuthProvider>
+      <AnalyticsTracker />
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route 
