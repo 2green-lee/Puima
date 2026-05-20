@@ -102,6 +102,8 @@ const Login: React.FC = () => {
         errMsg = '올바르지 않은 이메일 형식입니다.';
       } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
         errMsg = '이메일 또는 비밀번호가 올바르지 않습니다.';
+      } else if (err.code === 'auth/operation-not-allowed') {
+        errMsg = '이메일/비밀번호 가입이 현재 비활성화되어 있습니다. Firebase 콘솔 -> Build -> Authentication -> Sign-in method 탭에서 "이메일/비밀번호(Email/Password)" 로그인 제공업체를 활성화(Enable)해 주세요.';
       }
       setError(errMsg);
     } finally {
