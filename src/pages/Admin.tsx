@@ -19,7 +19,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { 
   ArrowLeft, Plus, Edit2, Trash2, Save, X, LogIn, LogOut, 
   LayoutDashboard, PlusCircle, Tag, Megaphone, MessageSquare,
-  Users, Clock, ShieldCheck, HelpCircle, UserX, ChevronRight,
+  Users, Clock, ShieldCheck, HelpCircle, UserX, ChevronRight, User as UserIcon,
   Menu, Bell, Settings, Search, Upload, Image as ImageIcon,
   GripVertical, Eye, BarChart3, ExternalLink, TrendingUp, Globe,
   Laptop
@@ -66,6 +66,7 @@ interface UserProfile {
   displayName: string | null;
   photoURL: string | null;
   isAdmin: boolean;
+  isBanned?: boolean;
   createdAt: any;
   nickname?: string;
   realName?: string;
@@ -121,17 +122,21 @@ export default function Admin() {
   const [searchUserQuery, setSearchUserQuery] = useState("");
   const [searchProductQuery, setSearchProductQuery] = useState("");
   const [selectedPostIds, setSelectedPostIds] = useState<string[]>([]);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null);
-  const [selectedRoleFilter, setSelectedRoleFilter] = useState<"all" | "admin" | "customer">("all");
+  const [lastClickedUserIndex, setLastClickedUserIndex] = useState<number | null>(null);
+  const [selectedRoleFilter, setSelectedRoleFilter] = useState<"all" | "admin" | "customer" | "banned">("all");
   const [isUpdatingUser, setIsUpdatingUser] = useState<string | null>(null);
+  const [unbanConfirmId, setUnbanConfirmId] = useState<string | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
-  const [editUserInputs, setEditUserInputs] = useState<{ nickname: string; realName: string; gender: string; phone: string; isAdmin: boolean }>({
+  const [editUserInputs, setEditUserInputs] = useState<{ nickname: string; realName: string; gender: string; phone: string; isAdmin: boolean; isBanned: boolean }>({
     nickname: "",
     realName: "",
     gender: "남",
     phone: "",
-    isAdmin: false
+    isAdmin: false,
+    isBanned: false
   });
 
   const filteredPosts = posts.filter(post => {
@@ -143,6 +148,25 @@ export default function Admin() {
       (post.category || "").toLowerCase().includes(q) ||
       (post.description || "").toLowerCase().includes(q)
     );
+  });
+
+  const filteredUsers = users.filter(u => {
+    const q = searchUserQuery.toLowerCase().trim();
+    const matchesSearch = !q || (
+      (u.nickname || "").toLowerCase().includes(q) ||
+      (u.realName || "").toLowerCase().includes(q) ||
+      (u.phone || "").toLowerCase().includes(q) ||
+      (u.email || "").toLowerCase().includes(q) ||
+      u.id.toLowerCase().includes(q)
+    );
+    
+    if (!matchesSearch) return false;
+    
+    if (selectedRoleFilter === "all") return true;
+    if (selectedRoleFilter === "admin") return !!u.isAdmin;
+    if (selectedRoleFilter === "customer") return !u.isAdmin && !u.isBanned;
+    if (selectedRoleFilter === "banned") return !!u.isBanned;
+    return true;
   });
 
   // Load Google Analytics URL Configuration
@@ -377,6 +401,7 @@ export default function Admin() {
             displayName: dispName,
             photoURL: data.photoURL || null,
             isAdmin: !!data.isAdmin,
+            isBanned: !!data.isBanned,
             createdAt: data.createdAt,
             nickname: data.nickname || dispName || "",
             realName: data.realName || (isGreenLee ? "이근일" : ""),
@@ -403,12 +428,12 @@ export default function Admin() {
     }
   }, [user, designMode]);
 
-  const handleChangeUserRole = async (userId: string, targetEmail: string | null, newIsAdmin: boolean) => {
+  const handleChangeUserRole = async (userId: string, targetEmail: string | null, newRole: "admin" | "customer" | "banned") => {
     if (targetEmail === ADMIN_EMAIL) {
       alert("최고 관리자 계정('rtytgb123@gmail.com')의 권한은 변경할 수 없습니다.");
       return;
     }
-    if (userId === user?.uid && !newIsAdmin) {
+    if (userId === user?.uid && newRole !== "admin") {
       const confirmSelfDemote = window.confirm(
         "본인의 관리자 권한을 해제하면 설정 적용 이후 더이상 관리자 페이지에 접근할 수 없게 됩니다. 정말 계속하시겠습니까?"
       );
@@ -418,7 +443,8 @@ export default function Admin() {
     setIsUpdatingUser(userId);
     try {
       await updateDoc(doc(db, "users", userId), {
-        isAdmin: newIsAdmin
+        isAdmin: newRole === "admin",
+        isBanned: newRole === "banned"
       });
     } catch (err: any) {
       console.error("Failed to update user role:", err);
@@ -435,7 +461,8 @@ export default function Admin() {
       realName: u.realName || "",
       gender: u.gender || "남",
       phone: u.phone || "",
-      isAdmin: !!u.isAdmin
+      isAdmin: !!u.isAdmin,
+      isBanned: !!u.isBanned
     });
   };
 
@@ -451,7 +478,8 @@ export default function Admin() {
         realName: editUserInputs.realName,
         gender: editUserInputs.gender,
         phone: editUserInputs.phone,
-        isAdmin: editUserInputs.isAdmin
+        isAdmin: editUserInputs.isAdmin,
+        isBanned: editUserInputs.isBanned
       });
       setEditingUserId(null);
     } catch (err: any) {
@@ -670,6 +698,45 @@ export default function Admin() {
     setLastClickedIndex(idx);
   };
 
+  const handleUserRowClick = (e: MouseEvent, u: UserProfile, idx: number) => {
+    const target = e.target as HTMLElement;
+    // Don't select if click is on input, select, button, anchor, etc.
+    if (target.closest('button') || target.closest('a') || target.closest('input') || target.closest('select')) {
+      return;
+    }
+
+    const isSelected = selectedUserIds.includes(u.id);
+
+    if (e.shiftKey && lastClickedUserIndex !== null) {
+      const start = Math.min(lastClickedUserIndex, idx);
+      const end = Math.max(lastClickedUserIndex, idx);
+      const rangeUserIds = filteredUsers.slice(start, end + 1).map(item => item.id);
+
+      const shouldSelect = !isSelected;
+      if (shouldSelect) {
+        setSelectedUserIds(prev => {
+          const next = [...prev];
+          rangeUserIds.forEach(id => {
+            if (!next.includes(id)) {
+              next.push(id);
+            }
+          });
+          return next;
+        });
+      } else {
+        setSelectedUserIds(prev => prev.filter(id => !rangeUserIds.includes(id)));
+      }
+    } else {
+      if (isSelected) {
+        setSelectedUserIds(prev => prev.filter(id => id !== u.id));
+      } else {
+        setSelectedUserIds(prev => [...prev, u.id]);
+      }
+    }
+
+    setLastClickedUserIndex(idx);
+  };
+
   const handleBulkStatus = async (status: "public" | "hidden") => {
     if (selectedPostIds.length === 0) {
       alert("선택된 상품이 없습니다.");
@@ -737,6 +804,76 @@ export default function Admin() {
           alert(`${count}개의 상품이 전량 성공적으로 삭제되었습니다.`);
         } catch (error: any) {
           console.error("Bulk delete failed:", error);
+          alert("일괄 삭제 중 오류가 발생했습니다: " + (error.message || error.toString()));
+          throw error;
+        }
+      });
+    }
+  };
+
+  const handleBulkUserRoleChange = async (targetRole: "admin" | "customer" | "banned") => {
+    if (selectedUserIds.length === 0) {
+      alert("선택된 회원이 없습니다.");
+      return;
+    }
+    const count = selectedUserIds.length;
+    let roleLabel = "";
+    let updateFields: { isAdmin: boolean; isBanned: boolean } = { isAdmin: false, isBanned: false };
+    
+    if (targetRole === "admin") {
+      roleLabel = "관리자";
+      updateFields = { isAdmin: true, isBanned: false };
+    } else if (targetRole === "customer") {
+      roleLabel = "일반 회원";
+      updateFields = { isAdmin: false, isBanned: false };
+    } else if (targetRole === "banned") {
+      roleLabel = "금지 회원";
+      updateFields = { isAdmin: false, isBanned: true };
+    }
+    
+    if (window.confirm(`선택한 ${count}명 회원의 권한등급을 [${roleLabel}]으로 변경하시겠습니까?`)) {
+      handleAutoSaveAction(async () => {
+        try {
+          const promises = selectedUserIds.map(userId => {
+            const userObj = users.find(u => u.id === userId);
+            if (userObj?.email === ADMIN_EMAIL) {
+              return Promise.resolve(); // Skip master admin demotion
+            }
+            return updateDoc(doc(db, "users", userId), updateFields);
+          });
+          await Promise.all(promises);
+          setSelectedUserIds([]);
+          alert(`${count}명 회원의 권한 등급이 변경되었습니다.`);
+        } catch (error: any) {
+          console.error("Bulk user role change failed:", error);
+          alert("일괄 권한 변경 중 오류가 발생했습니다: " + (error.message || error.toString()));
+          throw error;
+        }
+      });
+    }
+  };
+
+  const handleBulkUserDelete = async () => {
+    if (selectedUserIds.length === 0) {
+      alert("선택된 회원이 없습니다.");
+      return;
+    }
+    const count = selectedUserIds.length;
+    if (window.confirm(`정말로 선택한 ${count}명 회원을 일괄 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
+      handleAutoSaveAction(async () => {
+        try {
+          const promises = selectedUserIds.map(userId => {
+            const userObj = users.find(u => u.id === userId);
+            if (userObj?.email === ADMIN_EMAIL) {
+              return Promise.resolve(); // Skip master admin deletion
+            }
+            return deleteDoc(doc(db, "users", userId));
+          });
+          await Promise.all(promises);
+          setSelectedUserIds([]);
+          alert(`${count}명의 회원이 성공적으로 삭제되었습니다.`);
+        } catch (error: any) {
+          console.error("Bulk user delete failed:", error);
           alert("일괄 삭제 중 오류가 발생했습니다: " + (error.message || error.toString()));
           throw error;
         }
@@ -862,7 +999,7 @@ export default function Admin() {
   return (
     <div className="min-h-screen bg-[#F8F9FA] flex selection:bg-black selection:text-white font-sans">
       {/* Sidebar */}
-      <aside className={`bg-white border-r border-zinc-200 flex flex-col transition-all duration-300 ${sidebarOpen ? "w-72" : "w-20"}`}>
+      <aside className={`bg-white border-r border-zinc-200 flex flex-col transition-all duration-300 shrink-0 ${sidebarOpen ? "w-72" : "w-20"}`}>
         <div className="p-6 flex items-center justify-between">
           <div className={`flex items-center gap-2 ${!sidebarOpen && "hidden"}`}>
             <span className="font-script text-3xl cursor-pointer text-zinc-900 select-none" onClick={() => navigate('/')}>Puima</span>
@@ -921,7 +1058,7 @@ export default function Admin() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-grow flex flex-col overflow-hidden">
+      <main className="flex-grow flex flex-col min-w-0 overflow-x-auto">
         {/* Top Header */}
         <header className="h-20 bg-white/80 backdrop-blur-md border-b border-zinc-200 px-8 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-4">
@@ -1075,7 +1212,7 @@ export default function Admin() {
         </header>
 
         {/* Content Area */}
-        <div ref={containerRef} className="flex-grow overflow-y-auto p-8">
+        <div ref={containerRef} className="flex-grow overflow-y-auto p-4 md:p-8 md:min-w-[1100px]">
           <div className="max-w-[1100px] mx-auto">
             <AnimatePresence mode="wait">
               {/* Class Management View */}
@@ -2338,8 +2475,8 @@ export default function Admin() {
                 >
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                      <h3 className="text-3xl font-black tracking-tighter uppercase mb-2 flex items-center gap-2">
-                        Member Management <span className="text-xs bg-black text-white font-normal px-2.5 py-1 rounded-full uppercase tracking-widest scale-90 origin-left">회원 관리</span>
+                      <h3 className="text-3xl font-black tracking-tighter mb-2 text-zinc-950">
+                        회원 관리
                       </h3>
                       <p className="text-zinc-500 font-medium">서비스에 가입된 모든 회원을 조회하고 어드민 접속 권한 등급을 지정합니다.</p>
                     </div>
@@ -2430,214 +2567,268 @@ export default function Admin() {
                             : "text-zinc-500 hover:text-black"
                         }`}
                       >
-                        일반 고객 ({users.filter(u => !u.isAdmin).length})
+                        일반 회원 ({users.filter(u => !u.isAdmin && !u.isBanned).length})
+                      </button>
+                      <button
+                        onClick={() => setSelectedRoleFilter("banned")}
+                        className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+                          selectedRoleFilter === "banned" 
+                            ? "bg-white text-red-650 shadow-sm" 
+                            : "text-zinc-500 hover:text-red-500"
+                        }`}
+                      >
+                        금지 회원 ({users.filter(u => u.isBanned).length})
                       </button>
                     </div>
                   </div>
+
+                  {/* Users Bulk Actions Bar */}
+                  {selectedUserIds.length > 0 && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-black text-white px-6 py-4 rounded-[24px] flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl mb-4"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="bg-zinc-800 text-xs px-2.5 py-1 rounded-full font-black text-zinc-300">
+                          {selectedUserIds.length}명 선택됨
+                        </div>
+                        <p className="text-xs font-bold text-zinc-400">선택한 회원의 권한 등급을 일괄 조정하거나 계정을 전량 삭제할 수 있습니다.</p>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => handleBulkUserRoleChange("admin")}
+                          className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap"
+                        >
+                          관리자 지정
+                        </button>
+                        <button
+                          onClick={() => handleBulkUserRoleChange("customer")}
+                          className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-xs font-black transition-all border border-zinc-700 cursor-pointer whitespace-nowrap"
+                        >
+                          일반 지정
+                        </button>
+                        <button
+                          onClick={() => handleBulkUserRoleChange("banned")}
+                          className="px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap"
+                        >
+                          금지 지정
+                        </button>
+                        <button
+                          onClick={handleBulkUserDelete}
+                          className="px-3 py-2 bg-red-650 hover:bg-red-700 text-white rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap"
+                        >
+                          일괄 삭제
+                        </button>
+                        <button
+                          onClick={() => setSelectedUserIds([])}
+                          className="px-3 py-2 bg-transparent text-zinc-400 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap"
+                        >
+                          선택 취소
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
 
                   {/* Users Table */}
                   <div className="bg-white p-8 rounded-[36px] border border-zinc-200 shadow-sm">
                     <div className="overflow-x-auto">
                       <table className="w-full min-w-full table-auto border-collapse text-left">
                         <thead>
-                          <tr className="border-b border-zinc-100">
-                            <th className="pb-4 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 w-[14%] whitespace-nowrap">닉네임</th>
-                            <th className="pb-4 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 w-[12%] whitespace-nowrap">이름</th>
-                            <th className="pb-4 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 w-14 text-left whitespace-nowrap">성별</th>
-                            <th className="pb-4 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 w-[18%] whitespace-nowrap">전화번호</th>
-                            <th className="pb-4 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 w-[24%] whitespace-nowrap">이메일</th>
-                            <th className="pb-4 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 w-[14%] text-left whitespace-nowrap">어드민권한등급</th>
-                            <th className="pb-4 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 text-right whitespace-nowrap">등급관리</th>
+                          <tr className="border-b border-zinc-100 text-zinc-400">
+                            {/* Checkbox Header */}
+                            <th className="pb-4 w-12 text-left">
+                              <div className="flex items-center justify-center pl-1">
+                                <input 
+                                  type="checkbox"
+                                  id="selectAllUsers"
+                                  checked={filteredUsers.length > 0 && filteredUsers.every(u => selectedUserIds.includes(u.id))}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      const queryIds = filteredUsers.map(u => u.id);
+                                      setSelectedUserIds(prev => Array.from(new Set([...prev, ...queryIds])));
+                                    } else {
+                                      const queryIds = filteredUsers.map(u => u.id);
+                                      setSelectedUserIds(prev => prev.filter(id => !queryIds.includes(id)));
+                                    }
+                                  }}
+                                  className="w-4 h-4 text-black border-zinc-350 rounded focus:ring-black accent-black cursor-pointer"
+                                />
+                              </div>
+                            </th>
+                            <th className="pb-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[18%] whitespace-nowrap text-left">닉네임</th>
+                            <th className="pb-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[14%] whitespace-nowrap text-left">이름</th>
+                            <th className="pb-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[10%] whitespace-nowrap text-left">성별</th>
+                            <th className="pb-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[22%] whitespace-nowrap text-left">전화번호</th>
+                            <th className="pb-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[26%] whitespace-nowrap text-left">이메일</th>
+                            <th className="pb-4 pr-6 text-[10px] font-black uppercase tracking-[0.2em] w-[16%] whitespace-nowrap text-right">회원 권한 등급</th>
+                            <th className="pb-4 pr-3 text-[10px] font-black uppercase tracking-[0.2em] w-[8%] whitespace-nowrap text-right">삭제</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-zinc-50 text-sm">
-                          {users
-                            .filter(u => {
-                              const q = searchUserQuery.toLowerCase().trim();
-                              if (!q) return true;
-                              const matchesSearch = 
-                                (u.nickname || "").toLowerCase().includes(q) ||
-                                (u.realName || "").toLowerCase().includes(q) ||
-                                (u.phone || "").toLowerCase().includes(q) ||
-                                (u.email || "").toLowerCase().includes(q) ||
-                                u.id.toLowerCase().includes(q);
-                              
-                              if (selectedRoleFilter === "all") return matchesSearch;
-                              if (selectedRoleFilter === "admin") return u.isAdmin && matchesSearch;
-                              if (selectedRoleFilter === "customer") return !u.isAdmin && matchesSearch;
-                              return matchesSearch;
-                            })
-                            .map((u) => {
-                              const isMasterAdmin = u.email === ADMIN_EMAIL;
-                              const isEditing = editingUserId === u.id;
-                              return (
-                                <tr key={u.id} className="hover:bg-zinc-50/50 transition-all">
-                                  {/* 닉네임 */}
-                                  <td className="py-5 pr-2">
-                                    {isEditing ? (
-                                      <input
-                                        type="text"
-                                        value={editUserInputs.nickname}
-                                        onChange={(e) => setEditUserInputs(prev => ({ ...prev, nickname: e.target.value }))}
-                                        className="w-full max-w-[120px] bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-black/10"
-                                      />
-                                    ) : (
-                                      <div className="font-extrabold text-zinc-900 select-all truncate max-w-[130px]">
-                                        {u.nickname || u.displayName || "미등록"}
-                                      </div>
-                                    )}
-                                  </td>
+                          {filteredUsers.map((u, idx) => {
+                            const isMasterAdmin = u.email === ADMIN_EMAIL;
+                            const isEditing = editingUserId === u.id;
+                            const isSelected = selectedUserIds.includes(u.id);
+                            return (
+                              <tr 
+                                key={u.id} 
+                                onClick={(e) => handleUserRowClick(e, u, idx)}
+                                className={`transition-all hover:bg-zinc-50/50 cursor-pointer ${
+                                  isSelected ? "bg-zinc-50/70" : ""
+                                }`}
+                              >
+                                {/* Checkbox cell */}
+                                <td className="py-5 w-12 text-left">
+                                  <div className="flex items-center justify-center pl-1">
+                                    <input 
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={() => {
+                                        if (isSelected) {
+                                          setSelectedUserIds(prev => prev.filter(id => id !== u.id));
+                                        } else {
+                                          setSelectedUserIds(prev => [...prev, u.id]);
+                                        }
+                                        setLastClickedUserIndex(idx);
+                                      }}
+                                      className="w-4 h-4 text-black border-zinc-350 rounded focus:ring-black accent-black cursor-pointer"
+                                    />
+                                  </div>
+                                </td>
 
-                                  {/* 이름 */}
-                                  <td className="py-5 pr-2">
-                                    {isEditing ? (
-                                      <input
-                                        type="text"
-                                        value={editUserInputs.realName}
-                                        onChange={(e) => setEditUserInputs(prev => ({ ...prev, realName: e.target.value }))}
-                                        className="w-full max-w-[100px] bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-black/10"
-                                      />
-                                    ) : (
-                                      <div className="font-bold text-zinc-800 truncate max-w-[110px]">
-                                        {u.realName || "-"}
-                                      </div>
-                                    )}
-                                  </td>
-
-                                  {/* 성별 */}
-                                  <td className="py-5 text-left pl-1">
-                                    {isEditing ? (
-                                      <select
-                                        value={editUserInputs.gender}
-                                        onChange={(e) => setEditUserInputs(prev => ({ ...prev, gender: e.target.value }))}
-                                        className="bg-zinc-50 border border-zinc-200 rounded-lg px-1 py-1 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-black/10 cursor-pointer"
-                                      >
-                                        <option value="남">남</option>
-                                        <option value="여">여</option>
-                                      </select>
-                                    ) : (
-                                      <span className="font-semibold text-zinc-600 bg-zinc-100 px-2 py-1 rounded text-xs whitespace-nowrap">
-                                        {u.gender || "남"}
-                                      </span>
-                                    )}
-                                  </td>
-
-                                  {/* 전화번호 */}
-                                  <td className="py-5 pr-2">
-                                    {isEditing ? (
-                                      <input
-                                        type="text"
-                                        value={editUserInputs.phone}
-                                        onChange={(e) => setEditUserInputs(prev => ({ ...prev, phone: e.target.value.replace(/[^0-9]/g, '') }))}
-                                        className="w-full max-w-[130px] bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-black/10"
-                                        placeholder="01012345678"
-                                      />
-                                    ) : (
-                                      <span className="font-mono text-zinc-600 text-xs font-bold whitespace-nowrap">
-                                        {u.phone || "-"}
-                                      </span>
-                                    )}
-                                  </td>
-
-                                  {/* 이메일 */}
-                                  <td className="py-5">
-                                    <div className="text-xs text-zinc-400 font-bold tracking-tight select-all">
-                                      {u.email || "이메일 정보 없음"}
+                                {/* 닉네임 */}
+                                <td className="py-5 pl-3 align-middle">
+                                  {isEditing ? (
+                                    <input
+                                      type="text"
+                                      value={editUserInputs.nickname}
+                                      onChange={(e) => setEditUserInputs(prev => ({ ...prev, nickname: e.target.value }))}
+                                      className="w-full max-w-[120px] bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-black/10"
+                                    />
+                                  ) : (
+                                    <div className="font-extrabold text-zinc-900 select-all truncate max-w-[130px]" title={u.nickname || u.displayName || "미등록"}>
+                                      {u.nickname || u.displayName || "미등록"}
                                     </div>
-                                  </td>
+                                  )}
+                                </td>
 
-                                  {/* 어드민권한등급 */}
-                                  <td className="py-5 text-left">
-                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black tracking-widest inline-flex items-center gap-1.5 ${
-                                      u.isAdmin 
-                                        ? "bg-indigo-50 text-indigo-600 border border-indigo-100" 
-                                        : "bg-zinc-100 text-zinc-650"
-                                    }`}>
-                                      <span className={`w-1.5 h-1.5 rounded-full ${u.isAdmin ? 'bg-indigo-500 animate-pulse' : 'bg-zinc-400'}`} />
-                                      {u.isAdmin ? (isMasterAdmin ? "마스터" : "어드민") : "일반 고객"}
+                                {/* 이름 */}
+                                <td className="py-5 pl-3 align-middle">
+                                  {isEditing ? (
+                                    <input
+                                      type="text"
+                                      value={editUserInputs.realName}
+                                      onChange={(e) => setEditUserInputs(prev => ({ ...prev, realName: e.target.value }))}
+                                      className="w-full max-w-[100px] bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-black/10"
+                                    />
+                                  ) : (
+                                    <div className="font-bold text-zinc-800 truncate max-w-[110px]" title={u.realName || "-"}>
+                                      {u.realName || "-"}
+                                    </div>
+                                  )}
+                                </td>
+
+                                {/* 성별 */}
+                                <td className="py-5 pl-3 align-middle">
+                                  {isEditing ? (
+                                    <select
+                                      value={editUserInputs.gender}
+                                      onChange={(e) => setEditUserInputs(prev => ({ ...prev, gender: e.target.value }))}
+                                      className="bg-zinc-50 border border-zinc-200 rounded-lg px-1 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-black/10 cursor-pointer"
+                                    >
+                                      <option value="남">남</option>
+                                      <option value="여">여</option>
+                                    </select>
+                                  ) : (
+                                    <span className="font-semibold text-zinc-600 bg-zinc-100 px-2 py-1 rounded text-xs whitespace-nowrap">
+                                      {u.gender || "남"}
                                     </span>
-                                  </td>
+                                  )}
+                                </td>
 
-                                  {/* 등급관리설정 */}
-                                  <td className="py-5 text-right">
-                                    <div className="flex gap-2 justify-end items-center">
-                                      {isEditing ? (
-                                        <div className="flex gap-2 items-center">
-                                          <div className="relative">
-                                            <select
-                                              value={editUserInputs.isAdmin ? "admin" : "customer"}
-                                              onChange={(e) => setEditUserInputs(prev => ({ ...prev, isAdmin: e.target.value === "admin" }))}
-                                              className="bg-zinc-50 border border-zinc-200 rounded-xl px-2.5 py-1.5 text-xs font-black focus:outline-none focus:ring-2 focus:ring-black/10 cursor-pointer text-zinc-800 appearance-none pr-7 relative"
-                                              style={{ backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23333333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>")`, backgroundPosition: 'right 6px center', backgroundSize: '14px', backgroundRepeat: 'no-repeat' }}
-                                            >
-                                              <option value="customer">일반 고객</option>
-                                              <option value="admin">어드민</option>
-                                            </select>
-                                          </div>
-                                          <div className="flex gap-1.5">
-                                            <button
-                                              onClick={() => handleSaveUserInfo(u.id)}
-                                              disabled={isUpdatingUser === u.id}
-                                              className="px-3 py-1.5 bg-black text-white hover:bg-zinc-800 text-xs font-black rounded-lg transition-colors cursor-pointer whitespace-nowrap"
-                                            >
-                                              저장
-                                            </button>
-                                            <button
-                                              onClick={handleCancelEditUser}
-                                              className="px-3 py-1.5 bg-zinc-200 hover:bg-zinc-300 text-zinc-800 text-xs font-bold rounded-lg transition-colors cursor-pointer whitespace-nowrap"
-                                            >
-                                              취소
-                                            </button>
-                                          </div>
-                                        </div>
-                                      ) : (
-                                        <>
-                                          {isMasterAdmin ? (
-                                            <div className="relative">
-                                              <select
-                                                value="admin"
-                                                disabled={true}
-                                                className="bg-zinc-50 border border-zinc-200 rounded-xl px-2.5 py-1.5 text-xs font-black cursor-not-allowed text-zinc-400 disabled:opacity-75 appearance-none pr-7 relative"
-                                                style={{ backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>")`, backgroundPosition: 'right 6px center', backgroundSize: '14px', backgroundRepeat: 'no-repeat' }}
-                                              >
-                                                <option value="admin">마스터 어드민</option>
-                                              </select>
-                                            </div>
-                                          ) : (
-                                            <div className="flex gap-2 items-center">
-                                              <div className="relative">
-                                                <select
-                                                  value={u.isAdmin ? "admin" : "customer"}
-                                                  disabled={isUpdatingUser === u.id}
-                                                  onChange={(e) => handleChangeUserRole(u.id, u.email, e.target.value === "admin")}
-                                                  className="bg-zinc-50 border border-zinc-200 rounded-xl px-2.5 py-1.5 text-xs font-black focus:outline-none focus:ring-2 focus:ring-black/10 cursor-pointer text-zinc-800 disabled:opacity-50 appearance-none pr-7 relative"
-                                                  style={{ backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23333333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>")`, backgroundPosition: 'right 6px center', backgroundSize: '14px', backgroundRepeat: 'no-repeat' }}
-                                                >
-                                                  <option value="customer">일반 고객</option>
-                                                  <option value="admin">어드민</option>
-                                                </select>
-                                              </div>
-                                              
-                                              <button
-                                                onClick={() => handleStartEditUser(u)}
-                                                className="p-1.5 text-zinc-400 hover:text-black border border-zinc-200 hover:border-zinc-300 bg-white rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-xs"
-                                                title="정보 수정"
-                                              >
-                                                <Edit2 size={13} />
-                                                <span className="text-[10px] font-black">수정</span>
-                                              </button>
-                                            </div>
-                                          )}
-                                        </>
-                                      )}
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          {users.length === 0 && (
+                                {/* 전화번호 */}
+                                <td className="py-5 pl-3 align-middle">
+                                  {isEditing ? (
+                                    <input
+                                      type="text"
+                                      value={editUserInputs.phone}
+                                      onChange={(e) => setEditUserInputs(prev => ({ ...prev, phone: e.target.value.replace(/[^0-9]/g, '') }))}
+                                      className="w-full max-w-[130px] bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-black/10"
+                                      placeholder="01012345678"
+                                    />
+                                  ) : (
+                                    <span className="font-mono text-zinc-600 text-xs font-bold whitespace-nowrap">
+                                      {u.phone || "-"}
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* 이메일 */}
+                                <td className="py-5 pl-3 align-middle">
+                                  <div className="text-xs text-zinc-400 font-bold tracking-tight select-all truncate max-w-[180px]" title={u.email || "이메일 정보 없음"}>
+                                    {u.email || "이메일 정보 없음"}
+                                  </div>
+                                </td>
+
+                                {/* 회원 권한 등급 */}
+                                <td className="py-5 pr-6 align-middle text-right bg-transparent">
+                                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-black tracking-widest inline-flex items-center gap-1.5 whitespace-nowrap ${
+                                    u.isAdmin 
+                                      ? "bg-indigo-50 text-indigo-600 border border-indigo-100" 
+                                      : (u.isBanned 
+                                        ? "bg-red-50 text-red-650 border border-red-100" 
+                                        : "bg-zinc-100 text-zinc-650 animate-none")
+                                  }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${
+                                      u.isAdmin 
+                                        ? 'bg-indigo-500 animate-pulse' 
+                                        : (u.isBanned ? 'bg-red-500 animate-pulse' : 'bg-zinc-400')
+                                    }`} />
+                                    {u.isAdmin ? (isMasterAdmin ? "마스터" : "관리자") : (u.isBanned ? "금지 회원" : "일반 회원")}
+                                  </span>
+                                </td>
+
+                                {/* 삭제 */}
+                                <td className="py-5 pr-3 align-middle text-right">
+                                  <button 
+                                    onClick={async () => {
+                                      const isMaster = u.email === ADMIN_EMAIL;
+                                      if (isMaster) {
+                                        alert("최고 관리자 계정('rtytgb123@gmail.com')은 삭제할 수 없습니다.");
+                                        return;
+                                      }
+                                      if (u.id === user?.uid) {
+                                        alert("현재 로그인되어 있는 관리자 본인 계정은 삭제할 수 없습니다.");
+                                        return;
+                                      }
+                                      if (window.confirm(`[${u.nickname || u.email || '선택한 회원'}]님을 정말 회원 목록에서 영구 삭제하시겠습니까?`)) {
+                                        setIsUpdatingUser(u.id);
+                                        try {
+                                          await deleteDoc(doc(db, "users", u.id));
+                                          alert("성공적으로 삭제되었습니다.");
+                                        } catch (err) {
+                                          console.error("Failed to delete user:", err);
+                                          alert("회원 삭제 처리에 실패했습니다.");
+                                        } finally {
+                                          setIsUpdatingUser(null);
+                                        }
+                                      }
+                                    }}
+                                    disabled={isUpdatingUser === u.id}
+                                    className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all disabled:opacity-50 cursor-pointer"
+                                    title="회원 삭제"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {filteredUsers.length === 0 && (
                             <tr>
-                              <td colSpan={7} className="py-16 text-center text-zinc-400 font-medium">
+                              <td colSpan={8} className="py-16 text-center text-zinc-400 font-medium">
                                 등록된 회원이 존재하지 않습니다.
                               </td>
                             </tr>
@@ -2776,7 +2967,7 @@ export default function Admin() {
               )}
 
               {/* Placeholder Views for other tabs */}
-              {["history", "inquiry", "blacklist"].includes(activeTab) && (
+              {["history", "inquiry"].includes(activeTab) && (
                 <motion.div 
                   key={activeTab}
                   initial={{ opacity: 0, scale: 0.98 }}
@@ -2791,6 +2982,142 @@ export default function Admin() {
                     {sidebarItems.flatMap(s => s.items).find(i => i.id === activeTab)?.label} 기능은 현재 준비 중입니다. 
                     시스템 업데이트를 기다려 주세요.
                   </p>
+                </motion.div>
+              )}
+
+              {/* Blacklist Management Tab */}
+              {activeTab === "blacklist" && (
+                <motion.div 
+                  key="blacklist"
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -15 }}
+                  className="space-y-8"
+                >
+                  <div>
+                    <h3 className="text-3xl font-black tracking-tighter mb-2 text-red-650">
+                      이용 제한 관리
+                    </h3>
+                    <p className="text-zinc-500 font-medium text-sm">서비스 이용 규정을 위반하여 제한된 회원의 목록을 관리하고, 제한 상태를 해제할 수 있습니다.</p>
+                  </div>
+
+                  {/* Summary Metric Cards for Blacklist */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl">
+                    <div className="bg-white p-6 rounded-3xl border border-zinc-200 shadow-sm flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">총 금지 회원</span>
+                        <div className="text-3xl font-black tracking-tight mt-1 text-red-650">{users.filter(u => u.isBanned).length}명</div>
+                      </div>
+                      <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-600 border border-red-100">
+                        <UserX size={18} />
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-3xl border border-zinc-200 shadow-sm flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">일반 회원 수</span>
+                        <div className="text-3xl font-black tracking-tight mt-1 text-zinc-800">{users.filter(u => !u.isAdmin && !u.isBanned).length}명</div>
+                      </div>
+                      <div className="w-12 h-12 rounded-full bg-zinc-50 flex items-center justify-center text-zinc-700 border border-zinc-100">
+                        <Users size={18} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Blacklist Table */}
+                  <div className="bg-white rounded-[32px] border border-zinc-200 shadow-sm overflow-hidden">
+                    <div className="p-6 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/50">
+                      <span className="text-xs font-black tracking-wider uppercase text-zinc-500">
+                        제한 대상자 리스트 ({users.filter(u => u.isBanned).length})
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-zinc-100 bg-zinc-50/50">
+                            <th className="py-4 pl-6 text-[10px] font-black uppercase tracking-[0.2em] w-[20%] text-zinc-400">닉네임 / 프로필</th>
+                            <th className="py-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[15%] text-zinc-400">실명</th>
+                            <th className="py-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[15%] text-zinc-400">전화번호</th>
+                            <th className="py-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[25%] text-zinc-400">이메일</th>
+                            <th className="py-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[15%] text-zinc-400">상태</th>
+                            <th className="py-4 pr-6 text-[10px] font-black uppercase tracking-[0.2em] w-[10%] text-zinc-400 text-right">관리</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-100">
+                          {users.filter(u => u.isBanned).length === 0 ? (
+                            <tr>
+                              <td colSpan={6} className="py-12 text-center text-xs font-bold text-zinc-400 bg-zinc-50/10">
+                                이용 제한 중인 회원이 없습니다.
+                              </td>
+                            </tr>
+                          ) : (
+                            users.filter(u => u.isBanned).map((u) => (
+                              <tr key={u.id} className="hover:bg-zinc-50/50 transition-colors">
+                                <td className="py-4 pl-6 align-middle">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center shrink-0 border border-zinc-200 overflow-hidden">
+                                      {u.photoURL ? (
+                                        <img src={u.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                      ) : (
+                                        <UserIcon size={14} className="text-zinc-400" />
+                                      )}
+                                    </div>
+                                    <div className="font-bold text-zinc-800 text-xs truncate max-w-[120px]">
+                                      {u.nickname || "N/A"}
+                                    </div>
+                                  </div>
+                                </td>
+
+                                <td className="py-4 pl-3 align-middle font-bold text-zinc-800 text-xs text-left">
+                                  {u.realName || "-"}
+                                </td>
+
+                                <td className="py-4 pl-3 align-middle font-mono font-bold text-zinc-600 text-xs text-left">
+                                  {u.phone || "-"}
+                                </td>
+
+                                <td className="py-4 pl-3 align-middle text-zinc-400 font-bold text-xs select-all truncate max-w-[180px] text-left">
+                                  {u.email || "-"}
+                                </td>
+
+                                <td className="py-4 pl-3 align-middle">
+                                  <span className="px-2.5 py-1 rounded-full text-[10px] font-black tracking-widest inline-flex items-center gap-1.5 bg-red-50 text-red-650 border border-red-100">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                                    이용 정지
+                                  </span>
+                                </td>
+
+                                <td className="py-4 pr-6 align-middle text-right">
+                                  <button
+                                    onClick={async () => {
+                                      setIsUpdatingUser(u.id);
+                                      try {
+                                        await updateDoc(doc(db, "users", u.id), {
+                                          isBanned: false,
+                                          isAdmin: false
+                                        });
+                                        alert(`[${u.nickname || u.email || '선택회원'}]님의 이용 제한이 해제되어 일반 회원으로 변경되었습니다.`);
+                                      } catch (err) {
+                                        console.error("Failed to unban user:", err);
+                                        alert("이용 정지 해제에 실패했습니다.");
+                                      } finally {
+                                        setIsUpdatingUser(null);
+                                      }
+                                    }}
+                                    disabled={isUpdatingUser === u.id}
+                                    className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-[11px] font-black rounded-xl shadow-sm transition-all disabled:opacity-50 cursor-pointer whitespace-nowrap tracking-tight"
+                                  >
+                                    {isUpdatingUser === u.id ? "해제 중..." : "제한 해제"}
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>

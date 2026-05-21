@@ -48,7 +48,7 @@ export default function GridItem({
       viewport={{ once: true }}
       transition={{ delay: (index % 3) * 0.05, duration: 0.8 }}
       className={`relative group bg-white cursor-pointer overflow-hidden pb-12 ${
-        isLarge ? "md:col-span-2 md:row-span-2" : isWide ? "md:col-span-2" : ""
+        isLarge ? "col-span-2 row-span-2" : isWide ? "col-span-2" : ""
       }`}
       onClick={() => window.open(naverUrl, "_blank")}
     >

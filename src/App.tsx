@@ -229,19 +229,40 @@ function HomePage() {
   const displayClasses = view === "grid" ? publicPosts : publicPosts.slice(0, 9);
 
   return (
-    <div className="min-h-screen bg-white selection:bg-black selection:text-white pt-[100px]">
+    <div className="min-h-screen bg-white selection:bg-black selection:text-white pt-[60px] md:pt-[100px] md:min-w-[1100px]">
       {/* Fixed Top Bar */}
-      <div className="fixed top-0 left-0 w-full h-[100px] bg-white border-b border-zinc-100 z-50 flex items-center justify-center px-6 md:px-12 lg:px-0">
-        <div className="w-full max-w-[1100px] h-full flex items-center justify-center relative px-6 lg:px-0">
-          <span className="font-script text-4xl cursor-pointer select-none" onClick={handleBackToHome}>Puima</span>
+      <div className="fixed top-0 left-0 w-full md:min-w-[1100px] h-[60px] md:h-[100px] bg-white border-b border-zinc-100 z-50 flex items-center justify-center px-6 md:px-12 lg:px-0">
+        <div className="w-full max-w-[1100px] h-full flex items-center justify-end md:justify-between relative px-2 lg:px-0">
+          {/* Social Links on the Left */}
+          <div className="hidden md:flex items-center gap-4">
+            <a 
+              href="https://www.youtube.com/@%ED%91%B8%EC%9D%B4%EB%A7%88" 
+              target="_blank" 
+              rel="noreferrer"
+              className="text-zinc-400 hover:text-black transition-all group"
+            >
+              <Youtube size={20} className="group-hover:scale-110 transition-transform" />
+            </a>
+            <a 
+              href="https://instagram.com/puima_official" 
+              target="_blank" 
+              rel="noreferrer"
+              className="text-zinc-400 hover:text-black transition-all group"
+            >
+              <Instagram size={20} className="group-hover:scale-110 transition-transform" />
+            </a>
+          </div>
+
+          {/* Logo in the center */}
+          <span className="absolute left-1/2 -translate-x-1/2 font-script text-3xl md:text-4xl cursor-pointer select-none" onClick={handleBackToHome}>Puima</span>
           
-          {/* Language Toggle & Login moved here */}
-          <div className="absolute right-6 lg:right-0 flex items-center gap-4 text-[11px] font-bold tracking-widest">
-            {/* Beautiful Pill Toggle for Language */}
-            <div className="flex bg-white border border-zinc-200 rounded-full p-0.5 items-center select-none">
+          {/* Language Toggle & Login/Logout actions */}
+          <div className="flex items-center gap-2 md:gap-4 text-[10px] md:text-[11px] font-bold tracking-widest">
+            {/* Beautiful Pill Toggle for Language (Desktop Only) */}
+            <div className="hidden md:flex bg-white border border-zinc-200 rounded-full p-0.5 items-center select-none">
               <button
                 onClick={() => setLang("KOR")}
-                className={`px-2.5 py-1.5 text-[9px] font-black tracking-widest rounded-full transition-all cursor-pointer ${
+                className={`px-1.5 md:px-2.5 py-0.5 md:py-1.5 text-[8px] md:text-[9px] font-black tracking-widest rounded-full transition-all cursor-pointer ${
                   lang === "KOR"
                     ? "bg-black text-white shadow-sm"
                     : "text-zinc-400 hover:text-zinc-800"
@@ -252,7 +273,7 @@ function HomePage() {
               </button>
               <button
                 onClick={() => setLang("ENG")}
-                className={`px-2.5 py-1.5 text-[9px] font-black tracking-widest rounded-full transition-all cursor-pointer ${
+                className={`px-1.5 md:px-2.5 py-0.5 md:py-1.5 text-[8px] md:text-[9px] font-black tracking-widest rounded-full transition-all cursor-pointer ${
                   lang === "ENG"
                     ? "bg-black text-white shadow-sm"
                     : "text-zinc-400 hover:text-zinc-800"
@@ -264,32 +285,32 @@ function HomePage() {
             </div>
 
             {user ? (
-              <div className="flex items-center gap-3 select-none">
-                <span className="text-zinc-500 font-medium">
+              <div className="flex items-center gap-1.5 md:gap-3 select-none text-[11px] md:text-xs">
+                <span className="hidden md:inline text-zinc-500 font-medium max-w-[45px] sm:max-w-[70px] truncate">
                   {user.displayName || user.email?.split('@')[0]}님
                 </span>
-                <span className="text-zinc-200">/</span>
+                <span className="hidden md:inline text-zinc-200">/</span>
                 <button 
                   onClick={() => { signOut(auth); localStorage.removeItem('admin_bypass'); window.location.reload(); }}
-                  className="text-zinc-300 hover:text-red-600 transition-colors cursor-pointer"
+                  className="text-zinc-500 hover:text-black transition-colors cursor-pointer uppercase text-[11px] md:text-xs border border-zinc-300 md:border-none rounded-full px-3 py-1 md:p-0"
                   id="bar-logout"
                 >
                   {lang === "KOR" ? "로그아웃" : "LOGOUT"}
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-3 select-none">
+              <div className="flex items-center gap-1.5 md:gap-3 select-none text-[11px] md:text-xs">
                 <button 
                   onClick={() => navigate('/login', { state: { mode: 'signup' } })}
-                  className="text-zinc-450 hover:text-black transition-colors cursor-pointer"
+                  className="hidden md:inline text-zinc-400 hover:text-black transition-colors cursor-pointer"
                   id="bar-signup"
                 >
                   {lang === "KOR" ? "회원가입" : "JOIN"}
                 </button>
-                <span className="text-zinc-200">/</span>
+                <span className="hidden md:inline text-zinc-200">/</span>
                 <button 
                   onClick={() => navigate('/login', { state: { mode: 'login' } })}
-                  className="text-zinc-450 hover:text-black transition-colors cursor-pointer"
+                  className="text-zinc-600 hover:text-black transition-colors cursor-pointer uppercase text-[11px] md:text-xs border border-zinc-300 md:border-none rounded-full px-3 py-1 md:p-0 font-extrabold"
                   id="bar-login"
                 >
                   {lang === "KOR" ? "로그인" : "LOGIN"}
@@ -300,32 +321,10 @@ function HomePage() {
         </div>
       </div>
 
-      <div className="flex justify-center px-6 md:px-12 lg:px-0">
-        <div className="w-full max-w-[1100px] bg-white text-black font-sans relative pt-[100px]">
+      <div className="flex justify-center px-4 md:px-12 lg:px-0 md:min-w-[1100px]">
+        <div className="w-full max-w-[1100px] md:min-w-[1100px] bg-white text-black font-sans relative pt-[30px] md:pt-[100px]">
           {/* Main Content */}
           <div className="w-full">
-            {/* Social Media Links Section */}
-            <div className="flex justify-end gap-6 mb-8 px-6 md:px-0">
-              <a 
-                href="https://www.youtube.com/@%ED%91%B8%EC%9D%B4%EB%A7%88" 
-                target="_blank" 
-                rel="noreferrer"
-                className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 hover:text-black transition-all group"
-              >
-                <Youtube size={16} className="group-hover:scale-110 transition-transform" />
-                <span>YouTube</span>
-              </a>
-              <a 
-                href="https://instagram.com/puima_official" 
-                target="_blank" 
-                rel="noreferrer"
-                className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 hover:text-black transition-all group"
-              >
-                <Instagram size={16} className="group-hover:scale-110 transition-transform" />
-                <span>Instagram</span>
-              </a>
-            </div>
-
             {/* Notice Bar Section */}
             {notices.length > 0 && (
               <div className="bg-white text-black py-4 px-6 flex items-center justify-between border-y border-zinc-100 mb-12">
@@ -357,15 +356,9 @@ function HomePage() {
 
               {/* Journal & News Section (Banners) */}
               {banners.length > 0 && (
-                <section className="px-6 md:px-0 mb-32">
-                  <div className="flex justify-between items-end mb-8">
-                    <h2 className="text-[14px] font-semibold uppercase tracking-[0.3em] text-black">Notice</h2>
-                    <button 
-                      onClick={() => navigate('/notice')}
-                      className="text-[11px] font-bold text-zinc-900 border-b border-zinc-900 pb-0.5 hover:text-zinc-400 hover:border-zinc-400 transition-colors"
-                    >
-                      View More
-                    </button>
+                <section className="pt-8 md:pt-0 px-6 md:px-0 mb-32">
+                  <div className="flex justify-center items-center mb-8">
+                    <h2 className="text-[14px] font-semibold uppercase tracking-[0.3em] text-black text-center">Bake Happiness</h2>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -377,7 +370,7 @@ function HomePage() {
                         viewport={{ once: true }}
                         transition={{ delay: i * 0.1 }}
                         onClick={() => banner.url && window.open(banner.url, "_blank")}
-                        className="group cursor-pointer bg-white border border-zinc-300 rounded-[24px] h-[80px] px-6 flex items-center justify-center text-center hover:shadow-xl hover:shadow-zinc-200/50 transition-all duration-500"
+                        className="group cursor-pointer bg-white border border-zinc-300 rounded-[24px] h-[60px] px-6 flex items-center justify-center text-center hover:shadow-xl hover:shadow-zinc-200/50 transition-all duration-500"
                       >
                         <h3 className="text-[14px] font-bold tracking-tight leading-tight group-hover:text-black transition-colors line-clamp-2">
                           {banner.title}
@@ -389,8 +382,8 @@ function HomePage() {
               )}
 
               {/* Collection Section */}
-              <div className="px-6 md:px-0 pb-12 flex justify-between items-end border-b border-zinc-100 mb-12">
-                <h2 className="text-[14px] font-semibold uppercase tracking-[0.3em] text-black">Collection</h2>
+              <div className="px-6 md:px-0 pb-12 flex justify-center items-center border-b border-zinc-100 mb-12">
+                <h2 className="text-[14px] font-semibold uppercase tracking-[0.3em] text-black text-center">Eat Happiness</h2>
               </div>
 
               <main className="min-h-[600px] mb-8">
@@ -399,7 +392,7 @@ function HomePage() {
                     <div className="w-8 h-8 border border-zinc-200 border-t-black rounded-full animate-spin"></div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 md:gap-x-8 gap-y-4">
                     {displayClasses.map((item, idx) => (
                       <GridItem 
                         key={item.id}
@@ -435,9 +428,6 @@ function HomePage() {
               <section className="pb-32 overflow-hidden bg-white pt-32">
                 <div className="px-6 md:px-0 pb-12 flex justify-between items-end border-b border-zinc-100 mb-12">
                   <h2 className="text-[14px] font-semibold uppercase tracking-[0.3em] text-black">REVIEW</h2>
-                  <p className="text-[12px] font-bold text-zinc-400 max-w-[200px] leading-relaxed">
-                    Over 2,400+ students have started their baking journey with Puima.
-                  </p>
                 </div>
 
                 <div className="relative flex">
@@ -552,7 +542,7 @@ function HomePage() {
                     <div className="w-8 h-8 border border-zinc-200 border-t-black rounded-full animate-spin"></div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-6 gap-y-12">
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-x-4 md:gap-x-6 gap-y-12">
                     {publicPosts.map((item, idx) => (
                       <GridItem 
                         key={item.id}
