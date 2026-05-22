@@ -30,6 +30,24 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["email"]
+    },
+    "Question": {
+      "title": "Question",
+      "description": "Student questions and answers.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "The title of the question" },
+        "reference": { "type": "string", "description": "Reference video/course name" },
+        "content": { "type": "string", "description": "Content of the question" },
+        "authorId": { "type": "string", "description": "Author UID" },
+        "authorEmail": { "type": "string", "description": "Author email address" },
+        "authorName": { "type": "string", "description": "Author display name" },
+        "isPrivate": { "type": "boolean", "description": "Is question private" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "answer": { "type": "string", "description": "Admin answer content" },
+        "answeredAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "content", "authorId", "isPrivate", "createdAt"]
     }
   },
   "firestore": {
@@ -40,6 +58,10 @@
     "/users/{userId}": {
       "schema": "User",
       "description": "User profile documents"
+    },
+    "/questions/{questionId}": {
+      "schema": "Question",
+      "description": "Collection of Q&As"
     }
   }
 }
