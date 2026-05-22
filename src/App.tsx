@@ -6,15 +6,17 @@
 import { Youtube, Instagram, MessageCircle, ChevronDown, Settings, ArrowRight, X, ShieldCheck, User, Mail, Lock, BookOpen, CreditCard, CheckCircle2, AlertCircle, ShoppingBag, Phone, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import React, { useState, useEffect } from "react";
-import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
+import { Routes, Route, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { collection, onSnapshot, query, orderBy, where, doc, updateDoc } from "firebase/firestore";
 import { db, auth } from "./lib/firebase";
 import { signOut, updateProfile, updatePassword, updateEmail, sendPasswordResetEmail, signInWithEmailAndPassword } from "firebase/auth";
 import GridItem from "./components/GridItem";
 import Admin from "./pages/Admin";
 import Login from "./pages/Login";
+import Question from "./pages/Question";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { initGA, trackPageView } from "./utils/analytics";
+import { FixedHeader } from "./components/FixedHeader";
 
 const ProtectedRoute = ({ children, adminOnly = false }: { children: React.ReactNode, adminOnly?: boolean }) => {
   const { user, loading, isAdmin } = useAuth();
@@ -143,20 +145,30 @@ const INITIAL_POSTS: ClassPost[] = [
 ];
 
 function HomePage() {
-  const [lang, setLang] = useState<"KOR" | "ENG">("KOR");
+  const {
+    user,
+    isAdmin,
+    userProfile,
+    setUserProfile,
+    lang,
+    setLang,
+    isProfileOpen,
+    setIsProfileOpen,
+    activeLearningClass,
+    setActiveLearningClass
+  } = useAuth();
+
+  const [searchParams] = useSearchParams();
   const [view, setView] = useState<"landing" | "grid">("landing");
   const [posts, setPosts] = useState<ClassPost[]>([]);
-  const { user, isAdmin } = useAuth();
   const [notices, setNotices] = useState<Notice[]>([]);
   const [banners, setBanners] = useState<Notice[]>([]);
   const [reviews, setReviews] = useState<StudentReview[]>([]);
+  const [homeQuestions, setHomeQuestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [bannersLoading, setBannersLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const navigate = useNavigate();
-
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [userProfile, setUserProfile] = useState<any>(null);
 
   // Active Tab: 'courses' | 'profile'
   const [profileTab, setProfileTab] = useState<"courses" | "profile">("courses");
@@ -182,6 +194,14 @@ function HomePage() {
   const [profileSuccessMsg, setProfileSuccessMsg] = useState("");
   const [profileErrorMsg, setProfileErrorMsg] = useState("");
 
+  // Set up ?profile=true listener
+  useEffect(() => {
+    if (searchParams.get("profile") === "true") {
+      setIsProfileOpen(true);
+      navigate("/", { replace: true });
+    }
+  }, [searchParams, setIsProfileOpen, navigate]);
+
   // Reset password verification when profile gets closed or tab changes
   useEffect(() => {
     if (!isProfileOpen) {
@@ -196,25 +216,6 @@ function HomePage() {
       setConfirmStatePassword("");
     }
   }, [profileTab]);
-
-  // Active classroom popup
-  const [activeLearningClass, setActiveLearningClass] = useState<any>(null);
-
-  useEffect(() => {
-    if (user) {
-      const userRef = doc(db, "users", user.uid);
-      const unsubscribeProfile = onSnapshot(userRef, (snapshot) => {
-        if (snapshot.exists()) {
-          setUserProfile(snapshot.data());
-        }
-      }, (error) => {
-        console.error("Error fetching user profile:", error);
-      });
-      return () => unsubscribeProfile();
-    } else {
-      setUserProfile(null);
-    }
-  }, [user]);
 
   // Sync profile details into form states when profile document loads
   useEffect(() => {
@@ -460,10 +461,20 @@ function HomePage() {
       setReviews(docs);
     });
 
+    const questionsQ = query(collection(db, "questions"), orderBy("createdAt", "desc"));
+    const unsubscribeQuestions = onSnapshot(questionsQ, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setHomeQuestions(docs);
+    });
+
     return () => {
       unsubscribe();
       unsubscribeNotices();
       unsubscribeReviews();
+      unsubscribeQuestions();
     };
   }, []);
 
@@ -498,104 +509,8 @@ function HomePage() {
 
   return (
     <div className="min-h-screen bg-white selection:bg-black selection:text-white pt-[60px] md:pt-[100px] md:min-w-[1100px]">
-      {/* Fixed Top Bar */}
-      <div className="fixed top-0 left-0 w-full md:min-w-[1100px] h-[60px] md:h-[100px] bg-white border-b border-zinc-100 z-50 flex items-center justify-center px-6 md:px-12 lg:px-0">
-        <div className="w-full max-w-[1100px] h-full flex items-center justify-end md:justify-between relative px-2 lg:px-0">
-          {/* Social Links on the Left */}
-          <div className="hidden md:flex items-center gap-5">
-            <a 
-              href="https://www.youtube.com/@%ED%91%B8%EC%9D%B4%EB%A7%88" 
-              target="_blank" 
-              rel="noreferrer"
-              className="text-zinc-400 hover:text-black transition-all group"
-            >
-              <Youtube size={24} className="group-hover:scale-110 transition-transform" />
-            </a>
-            <a 
-              href="https://instagram.com/puima_official" 
-              target="_blank" 
-              rel="noreferrer"
-              className="text-zinc-400 hover:text-black transition-all group"
-            >
-              <Instagram size={24} className="group-hover:scale-110 transition-transform" />
-            </a>
-          </div>
-
-          {/* Logo in the center */}
-          <span className="absolute left-1/2 -translate-x-1/2 font-script text-3xl md:text-4xl cursor-pointer select-none" onClick={handleBackToHome}>Puima</span>
-          
-          {/* Language Toggle & Login/Logout actions */}
-          <div className="flex items-center gap-2 md:gap-4 text-[10px] md:text-[11px] font-bold tracking-widest">
-            {/* Beautiful Pill Toggle for Language (Desktop Only) */}
-            <div className="hidden md:flex bg-white border border-zinc-200 rounded-full p-0.5 items-center select-none">
-              <button
-                onClick={() => setLang("KOR")}
-                className={`px-1.5 md:px-2.5 py-0.5 md:py-1.5 text-[8px] md:text-[9px] font-black tracking-widest rounded-full transition-all cursor-pointer ${
-                  lang === "KOR"
-                    ? "bg-black text-white shadow-sm"
-                    : "text-zinc-400 hover:text-zinc-800"
-                }`}
-                id="bar-lang-kor"
-              >
-                KOR
-              </button>
-              <button
-                onClick={() => setLang("ENG")}
-                className={`px-1.5 md:px-2.5 py-0.5 md:py-1.5 text-[8px] md:text-[9px] font-black tracking-widest rounded-full transition-all cursor-pointer ${
-                  lang === "ENG"
-                    ? "bg-black text-white shadow-sm"
-                    : "text-zinc-400 hover:text-zinc-800"
-                }`}
-                id="bar-lang-eng"
-              >
-                ENG
-              </button>
-            </div>
-
-            {user ? (
-              <div className="flex items-center gap-1.5 md:gap-2.5 select-none text-[11px] md:text-xs">
-                <button 
-                  onClick={() => setIsProfileOpen(true)}
-                  className="inline-flex items-center gap-1 text-zinc-700 hover:text-black font-semibold tracking-tight transition-colors cursor-pointer border border-zinc-200 rounded-full px-2.5 py-1 md:py-1 md:px-3 bg-zinc-50/50 hover:bg-zinc-100/50"
-                  id="bar-profile"
-                >
-                  <User size={13} className="text-zinc-400" />
-                  <span className="max-w-[50px] sm:max-w-[90px] truncate">
-                    {userProfile?.nickname || user.displayName || user.email?.split('@')[0]}
-                  </span>
-                  <span className="text-zinc-400 font-medium text-[10px]">님</span>
-                </button>
-                <span className="hidden md:inline text-zinc-200">/</span>
-                <button 
-                  onClick={() => { signOut(auth); localStorage.removeItem('admin_bypass'); window.location.reload(); }}
-                  className="text-zinc-400 hover:text-black transition-colors cursor-pointer uppercase text-[11px] md:text-xs border border-zinc-300 md:border-none rounded-full px-3 py-1 md:p-0"
-                  id="bar-logout"
-                >
-                  {lang === "KOR" ? "로그아웃" : "LOGOUT"}
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 md:gap-3 select-none text-[11px] md:text-xs">
-                <button 
-                  onClick={() => navigate('/login', { state: { mode: 'signup' } })}
-                  className="hidden md:inline text-zinc-400 hover:text-black transition-colors cursor-pointer"
-                  id="bar-signup"
-                >
-                  {lang === "KOR" ? "회원가입" : "JOIN"}
-                </button>
-                <span className="hidden md:inline text-zinc-200">/</span>
-                <button 
-                  onClick={() => navigate('/login', { state: { mode: 'login' } })}
-                  className="text-zinc-600 hover:text-black transition-colors cursor-pointer uppercase text-[11px] md:text-xs border border-zinc-300 md:border-none rounded-full px-3 py-1 md:p-0 font-extrabold"
-                  id="bar-login"
-                >
-                  {lang === "KOR" ? "로그인" : "LOGIN"}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+      {/* Persistent Global Fixed Top Bar */}
+      <FixedHeader handleBackToHome={handleBackToHome} />
 
       <div className="flex justify-center px-4 md:px-12 lg:px-0 md:min-w-[1100px]">
         <div className="w-full max-w-[1100px] md:min-w-[1100px] bg-white text-black font-sans relative pt-[30px] md:pt-[100px]">
@@ -699,6 +614,93 @@ function HomePage() {
                   </button>
                 </div>
               )}
+
+              {/* Question Q&A Preview Section */}
+              <section className="pb-24 bg-white pt-24 border-t border-zinc-100/60">
+                <div className="px-6 md:px-0 flex flex-col justify-center items-center mb-[50px]">
+                  <h2 className="text-[14px] font-normal uppercase tracking-[0.3em] text-black text-center mb-1">QUESTION</h2>
+                  <p className="text-zinc-400 text-[10px] font-black uppercase tracking-wider text-center">푸이마에게 질문하세요 / Ask Puima</p>
+                </div>
+
+                <div className="max-w-[850px] mx-auto px-6">
+                  {homeQuestions.length === 0 ? (
+                    <div className="py-12 text-center border border-dashed border-zinc-200 rounded-[24px] bg-zinc-50/20">
+                      <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">No questions registered yet.</p>
+                      <p className="text-zinc-400 text-[11px] font-semibold mt-1">푸이마 마스터에게 첫 번째 질문을 해보세요!</p>
+                    </div>
+                  ) : (
+                    <div className="border border-zinc-150 rounded-[24px] overflow-hidden divide-y divide-zinc-100 bg-white shadow-sm/30">
+                      {homeQuestions.slice(0, 5).map((q: any) => {
+                        const hasAnswer = !!q.answer;
+                        const maskName = (name: string) => {
+                          if (!name) return "익명";
+                          if (name.length <= 1) return name;
+                          if (name.length === 2) return name[0] + "*";
+                          return name[0] + "*".repeat(name.length - 2) + name[name.length - 1];
+                        };
+                        const formatDate = (isoStr: string) => {
+                          if (!isoStr) return "";
+                          try {
+                            const d = new Date(isoStr);
+                            const year = d.getFullYear();
+                            const month = String(d.getMonth() + 1).padStart(2, "0");
+                            const day = String(d.getDate()).padStart(2, "0");
+                            return `${year}.${month}.${day}`;
+                          } catch (e) {
+                            return isoStr;
+                          }
+                        };
+
+                        return (
+                          <div 
+                            key={q.id}
+                            onClick={() => { navigate('/question'); window.scrollTo(0, 0); }}
+                            className="px-6 py-4.5 flex items-center justify-between gap-4 hover:bg-zinc-50/40 transition-all cursor-pointer text-left font-sans"
+                          >
+                            <div className="flex-grow min-w-0 flex items-center gap-3">
+                              {/* Status Badge */}
+                              {hasAnswer ? (
+                                <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-700 shrink-0 uppercase tracking-wider">
+                                  답변 완료
+                                </span>
+                              ) : (
+                                <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-zinc-50 border border-zinc-150 text-zinc-400 shrink-0 uppercase tracking-wider">
+                                  답변 대기
+                                </span>
+                              )}
+
+                              {q.isPrivate && (
+                                <span className="inline-flex items-center gap-0.5 text-[8px] font-bold text-zinc-400/80 bg-zinc-50/50 border border-zinc-100 px-1 py-0.2 rounded shrink-0">
+                                  <Lock size={9} />
+                                </span>
+                              )}
+
+                              <span className="text-xs font-bold text-zinc-905 truncate leading-snug">
+                                {q.isPrivate ? "비밀글입니다." : q.title}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-3 text-[10px] text-zinc-400 font-medium font-mono shrink-0">
+                              <span>{maskName(q.authorName)}</span>
+                              <span className="text-zinc-200">|</span>
+                              <span>{formatDate(q.createdAt)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="flex justify-center mt-8 gap-2">
+                    <button 
+                      onClick={() => { navigate('/question'); window.scrollTo(0, 0); }}
+                      className="group flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-900 border-b border-zinc-900 pb-1 hover:text-zinc-400 hover:border-zinc-400 transition-all cursor-pointer"
+                    >
+                      <span>질문하러가기</span>
+                    </button>
+                  </div>
+                </div>
+              </section>
 
               {/* Student Review Ticker Section */}
               <section className="pb-32 overflow-hidden bg-white pt-32">
@@ -852,14 +854,12 @@ function HomePage() {
               </main>
 
               <div className="flex justify-center py-24 border-t border-zinc-100">
-                <motion.button 
-                  whileHover={{ y: -2 }}
-                  whileTap={{ scale: 0.98 }}
+                <button 
                   onClick={handleBackToHome}
-                  className="px-12 py-4 bg-black text-white rounded-full text-[10px] font-black uppercase tracking-[0.3em] transition-all"
+                  className="group flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-900 border-b border-zinc-900 pb-1 hover:text-zinc-400 hover:border-zinc-400 transition-all cursor-pointer"
                 >
-                  Return to Journal
-                </motion.button>
+                  돌아가기
+                </button>
               </div>
             </motion.div>
           )}
@@ -1482,17 +1482,20 @@ function NoticePage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-white flex justify-center selection:bg-black selection:text-white">
+    <div className="min-h-screen bg-white flex flex-col items-center selection:bg-black selection:text-white pt-[60px] md:pt-[100px] md:min-w-[1100px]">
+      <FixedHeader />
       <div className="w-full max-w-[1100px] bg-white text-black font-sans relative min-h-screen">
-        <header className="px-6 md:px-12 py-12 flex justify-between items-center border-b border-zinc-100 sticky top-0 bg-white/80 backdrop-blur-md z-50">
-          <h1 onClick={() => navigate('/')} className="font-script text-[40px] leading-none cursor-pointer">Puima</h1>
-          <button onClick={() => navigate('/')} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:opacity-50">
-            <X size={16} />
-            Close
-          </button>
-        </header>
-
         <main className="max-w-4xl mx-auto px-6 py-24 md:py-32">
+          {/* Back button (돌아가기) as clean text link */}
+          <div className="mb-8 text-left">
+            <button
+              onClick={() => navigate("/")}
+              className="text-zinc-400 hover:text-black transition-colors text-xs font-bold tracking-tight inline-flex items-center gap-1.5 cursor-pointer"
+            >
+              ← 돌아가기
+            </button>
+          </div>
+
           <div className="mb-24">
             <h2 className="text-[120px] leading-[0.8] font-script tracking-tight mb-8">Notice</h2>
             <p className="text-zinc-400 text-sm font-medium tracking-tight">푸이마 아틀리에의 소식과 공지사항을 안내드립니다.</p>
@@ -1554,6 +1557,7 @@ export default function App() {
         />
         <Route path="/login" element={<Login />} />
         <Route path="/notice" element={<NoticePage />} />
+        <Route path="/question" element={<Question />} />
       </Routes>
     </AuthProvider>
   );

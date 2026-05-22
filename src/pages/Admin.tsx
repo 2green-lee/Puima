@@ -22,7 +22,7 @@ import {
   Users, Clock, ShieldCheck, HelpCircle, UserX, ChevronRight, User as UserIcon,
   Menu, Bell, Settings, Search, Upload, Image as ImageIcon,
   GripVertical, Eye, EyeOff, BarChart3, ExternalLink, TrendingUp, Globe,
-  Laptop, RefreshCw
+  Laptop, RefreshCw, Lock
 } from "lucide-react";
 import { motion, AnimatePresence, Reorder } from "framer-motion";
 
@@ -48,6 +48,8 @@ interface Post {
 interface Category {
   id: string;
   name: string;
+  nameEn?: string;
+  tagColor?: string;
 }
 
 interface Notice {
@@ -97,7 +99,9 @@ export default function Admin() {
   const [notices, setNotices] = useState<Notice[]>([]);
   const [newNotice, setNewNotice] = useState({ title: "", content: "", url: "", isBanner: false });
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryNameEn, setNewCategoryNameEn] = useState("");
   const [reviews, setReviews] = useState<StudentReview[]>([]);
+  const [adminQuestions, setAdminQuestions] = useState<any[]>([]);
   const [newReview, setNewReview] = useState({ imageUrl: "", phrase: "", phraseEn: "" });
   const [reviewUploading, setReviewUploading] = useState(false);
   const [isSavingReview, setIsSavingReview] = useState(false);
@@ -117,6 +121,13 @@ export default function Admin() {
   const [inputUrl, setInputUrl] = useState<string>("");
   const [isSavingUrl, setIsSavingUrl] = useState<boolean>(false);
   const [analyticsViewMode, setAnalyticsViewMode] = useState<"dashboard" | "visual">("dashboard");
+
+  // Question Management States
+  const [replyingQId, setReplyingQId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [adminQFilter, setAdminQFilter] = useState<"all" | "pending" | "answered">("all");
+  const [adminQSearch, setAdminQSearch] = useState("");
+  const [isSavingReply, setIsSavingReply] = useState(false);
 
   // User list states
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -360,7 +371,9 @@ export default function Admin() {
       const unsubscribeCats = onSnapshot(catQ, (snapshot) => {
         const docs = snapshot.docs.map(doc => ({
           id: doc.id,
-          name: doc.data().name
+          name: doc.data().name || "",
+          nameEn: doc.data().nameEn || "",
+          tagColor: doc.data().tagColor || ""
         })) as Category[];
         setCategories(docs);
       }, (err) => {
@@ -419,12 +432,25 @@ export default function Admin() {
         setDataLoading(false);
       });
 
+      const questionsQ = query(collection(db, "questions"), orderBy("createdAt", "desc"));
+      const unsubscribeQuestions = onSnapshot(questionsQ, (snapshot) => {
+        const docs = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setAdminQuestions(docs);
+      }, (err) => {
+        console.error("Firestore questions error inside admin loading:", err);
+        setDataLoading(false);
+      });
+
       return () => {
         unsubscribePosts();
         unsubscribeCats();
         unsubscribeNotices();
         unsubscribeReviews();
         unsubscribeUsers();
+        unsubscribeQuestions();
       };
     } else {
       // If none of authorized states are met, resolve loading so we show login prompt or denied screen
@@ -585,27 +611,46 @@ export default function Admin() {
     });
   };
 
-  const handleAddCategory = async (e: FormEvent) => {
+  const handleSaveCategory = async (e: FormEvent) => {
     e.preventDefault();
     if (!newCategoryName.trim()) return;
+    
+    const data = {
+      name: newCategoryName.trim(),
+      nameEn: newCategoryNameEn.trim()
+    };
+
     handleAutoSaveAction(async () => {
-      await addDoc(collection(db, "categories"), { name: newCategoryName.trim() });
+      if (editingCategory) {
+        await updateDoc(doc(db, "categories", editingCategory), data);
+        setEditingCategory(null);
+      } else {
+        await addDoc(collection(db, "categories"), data);
+      }
       setNewCategoryName("");
+      setNewCategoryNameEn("");
     });
   };
 
-  const handleUpdateCategory = async (id: string, newName: string) => {
-    if (!newName.trim()) return;
-    handleAutoSaveAction(async () => {
-      await updateDoc(doc(db, "categories", id), { name: newName.trim() });
-      setEditingCategory(null);
-    });
+  const handleStartEditCategory = (cat: Category) => {
+    setEditingCategory(cat.id);
+    setNewCategoryName(cat.name);
+    setNewCategoryNameEn(cat.nameEn || "");
+  };
+
+  const handleCancelEditCategory = () => {
+    setEditingCategory(null);
+    setNewCategoryName("");
+    setNewCategoryNameEn("");
   };
 
   const handleDeleteCategory = async (id: string) => {
     if (!confirm("이 카테고리를 삭제하시겠습니까?")) return;
     handleAutoSaveAction(async () => {
       await deleteDoc(doc(db, "categories", id));
+      if (editingCategory === id) {
+        handleCancelEditCategory();
+      }
     });
   };
 
@@ -1470,7 +1515,15 @@ export default function Admin() {
                             {/* Title & Info */}
                             <div className="flex-grow min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-[10px] font-black uppercase text-zinc-400 tracking-tighter shrink-0">[{post.category || "No Cat"}]</span>
+                                {post.category ? (
+                                  <span className="text-[9px] font-black px-2 py-0.5 rounded-full border shrink-0 tracking-wider bg-zinc-100 border-zinc-200 text-zinc-800">
+                                    {post.category}
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] font-black px-2 py-0.5 rounded-full border shrink-0 tracking-wider bg-zinc-50 border-zinc-150 text-zinc-400">
+                                    미분류
+                                  </span>
+                                )}
                                 <h4 className="text-sm font-bold truncate tracking-tight">{post.title}</h4>
                                 {post.titleEn && (
                                   <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">/ {post.titleEn}</span>
@@ -1718,65 +1771,144 @@ export default function Admin() {
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
-                  className="bg-white p-10 rounded-[40px] border border-zinc-200 shadow-sm"
+                  className="space-y-8"
                 >
-                  <div className="mb-10">
-                    <h3 className="text-3xl font-black tracking-tighter uppercase mb-2">카테고리 관리</h3>
-                    <p className="text-zinc-500 font-medium">클래스를 분류할 카테고리를 등록하고 관리하세요.</p>
-                  </div>
+                  <div className="bg-white p-10 rounded-[40px] border border-zinc-200 shadow-sm">
+                    <div className="mb-10">
+                      <h3 className="text-3xl font-black tracking-tighter uppercase mb-2">카테고리 관리</h3>
+                      <p className="text-zinc-500 font-medium">클래스를 분류할 카테고리를 한글명과 영문명으로 등록하고 관리하세요.</p>
+                    </div>
 
-                  <form onSubmit={handleAddCategory} className="flex gap-3 mb-10">
-                    <input 
-                      type="text" 
-                      value={newCategoryName}
-                      onChange={e => setNewCategoryName(e.target.value)}
-                      placeholder="새 카테고리 이름 (예: 원데이 클래스)"
-                      className="flex-grow p-4 bg-zinc-50 border border-zinc-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
-                    />
-                    <button 
-                      type="submit"
-                      className="bg-black text-white px-8 py-4 rounded-2xl font-black text-sm hover:bg-zinc-800 transition-all flex items-center gap-2"
-                    >
-                      <Plus size={18} />
-                      추가
-                    </button>
-                  </form>
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+                      {/* Left: Category Add / Edit Form */}
+                      <div className="lg:col-span-5 bg-zinc-50/50 p-8 rounded-[32px] border border-zinc-150 flex flex-col justify-between h-fit">
+                        <form onSubmit={handleSaveCategory} className="space-y-6">
+                          <div>
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 block mb-2">상태</span>
+                            <h4 className="text-lg font-black text-zinc-950 flex items-center gap-1.5">
+                              {editingCategory ? (
+                                <>
+                                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                                  카테고리 수정 중
+                                </>
+                              ) : (
+                                <>
+                                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                                  새 카테고리 신규 추가
+                                </>
+                              )}
+                            </h4>
+                          </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                    {categories.map(cat => (
-                      <div key={cat.id} className="bg-white p-4 pl-6 rounded-2xl border border-zinc-200 flex items-center justify-between group hover:border-black transition-all">
-                        {editingCategory === cat.id ? (
-                          <input 
-                            autoFocus
-                            defaultValue={cat.name}
-                            onBlur={(e) => handleUpdateCategory(cat.id, e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleUpdateCategory(cat.id, e.currentTarget.value);
-                              if (e.key === 'Escape') setEditingCategory(null);
-                            }}
-                            className="w-full bg-transparent border-none p-0 text-sm font-bold focus:ring-0"
-                          />
-                        ) : (
-                          <span 
-                            onClick={() => setEditingCategory(cat.id)}
-                            className="font-bold text-sm cursor-pointer hover:text-blue-600 transition-colors"
-                          >
-                            {cat.name}
-                          </span>
-                        )}
-                        <button 
-                          onClick={() => handleDeleteCategory(cat.id)}
-                          className="p-2 text-zinc-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-                        >
-                          <X size={16} />
-                        </button>
+                          <div>
+                            <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-2.5">한글명 (필수)</label>
+                            <input 
+                              type="text" 
+                              value={newCategoryName}
+                              onChange={e => setNewCategoryName(e.target.value)}
+                              placeholder="예: 원데이 클래스, 쿠킹 마스터리"
+                              className="w-full p-4 bg-white border border-zinc-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-black/5"
+                              required
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-2.5">영문명 (선택)</label>
+                            <input 
+                              type="text" 
+                              value={newCategoryNameEn}
+                              onChange={e => setNewCategoryNameEn(e.target.value)}
+                              placeholder="예: One-day Class, Cooking Mastery"
+                              className="w-full p-4 bg-white border border-zinc-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-black/5"
+                            />
+                          </div>
+
+                          <div className="flex gap-2.5 pt-4">
+                            {editingCategory && (
+                              <button
+                                type="button"
+                                onClick={handleCancelEditCategory}
+                                className="flex-1 py-4 px-6 border border-zinc-200 rounded-2xl text-sm font-bold text-zinc-650 hover:bg-zinc-100 hover:text-black transition-all cursor-pointer"
+                              >
+                                취소
+                              </button>
+                            )}
+                            <button
+                              type="submit"
+                              className={`flex-1 flex items-center justify-center gap-2 py-4 px-6 rounded-2xl font-black text-sm text-white transition-all shadow-md ${
+                                editingCategory 
+                                  ? "bg-amber-500 hover:bg-amber-600 shadow-amber-500/10" 
+                                  : "bg-black hover:bg-zinc-800 shadow-black/10"
+                              }`}
+                            >
+                              {editingCategory ? <Save size={16} /> : <Plus size={16} />}
+                              {editingCategory ? "수정 완료" : "카테고리 생성"}
+                            </button>
+                          </div>
+                        </form>
                       </div>
-                    ))}
-                    {categories.length === 0 && (
-                      <div className="col-span-full py-12 text-center text-zinc-400 text-sm font-medium border-2 border-dashed border-zinc-100 rounded-3xl">
-                        등록된 카테고리가 없습니다.
+
+                      {/* Right: Categories List */}
+                      <div className="lg:col-span-7 flex flex-col">
+                        <div className="border border-zinc-200 rounded-[32px] overflow-hidden bg-zinc-50/20 p-6 md:p-8">
+                          <div className="flex items-center justify-between mb-6 pb-4 border-b border-zinc-150/60 font-medium">
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 font-sans">등록된 카테고리 목록 ({categories.length})</span>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[560px] overflow-y-auto pr-1">
+                            {categories.map(cat => {
+                              return (
+                                <div 
+                                  key={cat.id} 
+                                  className={`p-5 rounded-2xl bg-white border transition-all flex items-center justify-between group hover:shadow-md hover:-translate-y-0.5 ${
+                                    editingCategory === cat.id ? "border-amber-400 ring-2 ring-amber-400/20 bg-amber-50/10" : "border-zinc-200 hover:border-zinc-350"
+                                  }`}
+                                >
+                                  <div className="flex-1 min-w-0 pr-4">
+                                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black border bg-zinc-50 border-zinc-200 text-zinc-800">
+                                        {cat.name}
+                                      </span>
+                                    </div>
+                                    <div className="text-[10px] font-medium text-zinc-400 space-y-0.5 font-sans">
+                                      {cat.nameEn && (
+                                        <div><span className="font-bold text-zinc-500 uppercase">ENG:</span> {cat.nameEn}</div>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-1">
+                                    <button 
+                                      type="button"
+                                      onClick={() => handleStartEditCategory(cat)}
+                                      className="p-2.5 rounded-xl text-zinc-400 hover:text-black hover:bg-zinc-100 transition-all cursor-pointer"
+                                      title="카테고리 수정"
+                                    >
+                                      <Edit2 size={14} />
+                                    </button>
+                                    <button 
+                                      type="button"
+                                      onClick={() => handleDeleteCategory(cat.id)}
+                                      className="p-2.5 rounded-xl text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer"
+                                      title="카테고리 삭제"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {categories.length === 0 && (
+                              <div className="col-span-full py-16 text-center text-zinc-400 text-sm font-medium border border-dashed border-zinc-200 bg-white rounded-3xl flex flex-col items-center justify-center gap-3">
+                                <Tag size={28} className="text-zinc-300" />
+                                <span className="font-bold">등록된 클래스 카테고리가 없습니다.</span>
+                                <span className="text-[11px] text-zinc-400">왼쪽 폼을 활용해 첫 번째 카테고리를 발행해보세요!</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    )}
+                    </div>
                   </div>
                 </motion.div>
               )}
@@ -2482,7 +2614,21 @@ export default function Admin() {
                                     )}
                                     <div className="truncate">
                                       <div className="font-extrabold text-zinc-900 truncate">{post.title}</div>
-                                      <div className="text-[10px] text-zinc-400 font-bold tracking-wider mt-0.5">{post.category || "미분류"}</div>
+                                      {(() => {
+                                        const catObj = categories.find(c => c.name === post.category);
+                                        return (
+                                          <div className="flex items-center gap-1.5 mt-1">
+                                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded border tracking-wider bg-zinc-100 border-zinc-200 text-zinc-800">
+                                              {post.category || "미분류"}
+                                            </span>
+                                            {catObj?.nameEn && (
+                                              <span className="text-[8px] text-zinc-400 font-bold uppercase tracking-wide">
+                                                / {catObj.nameEn}
+                                              </span>
+                                            )}
+                                          </div>
+                                        );
+                                      })()}
                                     </div>
                                   </div>
                                 </td>
@@ -3125,7 +3271,7 @@ export default function Admin() {
               )}
 
               {/* Placeholder Views for other tabs */}
-              {["history", "inquiry"].includes(activeTab) && (
+              {activeTab === "history" && (
                 <motion.div 
                   key={activeTab}
                   initial={{ opacity: 0, scale: 0.98 }}
@@ -3140,6 +3286,301 @@ export default function Admin() {
                     {sidebarItems.flatMap(s => s.items).find(i => i.id === activeTab)?.label} 기능은 현재 준비 중입니다. 
                     시스템 업데이트를 기다려 주세요.
                   </p>
+                </motion.div>
+              )}
+
+              {/* Question / Inquiry Management Tab */}
+              {activeTab === "inquiry" && (
+                <motion.div 
+                  key="inquiry"
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -15 }}
+                  className="space-y-8 text-left font-sans"
+                >
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                      <h2 className="text-3xl font-black tracking-tight text-zinc-950 uppercase font-sans">Inquiries & Questions</h2>
+                      <p className="text-sm font-semibold text-zinc-400 mt-1">
+                        수강생들이 등록한 질문을 실시간으로 확인하고 마스터 피드백을 전달합니다.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                    {/* Left Column: List of Questions */}
+                    <div className="lg:col-span-5 space-y-4">
+                      {/* Search and Filters */}
+                      <div className="bg-white border border-zinc-200 rounded-3xl p-4.5 space-y-4 shadow-sm/5">
+                        <div className="relative">
+                          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 w-4 h-4" />
+                          <input
+                            type="text"
+                            placeholder="제목, 작성자 이름, 이메일 검색..."
+                            value={adminQSearch}
+                            onChange={(e) => setAdminQSearch(e.target.value)}
+                            className="w-full bg-zinc-50 border border-zinc-200 focus:border-zinc-350 focus:ring-1 focus:ring-zinc-100 py-3 pl-11 pr-4 rounded-xl text-xs font-bold outline-none transition-all"
+                          />
+                        </div>
+
+                        <div className="flex gap-2">
+                          {(["all", "pending", "answered"] as const).map((filter) => {
+                            const isSelected = adminQFilter === filter;
+                            const label = filter === "all" ? "전체" : filter === "pending" ? "대기" : "완료";
+                            const count = filter === "all" 
+                              ? adminQuestions.length 
+                              : filter === "pending" 
+                                ? adminQuestions.filter(q => !q.answer).length 
+                                : adminQuestions.filter(q => q.answer).length;
+
+                            return (
+                              <button
+                                key={filter}
+                                onClick={() => setAdminQFilter(filter)}
+                                className={`flex-1 py-2 text-[10px] font-black uppercase tracking-wider rounded-xl border transition-all cursor-pointer ${
+                                  isSelected 
+                                    ? "bg-black border-black text-white" 
+                                    : "bg-white border-zinc-200 text-zinc-500 hover:border-zinc-300"
+                                }`}
+                              >
+                                {label} ({count})
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Clean Questions Scroll Container */}
+                      <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
+                        {adminQuestions.filter(q => {
+                          const matches = q.title.toLowerCase().includes(adminQSearch.toLowerCase()) || 
+                                          q.authorName.toLowerCase().includes(adminQSearch.toLowerCase()) || 
+                                          q.authorEmail.toLowerCase().includes(adminQSearch.toLowerCase());
+                          if (adminQFilter === "pending") return !q.answer && matches;
+                          if (adminQFilter === "answered") return !!q.answer && matches;
+                          return matches;
+                        }).length === 0 ? (
+                          <div className="py-16 text-center border border-dashed border-zinc-200 rounded-3xl bg-zinc-50/10">
+                            <p className="text-zinc-400 font-bold text-xs uppercase tracking-widest">일치하는 질문이 없습니다.</p>
+                          </div>
+                        ) : (
+                          adminQuestions.filter(q => {
+                            const matches = q.title.toLowerCase().includes(adminQSearch.toLowerCase()) || 
+                                            q.authorName.toLowerCase().includes(adminQSearch.toLowerCase()) || 
+                                            q.authorEmail.toLowerCase().includes(adminQSearch.toLowerCase());
+                            if (adminQFilter === "pending") return !q.answer && matches;
+                            if (adminQFilter === "answered") return !!q.answer && matches;
+                            return matches;
+                          }).map((q) => {
+                            const isSelected = replyingQId === q.id;
+                            const hasAnswer = !!q.answer;
+                            
+                            return (
+                              <div
+                                key={q.id}
+                                onClick={() => {
+                                  setReplyingQId(q.id);
+                                  setReplyText(q.answer || "");
+                                }}
+                                className={`p-4.5 rounded-2xl border transition-all cursor-pointer text-left select-none relative ${
+                                  isSelected 
+                                    ? "bg-zinc-950 border-zinc-950 text-white shadow-md" 
+                                    : "bg-white border-zinc-200 hover:border-zinc-350 text-black"
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-2.5 mb-2.5">
+                                  {hasAnswer ? (
+                                    <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${isSelected ? "bg-white/15 text-white" : "bg-emerald-50 border border-emerald-100 text-emerald-700"}`}>
+                                      답변 완료
+                                    </span>
+                                  ) : (
+                                    <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${isSelected ? "bg-white/10 text-white/80" : "bg-zinc-100 border border-zinc-200 text-zinc-500"}`}>
+                                      답변 대기
+                                    </span>
+                                  )}
+
+                                  <span className={`text-[9px] font-mono font-bold ${isSelected ? "text-zinc-400" : "text-zinc-400"}`}>
+                                    {q.createdAt ? q.createdAt.split("T")[0].replace(/-/g, ".") : ""}
+                                  </span>
+                                </div>
+
+                                <h4 className="font-bold text-sm line-clamp-2 leading-snug">
+                                  {q.isPrivate && (
+                                    <span className="inline-flex mr-1 items-center gap-0.5 opacity-60">
+                                      <Lock size={10} />
+                                    </span>
+                                  )}
+                                  {q.title}
+                                </h4>
+
+                                <div className={`flex items-center gap-2 mt-3.5 text-[10px] font-bold ${isSelected ? "text-zinc-400" : "text-zinc-500"}`}>
+                                  <span>{q.authorName}</span>
+                                  <span>•</span>
+                                  <span className="truncate">{q.authorEmail}</span>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Right Column: Workstation details and text reply editor */}
+                    <div className="lg:col-span-7 bg-white border border-zinc-200 rounded-[36px] overflow-hidden min-h-[500px] flex flex-col shadow-sm">
+                      {(() => {
+                        const targetQ = adminQuestions.find(q => q.id === replyingQId);
+                        if (!targetQ) {
+                          return (
+                            <div className="flex-grow flex flex-col items-center justify-center p-12 text-center text-zinc-400">
+                              <HelpCircle size={40} className="text-zinc-350 mb-4" />
+                              <h4 className="font-bold text-sm text-zinc-800">질문을 선택해 주세요</h4>
+                              <p className="text-[11px] font-medium text-zinc-400 mt-1 max-w-[280px] leading-relaxed">
+                                왼쪽 리스트에서 답변을 작성하거나 피드백할 수강생의 질문을 선택해 주세요.
+                              </p>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="flex-grow flex flex-col min-h-0 text-left font-sans">
+                            {/* Workstation Header */}
+                            <div className="p-6 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/40">
+                              <div>
+                                <span className="text-[10px] font-black text-zinc-455 font-mono block uppercase tracking-wider">Inquiry Details</span>
+                                <h5 className="font-bold text-xs text-zinc-850 mt-1">{targetQ.authorName} 님의 질문</h5>
+                              </div>
+                              <button 
+                                onClick={() => { setReplyingQId(null); setReplyText(""); }}
+                                className="p-1.5 px-3 border border-zinc-200 rounded-xl text-[9px] font-black tracking-wider uppercase text-zinc-500 hover:text-black hover:bg-zinc-50 transition-colors cursor-pointer"
+                              >
+                                닫기 [X]
+                              </button>
+                            </div>
+
+                            {/* Q Content sheet */}
+                            <div className="p-6 md:p-8 space-y-6 flex-1 overflow-y-auto">
+                              <div className="space-y-3">
+                                <div className="flex items-center gap-2">
+                                  {targetQ.isPrivate && (
+                                    <span className="inline-flex items-center gap-1 text-[9px] font-bold text-zinc-400 bg-zinc-50 border border-zinc-150 px-1.5 py-0.5 rounded">
+                                      <Lock size={10} />
+                                      비밀글
+                                    </span>
+                                  )}
+                                  <span className="text-[10px] font-mono font-bold text-zinc-400">작성일: {targetQ.createdAt}</span>
+                                </div>
+                                <h3 className="text-base md:text-lg font-bold text-zinc-950 leading-snug">{targetQ.title}</h3>
+                              </div>
+
+                              {targetQ.reference && (
+                                <div className="bg-zinc-50/70 border border-zinc-150 rounded-2xl p-5">
+                                  <span className="text-[9px] font-black text-zinc-400 block mb-1.5 font-mono tracking-wider">대상 강좌 / 유튜브 채널 & 링크</span>
+                                  <p className="text-zinc-850 text-xs md:text-sm font-bold flex items-center gap-1.5">🎬 {targetQ.reference}</p>
+                                </div>
+                              )}
+
+                              <div className="bg-zinc-50/70 border border-zinc-150 rounded-2xl p-6">
+                                <span className="text-[9px] font-black text-zinc-400 block mb-2 font-mono tracking-wider">QUESTION DESCRIPTION</span>
+                                <p className="text-zinc-800 text-xs md:text-sm font-semibold leading-relaxed whitespace-pre-wrap">{targetQ.content}</p>
+                              </div>
+
+                              <div className="pt-2 border-t border-zinc-100 space-y-4">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-[10px] font-black uppercase text-zinc-400 tracking-wide font-mono">
+                                    {targetQ.answer ? "답변 수정하기" : "푸이마 마스터 답변 작성"}
+                                  </label>
+                                  {targetQ.answer && (
+                                    <span className="text-[9px] text-zinc-400 font-mono font-bold">
+                                      답변 발행일: {targetQ.answeredAt ? targetQ.answeredAt.split("T")[0] : ""}
+                                    </span>
+                                  )}
+                                </div>
+                                
+                                <textarea
+                                  rows={8}
+                                  placeholder="수강생의 성공적인 조리를 위해 명확하고 친절한 과학적 조리 피드백을 전달해 주세요."
+                                  value={replyText}
+                                  onChange={(e) => setReplyText(e.target.value)}
+                                  className="w-full bg-white border border-zinc-200 focus:border-zinc-350 focus:ring-1 focus:ring-zinc-100 outline-none rounded-2xl p-4 text-xs md:text-sm font-semibold leading-relaxed font-sans"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Workstation Footer actions */}
+                            <div className="p-6 border-t border-zinc-100 bg-zinc-50/30 flex items-center justify-between gap-3 shrink-0">
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (!window.confirm("정말로 이 질문 글을 완전히 삭제하시겠습니까?")) return;
+                                  try {
+                                    await deleteDoc(doc(db, "questions", targetQ.id));
+                                    setReplyingQId(null);
+                                    setReplyText("");
+                                  } catch (err) {
+                                    console.error("Error deleting question via admin:", err);
+                                    alert("삭제 중 에러가 발생했습니다.");
+                                  }
+                                }}
+                                className="px-5 py-3.5 border border-red-200 text-red-650 hover:bg-red-50/20 font-bold text-xs rounded-2xl active:scale-95 transition-all cursor-pointer"
+                              >
+                                질문 삭제
+                              </button>
+
+                              <div className="flex gap-2.5">
+                                {targetQ.answer && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      if (!window.confirm("답변을 기각하여 다시 대기 상태로 되돌리시겠습니까?")) return;
+                                      setIsSavingReply(true);
+                                      try {
+                                        await updateDoc(doc(db, "questions", targetQ.id), {
+                                          answer: "",
+                                          answeredAt: ""
+                                        });
+                                        setReplyText("");
+                                      } catch (err) {
+                                        console.error("Error resetting answer:", err);
+                                        alert("기각 처리 중 에러가 발생했습니다.");
+                                      } finally {
+                                        setIsSavingReply(false);
+                                      }
+                                    }}
+                                    className="px-4 py-3.5 bg-zinc-100 border border-zinc-200 text-zinc-600 hover:bg-zinc-200 rounded-2xl text-xs font-bold transition-all active:scale-95 cursor-pointer"
+                                  >
+                                    답변 초기화
+                                  </button>
+                                )}
+
+                                <button
+                                  type="button"
+                                  disabled={isSavingReply || !replyText.trim()}
+                                  onClick={async () => {
+                                    setIsSavingReply(true);
+                                    try {
+                                      await updateDoc(doc(db, "questions", targetQ.id), {
+                                        answer: replyText.trim(),
+                                        answeredAt: new Date().toISOString()
+                                      });
+                                    } catch (err) {
+                                      console.error("Error saving reply inside admin panel:", err);
+                                      alert("답변 전송 중 에러가 발생했습니다.");
+                                    } finally {
+                                      setIsSavingReply(false);
+                                    }
+                                  }}
+                                  className="px-8 py-3.5 bg-black text-white hover:bg-zinc-800 rounded-2xl text-xs font-black uppercase tracking-wider disabled:opacity-50 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer shadow-sm"
+                                >
+                                  {isSavingReply ? <RefreshCw size={12} className="animate-spin" /> : null}
+                                  <span>{targetQ.answer ? "답변 수정 저장" : "답변 전송 및 공개"}</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
                 </motion.div>
               )}
 
