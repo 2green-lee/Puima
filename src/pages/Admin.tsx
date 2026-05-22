@@ -21,8 +21,8 @@ import {
   LayoutDashboard, PlusCircle, Tag, Megaphone, MessageSquare,
   Users, Clock, ShieldCheck, HelpCircle, UserX, ChevronRight, User as UserIcon,
   Menu, Bell, Settings, Search, Upload, Image as ImageIcon,
-  GripVertical, Eye, BarChart3, ExternalLink, TrendingUp, Globe,
-  Laptop
+  GripVertical, Eye, EyeOff, BarChart3, ExternalLink, TrendingUp, Globe,
+  Laptop, RefreshCw
 } from "lucide-react";
 import { motion, AnimatePresence, Reorder } from "framer-motion";
 
@@ -72,6 +72,7 @@ interface UserProfile {
   realName?: string;
   gender?: string;
   phone?: string;
+  password?: string;
 }
 
 interface StudentReview {
@@ -130,13 +131,15 @@ export default function Admin() {
   const [unbanConfirmId, setUnbanConfirmId] = useState<string | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
-  const [editUserInputs, setEditUserInputs] = useState<{ nickname: string; realName: string; gender: string; phone: string; isAdmin: boolean; isBanned: boolean }>({
+  const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({});
+  const [editUserInputs, setEditUserInputs] = useState<{ nickname: string; realName: string; gender: string; phone: string; isAdmin: boolean; isBanned: boolean; password?: string }>({
     nickname: "",
     realName: "",
     gender: "남",
     phone: "",
     isAdmin: false,
-    isBanned: false
+    isBanned: false,
+    password: ""
   });
 
   const filteredPosts = posts.filter(post => {
@@ -406,7 +409,8 @@ export default function Admin() {
             nickname: data.nickname || dispName || "",
             realName: data.realName || (isGreenLee ? "이근일" : ""),
             gender: data.gender || "남",
-            phone: data.phone || (isGreenLee ? "01093359620" : "")
+            phone: data.phone || (isGreenLee ? "01093359620" : ""),
+            password: data.password || ""
           };
         }) as UserProfile[];
         setUsers(docs);
@@ -462,7 +466,8 @@ export default function Admin() {
       gender: u.gender || "남",
       phone: u.phone || "",
       isAdmin: !!u.isAdmin,
-      isBanned: !!u.isBanned
+      isBanned: !!u.isBanned,
+      password: u.password || ""
     });
   };
 
@@ -479,7 +484,8 @@ export default function Admin() {
         gender: editUserInputs.gender,
         phone: editUserInputs.phone,
         isAdmin: editUserInputs.isAdmin,
-        isBanned: editUserInputs.isBanned
+        isBanned: editUserInputs.isBanned,
+        password: editUserInputs.password || ""
       });
       setEditingUserId(null);
     } catch (err: any) {
@@ -2657,13 +2663,15 @@ export default function Admin() {
                                 />
                               </div>
                             </th>
-                            <th className="pb-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[18%] whitespace-nowrap text-left">닉네임</th>
-                            <th className="pb-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[14%] whitespace-nowrap text-left">이름</th>
-                            <th className="pb-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[10%] whitespace-nowrap text-left">성별</th>
-                            <th className="pb-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[22%] whitespace-nowrap text-left">전화번호</th>
-                            <th className="pb-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[26%] whitespace-nowrap text-left">이메일</th>
-                            <th className="pb-4 pr-6 text-[10px] font-black uppercase tracking-[0.2em] w-[16%] whitespace-nowrap text-right">회원 권한 등급</th>
-                            <th className="pb-4 pr-3 text-[10px] font-black uppercase tracking-[0.2em] w-[8%] whitespace-nowrap text-right">삭제</th>
+                            <th className="pb-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[15%] whitespace-nowrap text-left">닉네임</th>
+                            <th className="pb-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[12%] whitespace-nowrap text-left">이름</th>
+                            <th className="pb-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[8%] whitespace-nowrap text-left">성별</th>
+                            <th className="pb-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[15%] whitespace-nowrap text-left">전화번호</th>
+                            <th className="pb-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[20%] whitespace-nowrap text-left">이메일</th>
+                            <th className="pb-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[15%] whitespace-nowrap text-left">비밀번호</th>
+                            <th className="pb-4 pr-6 text-[10px] font-black uppercase tracking-[0.2em] w-[15%] whitespace-nowrap text-right">회원 권한 등급</th>
+                            <th className="pb-4 pr-4 text-[10px] font-black uppercase tracking-[0.2em] w-[10%] whitespace-nowrap text-right">관리</th>
+                            <th className="pb-4 pr-3 text-[10px] font-black uppercase tracking-[0.2em] w-[6%] whitespace-nowrap text-right">삭제</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-zinc-50 text-sm">
@@ -2772,6 +2780,40 @@ export default function Admin() {
                                   </div>
                                 </td>
 
+                                {/* 비밀번호 */}
+                                <td className="py-5 pl-3 align-middle text-left">
+                                  {isEditing ? (
+                                    <input
+                                      type="text"
+                                      value={editUserInputs.password || ""}
+                                      onChange={(e) => setEditUserInputs(prev => ({ ...prev, password: e.target.value }))}
+                                      placeholder="비밀번호 설정"
+                                      className="w-full max-w-[120px] bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1.5 text-xs font-bold font-mono focus:outline-none focus:ring-2 focus:ring-black/10"
+                                    />
+                                  ) : u.password ? (
+                                    <div className="flex items-center gap-1.5 min-w-[110px]">
+                                      <span className="font-mono text-xs text-zinc-650 font-bold select-all bg-zinc-100 px-2 py-0.5 rounded">
+                                        {revealedPasswords[u.id] ? u.password : "••••••••"}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setRevealedPasswords(prev => ({ ...prev, [u.id]: !prev[u.id] }));
+                                        }}
+                                        className="p-1 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded transition-colors"
+                                        title={revealedPasswords[u.id] ? "숨기기" : "보기"}
+                                      >
+                                        {revealedPasswords[u.id] ? <EyeOff size={13} /> : <Eye size={13} />}
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-zinc-450 font-semibold italic bg-zinc-50/50 px-2 py-0.5 rounded border border-zinc-100/50">
+                                      {u.email && !u.email.includes("@") ? "소셜인증" : "구글/미등록"}
+                                    </span>
+                                  )}
+                                </td>
+
                                 {/* 회원 권한 등급 */}
                                 <td className="py-5 pr-6 align-middle text-right bg-transparent">
                                   <span className={`px-2.5 py-1 rounded-full text-[10px] font-black tracking-widest inline-flex items-center gap-1.5 whitespace-nowrap ${
@@ -2788,6 +2830,50 @@ export default function Admin() {
                                     }`} />
                                     {u.isAdmin ? (isMasterAdmin ? "마스터" : "관리자") : (u.isBanned ? "금지 회원" : "일반 회원")}
                                   </span>
+                                </td>
+
+                                {/* 관리 */}
+                                <td className="py-5 pr-4 align-middle text-right">
+                                  {isEditing ? (
+                                    <div className="flex items-center justify-end gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleSaveUserInfo(u.id);
+                                        }}
+                                        disabled={isUpdatingUser === u.id}
+                                        className="px-2.5 py-1 bg-black text-white hover:bg-zinc-800 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1"
+                                        title="저장"
+                                      >
+                                        {isUpdatingUser === u.id ? <RefreshCw size={10} className="animate-spin" /> : <Save size={10} />}
+                                        저장
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleCancelEditUser();
+                                        }}
+                                        className="px-2 py-1 bg-white hover:bg-zinc-100 border border-zinc-250 rounded-lg text-[10px] font-black text-zinc-600 transition-all cursor-pointer"
+                                        title="취소"
+                                      >
+                                        취소
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleStartEditUser(u);
+                                      }}
+                                      className="p-2 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-xl transition-all cursor-pointer"
+                                      title="회원 정보 수정"
+                                    >
+                                      <Edit2 size={13} />
+                                    </button>
+                                  )}
                                 </td>
 
                                 {/* 삭제 */}
@@ -2828,7 +2914,7 @@ export default function Admin() {
                           })}
                           {filteredUsers.length === 0 && (
                             <tr>
-                              <td colSpan={8} className="py-16 text-center text-zinc-400 font-medium">
+                              <td colSpan={10} className="py-16 text-center text-zinc-400 font-medium">
                                 등록된 회원이 존재하지 않습니다.
                               </td>
                             </tr>

@@ -36,7 +36,7 @@ export default function GridItem({
   
   // Create an editorial feel by varying the layout based on index (disable if uniform)
   const isLarge = !uniform && index % 5 === 0; // Every 5th item is larger
-  const isWide = !uniform && index % 7 === 0;  // Every 7th item is wider
+  const isWide = !uniform && (index + 1) % 7 === 0;  // Every 7th item is wider
   
   const displayImage = imageUrl || image;
   const displayTitle = lang === "ENG" && titleEn ? titleEn : title;
@@ -47,15 +47,15 @@ export default function GridItem({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ delay: (index % 3) * 0.05, duration: 0.8 }}
-      className={`relative group bg-white cursor-pointer overflow-hidden pb-12 ${
-        isLarge ? "col-span-2 row-span-2" : isWide ? "col-span-2" : ""
+      className={`relative group bg-white cursor-pointer overflow-hidden pb-4 md:pb-12 ${
+        isLarge ? "md:col-span-2 md:row-span-2" : isWide ? "md:col-span-2" : ""
       }`}
       onClick={() => window.open(naverUrl, "_blank")}
     >
       <div className="w-full h-full flex flex-col">
         {/* Visual Image Container */}
         <div className={`relative w-full overflow-hidden bg-zinc-50 ${
-          uniform ? "aspect-square" : (isLarge ? "aspect-[4/5]" : isWide ? "aspect-[21/9]" : "aspect-[3/4]")
+          uniform ? "aspect-square" : (isLarge ? "md:aspect-[4/5] aspect-[3/4]" : isWide ? "md:aspect-[21/9] aspect-[3/4]" : "aspect-[3/4]")
         }`}>
           {!isLoaded && (
             <div className="absolute inset-0 bg-zinc-50 animate-pulse" />
@@ -73,7 +73,7 @@ export default function GridItem({
           
           {isSoldOut && (
             <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] flex items-center justify-center z-10">
-              <span className="text-black font-black text-[10px] tracking-[0.4em] uppercase border border-black px-4 py-2">Sold Out</span>
+              <span className="text-black font-black text-[8px] md:text-[10px] tracking-[0.2em] md:tracking-[0.4em] uppercase border border-black px-2 md:px-4 py-1 md:py-2">Sold Out</span>
             </div>
           )}
 
@@ -82,22 +82,22 @@ export default function GridItem({
         </div>
 
         {/* Info - Editorial Style */}
-        <div className="mt-6 px-1">
-          <div className="flex justify-between items-start gap-4">
-            <div className="space-y-1.5 flex-1">
+        <div className="mt-3 md:mt-6 px-1">
+          <div className="flex flex-col sm:flex-row justify-between items-start gap-1 sm:gap-4">
+            <div className="space-y-1 flex-1">
               {category && (
-                <span className="block text-[9px] font-black uppercase tracking-[0.25em] text-zinc-400">
+                <span className="block text-[8px] md:text-[9px] font-black uppercase tracking-[0.25em] text-zinc-400">
                   {category}
                 </span>
               )}
-              <h3 className="text-[14px] font-bold leading-tight tracking-tight text-zinc-900 group-hover:text-zinc-500 transition-colors">
+              <h3 className="text-[10px] md:text-[14px] font-bold leading-tight tracking-tight text-zinc-900 group-hover:text-zinc-500 transition-colors">
                 {displayTitle}
               </h3>
             </div>
-            <div className="text-right flex-shrink-0">
-              <p className="text-[13px] font-bold text-zinc-900">{price}</p>
+            <div className="text-left sm:text-right flex-shrink-0">
+              <p className="text-[9px] md:text-[13px] font-semibold md:font-bold text-zinc-900">{price}</p>
               {originalPrice && (
-                <p className="text-[12px] text-zinc-600 line-through font-medium mt-0.5">{originalPrice}</p>
+                <p className="text-[8px] md:text-[12px] text-zinc-600 line-through font-medium mt-0.5">{originalPrice}</p>
               )}
             </div>
           </div>

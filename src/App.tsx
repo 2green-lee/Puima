@@ -3,13 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Youtube, Instagram, MessageCircle, ChevronDown, Settings, ArrowRight, X, ShieldCheck } from "lucide-react";
+import { Youtube, Instagram, MessageCircle, ChevronDown, Settings, ArrowRight, X, ShieldCheck, User, Mail, Lock, BookOpen, CreditCard, CheckCircle2, AlertCircle, ShoppingBag, Phone, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import React, { useState, useEffect } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
-import { collection, onSnapshot, query, orderBy, where } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy, where, doc, updateDoc } from "firebase/firestore";
 import { db, auth } from "./lib/firebase";
-import { signOut } from "firebase/auth";
+import { signOut, updateProfile, updatePassword, updateEmail, sendPasswordResetEmail, signInWithEmailAndPassword } from "firebase/auth";
 import GridItem from "./components/GridItem";
 import Admin from "./pages/Admin";
 import Login from "./pages/Login";
@@ -155,6 +155,272 @@ function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const navigate = useNavigate();
 
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [userProfile, setUserProfile] = useState<any>(null);
+
+  // Active Tab: 'courses' | 'profile'
+  const [profileTab, setProfileTab] = useState<"courses" | "profile">("courses");
+
+  // Real-time password verification before modifying profile info
+  const [confirmStatePassword, setConfirmStatePassword] = useState("");
+  const [isPasswordVerified, setIsPasswordVerified] = useState(false);
+  const [verifyingPassword, setVerifyingPassword] = useState(false);
+
+  // Form states
+  const [profileNickname, setProfileNickname] = useState("");
+  const [profileRealName, setProfileRealName] = useState("");
+  const [profilePhone, setProfilePhone] = useState("");
+  const [profileGender, setProfileGender] = useState("남");
+  const [profileEmail, setProfileEmail] = useState("");
+
+  // Password fields
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  // Status indicators
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSuccessMsg, setProfileSuccessMsg] = useState("");
+  const [profileErrorMsg, setProfileErrorMsg] = useState("");
+
+  // Reset password verification when profile gets closed or tab changes
+  useEffect(() => {
+    if (!isProfileOpen) {
+      setIsPasswordVerified(false);
+      setConfirmStatePassword("");
+    }
+  }, [isProfileOpen]);
+
+  useEffect(() => {
+    if (profileTab !== "profile") {
+      setIsPasswordVerified(false);
+      setConfirmStatePassword("");
+    }
+  }, [profileTab]);
+
+  // Active classroom popup
+  const [activeLearningClass, setActiveLearningClass] = useState<any>(null);
+
+  useEffect(() => {
+    if (user) {
+      const userRef = doc(db, "users", user.uid);
+      const unsubscribeProfile = onSnapshot(userRef, (snapshot) => {
+        if (snapshot.exists()) {
+          setUserProfile(snapshot.data());
+        }
+      }, (error) => {
+        console.error("Error fetching user profile:", error);
+      });
+      return () => unsubscribeProfile();
+    } else {
+      setUserProfile(null);
+    }
+  }, [user]);
+
+  // Sync profile details into form states when profile document loads
+  useEffect(() => {
+    if (userProfile) {
+      setProfileNickname(userProfile.nickname || user?.displayName || "");
+      setProfileRealName(userProfile.realName || "");
+      setProfilePhone(userProfile.phone || "");
+      setProfileGender(userProfile.gender || "남");
+      setProfileEmail(userProfile.email || user?.email || "");
+    } else if (user) {
+      setProfileEmail(user.email || "");
+      setProfileNickname(user.displayName || "");
+    }
+  }, [userProfile, user, isProfileOpen]);
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProfileSaving(true);
+    setProfileSuccessMsg("");
+    setProfileErrorMsg("");
+
+    try {
+      if (!user) throw new Error("로그인이 필요합니다.");
+
+      // 1. Update Firestore User profile document
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, {
+        nickname: profileNickname.trim(),
+        displayName: profileNickname.trim(),
+        realName: profileRealName.trim(),
+        phone: profilePhone.trim(),
+        gender: profileGender,
+        email: profileEmail.trim(),
+      });
+
+      // 2. Update FirebaseAuth profile display name
+      if (profileNickname.trim()) {
+        await updateProfile(auth.currentUser!, {
+          displayName: profileNickname.trim()
+        });
+      }
+
+      // 3. Update Email in FirebaseAuth if changed
+      if (profileEmail.trim() && profileEmail.trim() !== user.email) {
+        try {
+          await updateEmail(auth.currentUser!, profileEmail.trim());
+        } catch (emailErr: any) {
+          console.warn("Auth email update triggered error (likely requires re-auth):", emailErr);
+          if (emailErr.code === "auth/requires-recent-login") {
+            setProfileSuccessMsg("프로필 일반 정보는 저장되었으나, 이메일 주소를 변경하기 위해서는 이메일 수정 직전에 다시 로그인을 하셔야 합니다.");
+            setProfileSaving(false);
+            return;
+          }
+          throw emailErr;
+        }
+      }
+
+      setProfileSuccessMsg("프로필 정보가 안전하게 저장되었습니다.");
+      setTimeout(() => setProfileSuccessMsg(""), 5000);
+    } catch (err: any) {
+      console.error("Error saving profile:", err);
+      setProfileErrorMsg(err.message || "오류가 발생했습니다. 다시 시도해 주세요.");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handleVerifyPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!confirmStatePassword) {
+      setProfileErrorMsg("비밀번호를 입력해 주세요.");
+      return;
+    }
+    setVerifyingPassword(true);
+    setProfileErrorMsg("");
+    setProfileSuccessMsg("");
+    try {
+      if (!user || !user.email) {
+        throw new Error("사용자 정보를 찾을 수 없습니다. 다시 로그인해 주세요.");
+      }
+      // Re-evaluate using verification with email and password
+      await signInWithEmailAndPassword(auth, user.email, confirmStatePassword);
+      setIsPasswordVerified(true);
+      setConfirmStatePassword("");
+      setProfileSuccessMsg("인증에 성공했습니다. 프로필 수정이 활성화되었습니다.");
+      setTimeout(() => setProfileSuccessMsg(""), 3000);
+    } catch (err: any) {
+      console.error("Password verification failed:", err);
+      let msg = "비밀번호가 일치하지 않거나 오류가 발생했습니다.";
+      if (err.code === "auth/wrong-password") {
+        msg = "비밀번호가 올바르지 않습니다.";
+      } else if (err.code === "auth/invalid-credential") {
+        msg = "비밀번호가 올바르지 않거나 인증에 실패했습니다.";
+      } else if (err.code === "auth/too-many-requests") {
+        msg = "로그인 시도 횟수가 초과되었습니다. 잠시 후 다시 시도해 주세요.";
+      }
+      setProfileErrorMsg(msg);
+    } finally {
+      setVerifyingPassword(false);
+    }
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword) {
+      setProfileErrorMsg("새 비밀번호를 입력해 주세요.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setProfileErrorMsg("비밀번호 확인이 일치하지 않습니다.");
+      return;
+    }
+    if (newPassword.length < 6) {
+      setProfileErrorMsg("비밀번호는 최소 6자 이상이어야 합니다.");
+      return;
+    }
+
+    setProfileSaving(true);
+    setProfileSuccessMsg("");
+    setProfileErrorMsg("");
+
+    try {
+      if (!auth.currentUser) throw new Error("로그인이 필요합니다.");
+      await updatePassword(auth.currentUser, newPassword);
+      try {
+        await updateDoc(doc(db, "users", auth.currentUser.uid), {
+          password: newPassword
+        });
+      } catch (fErr) {
+        console.error("Failed to update password in Firestore doc:", fErr);
+      }
+      setProfileSuccessMsg("비밀번호가 안전하게 변경되었습니다.");
+      setNewPassword("");
+      setConfirmPassword("");
+      setTimeout(() => setProfileSuccessMsg(""), 5000);
+    } catch (err: any) {
+      console.error("Error changing password:", err);
+      if (err.code === "auth/requires-recent-login") {
+        setProfileErrorMsg("보안을 위해 비밀번호 변경은 최근 로그인한 경우에만 적용됩니다. 로그아웃 후 다시 로그인하여 시도해 주세요.");
+      } else {
+        setProfileErrorMsg(err.message || "비밀번호 변경 중 오류가 발생했습니다.");
+      }
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handleSendResetEmail = async () => {
+    setProfileSaving(true);
+    setProfileSuccessMsg("");
+    setProfileErrorMsg("");
+    try {
+      if (!profileEmail) {
+        throw new Error("이메일 주소가 올바르지 않습니다.");
+      }
+      await sendPasswordResetEmail(auth, profileEmail);
+      setProfileSuccessMsg("비밀번호 재설정 이메일이 발송되었습니다. 메일함을 확인해 주세요.");
+      setTimeout(() => setProfileSuccessMsg(""), 5000);
+    } catch (err: any) {
+      console.error("Error sending reset email:", err);
+      setProfileErrorMsg(err.message || "이메일 발송 중 오류가 발생했습니다.");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handleRegisterTestClass = async (classItem: ClassPost) => {
+    if (!user) return;
+    setProfileSuccessMsg("");
+    setProfileErrorMsg("");
+
+    const currentEnrollments = userProfile?.enrolledClasses || [];
+    const isAlreadyEnrolled = currentEnrollments.some((e: any) => e.id === classItem.id);
+
+    if (isAlreadyEnrolled) {
+      setProfileErrorMsg("이미 등록된 수강 클래스입니다.");
+      setTimeout(() => setProfileErrorMsg(""), 3000);
+      return;
+    }
+
+    const orderNo = `PM-${Date.now().toString().slice(-6)}`;
+    const newEnrollment = {
+      id: classItem.id,
+      title: classItem.title,
+      category: classItem.category || "Masterclass",
+      price: classItem.price || "₩49,900",
+      imageUrl: classItem.imageUrl || "",
+      image: classItem.image || "pastryImg",
+      registeredAt: new Date().toISOString().split("T")[0],
+      status: "수강 가능",
+      purchaseNo: orderNo
+    };
+
+    try {
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, {
+        enrolledClasses: [...currentEnrollments, newEnrollment]
+      });
+      setProfileSuccessMsg(`'${classItem.title}' 클래스 수강 신청이 완료되었습니다!`);
+      setTimeout(() => setProfileSuccessMsg(""), 5000);
+    } catch (err: any) {
+      console.error("Error subscribing to test class:", err);
+      setProfileErrorMsg("수강 신청 등록 중 오류가 발생했습니다.");
+    }
+  };
+
   useEffect(() => {
     const q = query(
       collection(db, "posts"), 
@@ -219,13 +485,15 @@ function HomePage() {
     if (!isMasterA && isMasterB) return 1;
     return a.localeCompare(b);
   });
-  const categories = [...rawCategories, "ALL"];
+  const categories = ["ALL", ...rawCategories];
 
-  const publicPosts = posts.filter(post => {
+  const rawPublicPosts = posts.filter(post => {
     const isPublic = post.status !== "hidden";
     const matchesCategory = selectedCategory === "ALL" || post.category?.toUpperCase() === selectedCategory;
     return isPublic && matchesCategory;
   });
+
+  const publicPosts = [...rawPublicPosts];
   const displayClasses = view === "grid" ? publicPosts : publicPosts.slice(0, 9);
 
   return (
@@ -234,14 +502,14 @@ function HomePage() {
       <div className="fixed top-0 left-0 w-full md:min-w-[1100px] h-[60px] md:h-[100px] bg-white border-b border-zinc-100 z-50 flex items-center justify-center px-6 md:px-12 lg:px-0">
         <div className="w-full max-w-[1100px] h-full flex items-center justify-end md:justify-between relative px-2 lg:px-0">
           {/* Social Links on the Left */}
-          <div className="hidden md:flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-5">
             <a 
               href="https://www.youtube.com/@%ED%91%B8%EC%9D%B4%EB%A7%88" 
               target="_blank" 
               rel="noreferrer"
               className="text-zinc-400 hover:text-black transition-all group"
             >
-              <Youtube size={20} className="group-hover:scale-110 transition-transform" />
+              <Youtube size={24} className="group-hover:scale-110 transition-transform" />
             </a>
             <a 
               href="https://instagram.com/puima_official" 
@@ -249,7 +517,7 @@ function HomePage() {
               rel="noreferrer"
               className="text-zinc-400 hover:text-black transition-all group"
             >
-              <Instagram size={20} className="group-hover:scale-110 transition-transform" />
+              <Instagram size={24} className="group-hover:scale-110 transition-transform" />
             </a>
           </div>
 
@@ -285,14 +553,22 @@ function HomePage() {
             </div>
 
             {user ? (
-              <div className="flex items-center gap-1.5 md:gap-3 select-none text-[11px] md:text-xs">
-                <span className="hidden md:inline text-zinc-500 font-medium max-w-[45px] sm:max-w-[70px] truncate">
-                  {user.displayName || user.email?.split('@')[0]}님
-                </span>
+              <div className="flex items-center gap-1.5 md:gap-2.5 select-none text-[11px] md:text-xs">
+                <button 
+                  onClick={() => setIsProfileOpen(true)}
+                  className="inline-flex items-center gap-1 text-zinc-700 hover:text-black font-semibold tracking-tight transition-colors cursor-pointer border border-zinc-200 rounded-full px-2.5 py-1 md:py-1 md:px-3 bg-zinc-50/50 hover:bg-zinc-100/50"
+                  id="bar-profile"
+                >
+                  <User size={13} className="text-zinc-400" />
+                  <span className="max-w-[50px] sm:max-w-[90px] truncate">
+                    {userProfile?.nickname || user.displayName || user.email?.split('@')[0]}
+                  </span>
+                  <span className="text-zinc-400 font-medium text-[10px]">님</span>
+                </button>
                 <span className="hidden md:inline text-zinc-200">/</span>
                 <button 
                   onClick={() => { signOut(auth); localStorage.removeItem('admin_bypass'); window.location.reload(); }}
-                  className="text-zinc-500 hover:text-black transition-colors cursor-pointer uppercase text-[11px] md:text-xs border border-zinc-300 md:border-none rounded-full px-3 py-1 md:p-0"
+                  className="text-zinc-400 hover:text-black transition-colors cursor-pointer uppercase text-[11px] md:text-xs border border-zinc-300 md:border-none rounded-full px-3 py-1 md:p-0"
                   id="bar-logout"
                 >
                   {lang === "KOR" ? "로그아웃" : "LOGOUT"}
@@ -356,9 +632,9 @@ function HomePage() {
 
               {/* Journal & News Section (Banners) */}
               {banners.length > 0 && (
-                <section className="pt-8 md:pt-0 px-6 md:px-0 mb-32">
-                  <div className="flex justify-center items-center mb-8">
-                    <h2 className="text-[14px] font-semibold uppercase tracking-[0.3em] text-black text-center">Bake Happiness</h2>
+                <section className="pt-8 md:pt-0 px-6 md:px-0 mb-[100px]">
+                  <div className="flex justify-center items-center mb-[70px]">
+                    <h2 className="text-[14px] font-normal uppercase tracking-[0.3em] text-black text-center">Bake Happiness</h2>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -372,7 +648,7 @@ function HomePage() {
                         onClick={() => banner.url && window.open(banner.url, "_blank")}
                         className="group cursor-pointer bg-white border border-zinc-300 rounded-[24px] h-[60px] px-6 flex items-center justify-center text-center hover:shadow-xl hover:shadow-zinc-200/50 transition-all duration-500"
                       >
-                        <h3 className="text-[14px] font-bold tracking-tight leading-tight group-hover:text-black transition-colors line-clamp-2">
+                        <h3 className="text-[13px] md:text-[14px] font-semibold md:font-bold tracking-tight leading-tight group-hover:text-black transition-colors line-clamp-2">
                           {banner.title}
                         </h3>
                       </motion.div>
@@ -382,8 +658,8 @@ function HomePage() {
               )}
 
               {/* Collection Section */}
-              <div className="px-6 md:px-0 pb-12 flex justify-center items-center border-b border-zinc-100 mb-12">
-                <h2 className="text-[14px] font-semibold uppercase tracking-[0.3em] text-black text-center">Eat Happiness</h2>
+              <div className="px-6 md:px-0 flex justify-center items-center mb-[70px]">
+                <h2 className="text-[14px] font-normal uppercase tracking-[0.3em] text-black text-center">Eat Happiness</h2>
               </div>
 
               <main className="min-h-[600px] mb-8">
@@ -392,7 +668,7 @@ function HomePage() {
                     <div className="w-8 h-8 border border-zinc-200 border-t-black rounded-full animate-spin"></div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 md:gap-x-8 gap-y-4">
+                  <div className="grid grid-cols-3 md:grid-cols-4 gap-x-2 md:gap-x-8 gap-y-4 px-2 md:px-0">
                     {displayClasses.map((item, idx) => (
                       <GridItem 
                         key={item.id}
@@ -426,8 +702,8 @@ function HomePage() {
 
               {/* Student Review Ticker Section */}
               <section className="pb-32 overflow-hidden bg-white pt-32">
-                <div className="px-6 md:px-0 pb-12 flex justify-between items-end border-b border-zinc-100 mb-12">
-                  <h2 className="text-[14px] font-semibold uppercase tracking-[0.3em] text-black">REVIEW</h2>
+                <div className="px-6 md:px-0 flex justify-center items-center mb-[70px]">
+                  <h2 className="text-[14px] font-normal uppercase tracking-[0.3em] text-black text-center">REVIEW</h2>
                 </div>
 
                 <div className="relative flex">
@@ -501,19 +777,30 @@ function HomePage() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.6 }}
             >
-              <div className="px-6 md:px-0 pb-16 flex flex-col md:flex-row justify-between items-end gap-8 border-b border-zinc-100 mb-8">
-                <div className="space-y-4">
-                  <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-400">Class Index</h2>
-                  <p className="text-[48px] md:text-[64px] font-script leading-none">The Collection</p>
-                </div>
-                <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest">
-                  Total {publicPosts.length} Curated Masterclasses
-                </p>
-              </div>
-
               {/* Category Tabs */}
-              <div className="px-6 md:px-0 mb-16 overflow-x-auto no-scrollbar">
-                <div className="flex gap-8 border-b border-zinc-100 pb-4 min-w-max">
+              <div className="px-6 md:px-0 mb-8 md:mb-16">
+                {/* Mobile View: Wrapping Pill Buttons for 100% Visibility */}
+                <div className="flex flex-wrap gap-2 md:hidden pb-2">
+                  {categories.map((cat) => {
+                    const isActive = selectedCategory === cat;
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => setSelectedCategory(cat)}
+                        className={`text-[10px] font-semibold uppercase tracking-wider px-3.5 py-1.5 rounded-full border transition-all ${
+                          isActive 
+                            ? "bg-black border-black text-white" 
+                            : "bg-white border-zinc-200 text-zinc-500 hover:border-zinc-400"
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop View: Elegant Minimal Underlined Line */}
+                <div className="hidden md:flex gap-8 border-b border-zinc-100 pb-4">
                   {categories.map((cat) => (
                     <button
                       key={cat}
@@ -536,13 +823,13 @@ function HomePage() {
                 </div>
               </div>
 
-              <main className="min-h-[600px] mb-32">
+              <main className="min-h-[600px] mb-16 md:mb-32">
                 {loading ? (
                   <div className="py-32 flex flex-col items-center gap-4">
                     <div className="w-8 h-8 border border-zinc-200 border-t-black rounded-full animate-spin"></div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-x-4 md:gap-x-6 gap-y-12">
+                  <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-2 md:gap-x-6 gap-y-6 md:gap-y-12 px-2 md:px-0">
                     {publicPosts.map((item, idx) => (
                       <GridItem 
                         key={item.id}
@@ -652,6 +939,525 @@ function HomePage() {
             </div>
           </div>
         </footer>
+
+        {/* Profile Info Overlay Side-Drawer */}
+        <AnimatePresence>
+          {isProfileOpen && (
+            <>
+              {/* Backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsProfileOpen(false)}
+                className="fixed inset-0 bg-black/40 backdrop-blur-[3px] z-[9998]"
+              />
+
+              {/* Side Drawer Container */}
+              <motion.div
+                initial={{ x: "100%" }}
+                animate={{ x: 0 }}
+                exit={{ x: "100%" }}
+                transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                className="fixed top-0 right-0 h-full w-full max-w-lg bg-white shadow-[0px_0px_50px_rgba(0,0,0,0.15)] z-[9999] flex flex-col font-sans"
+              >
+                {/* Subheader Details & User profile mini-card */}
+                <div className="bg-zinc-50/50 border-b border-zinc-100 p-6 flex items-center justify-between gap-4 flex-shrink-0">
+                  <div className="min-w-0 flex-1 flex items-center gap-1 text-left">
+                    <span className="font-semibold text-zinc-900 text-base truncate max-w-[180px] sm:max-w-[240px]">
+                      {profileNickname || "수강생님"}
+                    </span>
+                    <span className="text-zinc-500 font-medium text-xs pt-0.5 shrink-0">님</span>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <button
+                      onClick={() => {
+                        signOut(auth);
+                        localStorage.removeItem("admin_bypass");
+                        window.location.reload();
+                      }}
+                      className="text-xs font-medium text-zinc-650 hover:text-red-650 border border-zinc-200 hover:border-red-200 rounded-xl px-4 py-2 transition-all bg-white cursor-pointer hover:bg-red-50/20 shadow-sm"
+                    >
+                      로그아웃
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setIsProfileOpen(false);
+                        setProfileSuccessMsg("");
+                        setProfileErrorMsg("");
+                      }} 
+                      className="p-2 text-zinc-400 hover:text-black rounded-full hover:bg-zinc-200/50 transition-colors cursor-pointer"
+                      title="닫기"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tabs */}
+                <div className="flex border-b border-zinc-100 bg-white sticky top-0 z-10 flex-shrink-0 text-center text-xs font-semibold select-none">
+                  <button 
+                    onClick={() => { setProfileTab("courses"); setProfileErrorMsg(""); setProfileSuccessMsg(""); }}
+                    className={`flex-1 py-4 flex items-center justify-center gap-2 border-b-2 transition-all cursor-pointer ${
+                      profileTab === "courses" 
+                        ? "border-black text-black font-extrabold" 
+                        : "border-transparent text-zinc-400 hover:text-zinc-700"
+                    }`}
+                  >
+                    <BookOpen size={14} />
+                    <span>수강 / 구매 내역</span>
+                  </button>
+                  <button 
+                    onClick={() => { setProfileTab("profile"); setProfileErrorMsg(""); setProfileSuccessMsg(""); }}
+                    className={`flex-1 py-4 flex items-center justify-center gap-2 border-b-2 transition-all cursor-pointer ${
+                      profileTab === "profile" 
+                        ? "border-black text-black font-extrabold" 
+                        : "border-transparent text-zinc-400 hover:text-zinc-700"
+                    }`}
+                  >
+                    <User size={14} />
+                    <span>내 정보 수정</span>
+                  </button>
+                </div>
+
+                {/* Scrollable Workspace */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                  {/* Status Banner Messages */}
+                  {profileSuccessMsg && (
+                    <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-xl p-4 flex items-start gap-2.5 text-xs font-medium">
+                      <CheckCircle2 size={16} className="text-emerald-500 shrink-0 mt-0.5" />
+                      <span>{profileSuccessMsg}</span>
+                    </div>
+                  )}
+
+                  {profileErrorMsg && (
+                    <div className="bg-red-50 border border-red-100 text-red-800 rounded-xl p-4 flex items-start gap-2.5 text-xs font-medium">
+                      <AlertCircle size={16} className="text-red-500 shrink-0 mt-0.5" />
+                      <span>{profileErrorMsg}</span>
+                    </div>
+                  )}
+
+                  {profileTab === "courses" && (
+                    <div className="space-y-6">
+                      {/* Course / Order history 목록 */}
+                      <div className="space-y-3.5">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">나의 마스터클래스</h4>
+                          <span className="text-[10px] text-zinc-400 font-mono">총 {(userProfile?.enrolledClasses || []).length}개 강좌</span>
+                        </div>
+
+                        {(!userProfile?.enrolledClasses || userProfile.enrolledClasses.length === 0) ? (
+                          <div className="border border-dashed border-zinc-200 rounded-3xl p-8 text-center bg-zinc-50/30">
+                            <ShoppingBag className="mx-auto text-zinc-300 mb-3" size={28} />
+                            <p className="text-xs font-bold text-zinc-650 mb-1">등록된 수강 클래스가 없습니다.</p>
+                            <p className="text-[11px] text-zinc-400 leading-relaxed mb-4 max-w-[320px] mx-auto font-medium">
+                              수강을 시작하시려면 네이버 스마트스토어 혹은 외부 결제를 이용해 주세요. 아래 체험용 테스트를 바로 이용하실 수도 있습니다.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {userProfile.enrolledClasses.map((item: any, i: number) => (
+                              <div key={item.id || i} className="bg-white border border-zinc-150 rounded-2xl p-4 flex items-center justify-between gap-4 hover:border-black/20 transition-all flex-row">
+                                <div className="flex items-center gap-3 truncate">
+                                  <div className="w-12 h-12 rounded-lg bg-zinc-100 flex-shrink-0 overflow-hidden border border-zinc-100">
+                                    {item.imageUrl ? (
+                                      <img src={item.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center text-[10px] text-zinc-400 font-bold bg-zinc-50">CLASS</div>
+                                    )}
+                                  </div>
+                                  <div className="truncate text-left">
+                                    <span className="inline-block px-2 py-0.5 bg-zinc-100 rounded-full text-[9px] font-black text-black uppercase tracking-widest mb-1 leading-none">
+                                      {item.category}
+                                    </span>
+                                    <h5 className="font-extrabold text-xs text-zinc-900 truncate" title={item.title}>
+                                      {item.title}
+                                    </h5>
+                                    <div className="flex items-center gap-2 mt-1 text-[10px] text-zinc-400 font-mono">
+                                      <span>주문: {item.purchaseNo || "PM-0000"}</span>
+                                      <span>/</span>
+                                      <span>수강일: {item.registeredAt}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveLearningClass(item)}
+                                  className="px-3.5 py-2 bg-black text-white hover:bg-zinc-855 transition-colors text-[10px] font-black rounded-lg tracking-widest uppercase shrink-0 active:scale-95 cursor-pointer flex items-center gap-1.5"
+                                >
+                                  <span>학습하기</span>
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 테스트용 신청 섹션 */}
+                      <div className="pt-6 border-t border-zinc-100 space-y-4">
+                        <div className="space-y-1 text-left">
+                          <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                            [체험 전용] 수강 신청 시뮬레이션
+                          </h4>
+                          <p className="text-[10px] text-zinc-400 font-semibold">
+                            아래 상품 카탈로그에서 바로 1-Click 수강 등록을 하여 학습 대시보드를 테스트하실 수 있습니다.
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-2.5 max-h-[220px] overflow-y-auto pr-1">
+                          {posts.map((classPost) => {
+                            const isEnrolled = (userProfile?.enrolledClasses || []).some((e: any) => e.id === classPost.id);
+                            return (
+                              <div key={classPost.id} className="bg-zinc-50/50 hover:bg-zinc-100/50 rounded-xl p-3 border border-zinc-150 flex items-center justify-between gap-3 text-left">
+                                <div className="truncate">
+                                  <p className="text-[10px] font-mono text-zinc-400 tracking-wider uppercase leading-none mb-1">{classPost.category || "Class"}</p>
+                                  <h6 className="text-[11px] font-extrabold text-zinc-800 truncate" title={classPost.title}>
+                                    {classPost.title}
+                                  </h6>
+                                </div>
+                                <button
+                                  type="button"
+                                  disabled={isEnrolled}
+                                  onClick={() => handleRegisterTestClass(classPost)}
+                                  className={`px-3 py-1.5 text-[9px] font-black tracking-widest rounded-lg uppercase whitespace-nowrap shrink-0 transition-all ${
+                                    isEnrolled
+                                      ? "bg-zinc-100 text-zinc-350 border border-zinc-100 cursor-not-allowed font-medium"
+                                      : "bg-white text-zinc-800 border border-zinc-200 hover:border-black active:scale-95 cursor-pointer font-bold"
+                                  }`}
+                                >
+                                  {isEnrolled ? "신청완료" : "수강신청"}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {profileTab === "profile" && !isPasswordVerified && (
+                    <form onSubmit={handleVerifyPassword} className="space-y-5 text-left bg-zinc-50/50 border border-zinc-150 rounded-2xl p-6">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-zinc-800">
+                          <Lock size={16} />
+                          <h4 className="font-extrabold text-xs uppercase tracking-wider">보안을 위한 비밀번호 확인</h4>
+                        </div>
+                        <p className="text-[11px] text-zinc-500 leading-relaxed font-semibold">
+                          회원님의 개인정보를 안전하게 보호하기 위해 현재 사용 중인 계정의 비밀번호를 다시 한 번 입력해 주세요.
+                        </p>
+                      </div>
+
+                      <div className="space-y-1.5 pt-2">
+                        <label className="block text-[10px] font-bold uppercase tracking-widest text-zinc-400">비밀번호</label>
+                        <div className="relative">
+                          <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={14} />
+                          <input
+                            type="password"
+                            required
+                            placeholder="현재 비밀번호를 입력해 주세요"
+                            value={confirmStatePassword}
+                            onChange={(e) => setConfirmStatePassword(e.target.value)}
+                            className="w-full bg-white border border-zinc-150 rounded-xl py-3 pl-11 pr-4 text-xs font-bold outline-none focus:border-zinc-350 focus:ring-1 focus:ring-zinc-200 transition-all font-sans"
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={verifyingPassword}
+                        className="w-full bg-black text-white py-3.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-zinc-800 transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2 shadow-sm font-bold active:scale-95"
+                      >
+                        {verifyingPassword ? (
+                          <RefreshCw size={14} className="animate-spin" />
+                        ) : (
+                          "비밀번호 확인"
+                        )}
+                      </button>
+                    </form>
+                  )}
+
+                  {profileTab === "profile" && isPasswordVerified && (
+                    <div className="space-y-8 animate-fadeIn">
+                      <form onSubmit={handleSaveProfile} className="space-y-5 text-left">
+                        <div className="flex items-center gap-2 mb-1 border-b border-zinc-100 pb-2 text-zinc-800">
+                          <User size={15} />
+                          <h4 className="text-xs font-bold uppercase tracking-wide">내 정보 수정</h4>
+                        </div>
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-1.5">실명</label>
+                            <div className="relative">
+                              <User className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={14} />
+                              <input
+                                type="text"
+                                required
+                                placeholder="실명을 입력해 주세요"
+                                value={profileRealName}
+                                onChange={(e) => setProfileRealName(e.target.value)}
+                                className="w-full bg-zinc-50 border border-zinc-150 rounded-xl py-3 pl-11 pr-4 text-xs font-bold outline-none focus:bg-white focus:border-zinc-350 focus:ring-1 focus:ring-zinc-200 transition-all"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="flex justify-between items-center mb-1.5">
+                              <label className="block text-[10px] font-bold uppercase tracking-widest text-zinc-400">닉네임</label>
+                              <span className="text-[9px] font-medium text-zinc-400">한글 5자 / 영문 10자 이내</span>
+                            </div>
+                            <div className="relative">
+                              <User className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={14} />
+                              <input
+                                type="text"
+                                required
+                                placeholder="닉네임을 입력해 주세요"
+                                value={profileNickname}
+                                onChange={(e) => setProfileNickname(e.target.value)}
+                                className="w-full bg-zinc-50 border border-zinc-150 rounded-xl py-3 pl-11 pr-4 text-xs font-bold outline-none focus:bg-white focus:border-zinc-350 focus:ring-1 focus:ring-zinc-200 transition-all"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-1.5">성별</label>
+                              <select
+                                value={profileGender}
+                                onChange={(e) => setProfileGender(e.target.value)}
+                                className="w-full bg-zinc-50 border border-zinc-150 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:bg-white focus:border-zinc-350 focus:ring-1 focus:ring-zinc-200 transition-all appearance-none cursor-pointer"
+                              >
+                                <option value="남">남성</option>
+                                <option value="여">여성</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-1.5">전화번호</label>
+                              <div className="relative">
+                                <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" size={13} />
+                                <input
+                                  type="tel"
+                                  placeholder="숫자만 입력"
+                                  value={profilePhone}
+                                  onChange={(e) => setProfilePhone(e.target.value)}
+                                  className="w-full bg-zinc-50 border border-zinc-150 rounded-xl py-3 pl-9 pr-4 text-xs font-bold outline-none focus:bg-white focus:border-zinc-350 focus:ring-1 focus:ring-zinc-200 transition-all"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-1.5">이메일 주소</label>
+                            <div className="relative">
+                              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={14} />
+                              <input
+                                type="email"
+                                required
+                                value={profileEmail}
+                                onChange={(e) => setProfileEmail(e.target.value)}
+                                className="w-full bg-zinc-50 border border-zinc-150 rounded-xl py-3 pl-11 pr-4 text-xs font-bold outline-none focus:bg-white focus:border-zinc-350 focus:ring-1 focus:ring-zinc-200 transition-all"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={profileSaving}
+                          className="w-full bg-black text-white py-3.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-zinc-800 transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2 shadow-sm font-bold active:scale-95"
+                        >
+                          {profileSaving ? (
+                            <RefreshCw size={14} className="animate-spin" />
+                          ) : (
+                            "변경 사항 저장하기"
+                          )}
+                        </button>
+                      </form>
+
+                      {/* Merged Security & Account Section */}
+                      <div className="border-t border-zinc-200 pt-7 space-y-7 text-left">
+                        <div className="flex items-center gap-2 border-b border-zinc-100 pb-2 text-zinc-800">
+                          <Lock size={15} />
+                          <h4 className="text-xs font-extrabold uppercase tracking-wide">비밀번호 변경 및 계정 관리</h4>
+                        </div>
+
+                        {/* 비밀번호 변경 폼 */}
+                        <form onSubmit={handleUpdatePassword} className="space-y-4">
+                          <h5 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">비밀번호 안전 변경</h5>
+                          
+                          <div className="space-y-3.5">
+                            <div>
+                              <label className="block text-[10px] font-bold text-zinc-500 mb-1">새 비밀번호 (6자 이상)</label>
+                              <input
+                                type="password"
+                                placeholder="새 비밀번호 입력"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                className="w-full bg-zinc-50 border border-zinc-150 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:bg-white focus:border-zinc-350 transition-all font-sans"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-zinc-500 mb-1">비밀번호 확인</label>
+                              <input
+                                type="password"
+                                placeholder="한번 더 입력"
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                className="w-full bg-zinc-50 border border-zinc-150 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:bg-white focus:border-zinc-350 transition-all font-sans"
+                              />
+                            </div>
+                          </div>
+
+                          <button
+                            type="submit"
+                            disabled={profileSaving}
+                            className="w-full bg-black text-white hover:bg-zinc-800 py-3.5 rounded-xl text-xs font-black uppercase tracking-widest transition-colors disabled:opacity-50 cursor-pointer font-bold active:scale-95"
+                          >
+                            비밀번호 업데이트
+                          </button>
+                        </form>
+
+                        {/* 이메일 재설정 링크 */}
+                        <div className="pt-6 border-t border-zinc-100 space-y-3">
+                          <h5 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">계정 소유권 관리 보조</h5>
+                          <p className="text-[10px] text-zinc-400 leading-relaxed font-semibold">
+                            인증된 이메일을 사용 중인 경우 비밀번호를 분실하였을 때, 본인의 고유 이메일 주소로 언제든지 복구 재설정 이메일을 즉시 보내어 해결할 수 있습니다.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={handleSendResetEmail}
+                            disabled={profileSaving}
+                            className="w-full border border-dashed border-zinc-300 text-zinc-650 hover:border-black hover:text-black hover:bg-zinc-50/50 py-3 rounded-xl text-[11px] font-bold transition-all cursor-pointer"
+                          >
+                            비밀번호 초기화 메일 발송
+                          </button>
+                        </div>
+
+                        {/* 탈퇴 및 메타 */}
+                        <div className="pt-6 border-t border-zinc-100 flex items-center justify-between text-[11px] font-bold text-zinc-400 font-sans">
+                          <span>계정 상태 및 프로필 식별자</span>
+                          <span>정상 / 활성 (Active)</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+
+        {/* Dynamic Learning Classroom Modal popup */}
+        <AnimatePresence>
+          {activeLearningClass && (
+            <>
+              {/* Backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setActiveLearningClass(null)}
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10000]"
+              />
+
+              {/* Classroom Overlay Panel */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                className="fixed inset-4 md:inset-x-12 md:inset-y-16 lg:max-w-4xl lg:mx-auto bg-zinc-950 text-white rounded-[28px] overflow-hidden shadow-2xl z-[10001] flex flex-col border border-zinc-800 font-sans"
+              >
+                {/* Classroom Header */}
+                <div className="bg-zinc-900 border-b border-zinc-850 px-6 py-5 flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">PUIMA ONLINE MASTERCLASS</h4>
+                  </div>
+                  <button 
+                    onClick={() => setActiveLearningClass(null)}
+                    className="p-1 text-zinc-500 hover:text-white rounded-full hover:bg-zinc-850 transition-colors cursor-pointer"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Main Content Areas */}
+                <div className="flex-1 overflow-y-auto flex flex-col md:flex-row min-h-0 bg-zinc-950">
+                  
+                  {/* Video Simulator Container */}
+                  <div className="w-full md:w-3/5 bg-black p-4 flex flex-col justify-between aspect-video md:aspect-auto border-r border-zinc-900 relative">
+                    <div className="absolute inset-0 bg-zinc-900 flex items-center justify-center opacity-95">
+                      <div className="text-center p-6 space-y-4">
+                        <BookOpen size={48} className="mx-auto text-zinc-600 animate-bounce" />
+                        <div className="space-y-1.5">
+                          <p className="text-sm font-bold text-white tracking-tight">시그니처 비디오 강의 아카이브를 로드 중입니다.</p>
+                          <p className="text-[11px] text-zinc-500 max-w-[320px] mx-auto leading-relaxed">
+                            온라인 수강권 인가가 정상 확인되었습니다. 고화질 실습 자료 및 조리 과학 이론에 입각한 4K 자막 비디오를 즉시 재생하실 수 있습니다.
+                          </p>
+                        </div>
+                        <button className="bg-white text-black px-6 py-2.5 rounded-full text-[10px] font-black hover:bg-zinc-200 transition-colors uppercase tracking-widest cursor-pointer shadow">
+                          강의 재생하기 (Play Video)
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Syllabus chapters lists */}
+                  <div className="w-full md:w-2/5 p-6 flex flex-col bg-zinc-905 overflow-y-auto max-h-[300px] md:max-h-none border-t md:border-t-0 border-zinc-850">
+                    <div className="mb-4 text-left">
+                      <span className="text-[9px] bg-zinc-800 text-zinc-400 border border-zinc-700 font-bold tracking-widest uppercase px-2.5 py-1 rounded-full">{activeLearningClass.category}</span>
+                      <h3 className="text-sm font-extrabold text-white tracking-tight mt-2.5">{activeLearningClass.title}</h3>
+                      <p className="text-[10px] text-zinc-500 font-medium mt-1">지도: 최수연 아틀리에 마스터 (Puima Master)</p>
+                    </div>
+
+                    <div className="border-t border-zinc-800 pt-4 flex-1 space-y-3.5">
+                      <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-650 text-left">실시간 파티세리 커리큘럼</h4>
+                      
+                      <div className="space-y-2.5 text-left text-xs font-semibold">
+                        <div className="bg-zinc-900 p-3 rounded-xl border border-zinc-850 flex items-center gap-3.5">
+                          <div className="w-6 h-6 bg-zinc-850 border border-zinc-800 text-zinc-400 flex items-center justify-center rounded-lg text-[10px] font-black font-mono shrink-0">01</div>
+                          <div className="min-w-0">
+                            <p className="text-white truncate text-[11px]">파티세리 오리엔테이션 및 밀가루 배합과학</p>
+                            <span className="text-[10px] text-zinc-500 font-mono font-medium">25분 분량 고화질 촬영본</span>
+                          </div>
+                        </div>
+
+                        <div className="bg-zinc-900 p-3 rounded-xl border border-zinc-850 flex items-center gap-3.5">
+                          <div className="w-6 h-6 bg-zinc-850 border border-zinc-800 text-zinc-400 flex items-center justify-center rounded-lg text-[10px] font-black font-mono shrink-0">02</div>
+                          <div className="min-w-0">
+                            <p className="text-white truncate text-[11px]">수분율(Hydration)에 따른 팽창 시뮬레이션</p>
+                            <span className="text-[10px] text-emerald-400 font-medium font-mono">45분 핵심 비법 코스</span>
+                          </div>
+                        </div>
+
+                        <div className="bg-zinc-900 p-3 rounded-xl border border-zinc-850 flex items-center gap-3.5">
+                          <div className="w-6 h-6 bg-zinc-850 border border-zinc-800 text-zinc-400 flex items-center justify-center rounded-lg text-[10px] font-black font-mono shrink-0">03</div>
+                          <div className="min-w-0">
+                            <p className="text-white truncate text-[11px]">천연 버터 향미 극대화 및 미각 시그니처 연출</p>
+                            <span className="text-[10px] text-zinc-500 font-mono font-medium">35분 심사 전수 가이드</span>
+                          </div>
+                        </div>
+
+                        <div className="bg-zinc-900 p-3 rounded-xl border border-zinc-850 flex items-center gap-3.5 opacity-60">
+                          <div className="w-6 h-6 bg-zinc-850 border border-zinc-800 text-zinc-400 flex items-center justify-center rounded-lg text-[10px] font-black font-mono shrink-0">04</div>
+                          <div className="min-w-0">
+                            <p className="text-white truncate text-[11px]">질문 답변(Q&A) 및 졸업 피드백 세션</p>
+                            <span className="text-[10px] text-zinc-500 font-mono font-medium font-medium">서면 제출 기반 맞춤 피드백</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer specs */}
+                <div className="bg-zinc-900 border-t border-zinc-850 px-6 py-4 flex items-center justify-between shrink-0 text-[10px] font-bold text-zinc-650">
+                  <span className="font-mono">수강 정보 식별: {activeLearningClass.purchaseNo}</span>
+                  <span>모든 영상자료의 무단 도용 및 복제를 엄격히 금지합니다.</span>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   </div>

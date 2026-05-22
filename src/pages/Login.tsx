@@ -86,6 +86,7 @@ const Login: React.FC = () => {
           gender: gender,
           phone: phone,
           isAdmin: false,
+          password: password,
           createdAt: serverTimestamp()
         });
         

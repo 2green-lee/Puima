@@ -28,4 +28,11 @@
   .grid-border {
     @apply border-t border-brand-border;
   }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }
