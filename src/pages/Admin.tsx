@@ -911,8 +911,7 @@ export default function Admin() {
   const sidebarItems = [
     { section: "게시물 관리", items: [
       { id: "notices", label: "공지사항 및 배너", icon: Megaphone },
-      { id: "manage", label: "상품 목록", icon: LayoutDashboard },
-      { id: "register", label: "상품 등록", icon: PlusCircle },
+      { id: "manage", label: "상품 관리", icon: LayoutDashboard },
       { id: "categories", label: "카테고리 관리", icon: Tag },
       { id: "reviews", label: "수강생 리뷰 관리", icon: MessageSquare },
     ]},
@@ -1232,7 +1231,7 @@ export default function Admin() {
                 >
                   <div className="flex justify-between items-end mb-8">
                     <div>
-                      <h3 className="text-3xl font-black tracking-tighter uppercase mb-2">현재 상품 목록</h3>
+                      <h3 className="text-3xl font-black tracking-tighter uppercase mb-2">현재 상품 관리</h3>
                       <p className="text-zinc-500 font-medium">관리 가능한 총 {posts.length}개의 상품</p>
                     </div>
                     <div className="flex gap-3">
@@ -1246,251 +1245,304 @@ export default function Admin() {
                     </div>
                   </div>
 
-                  {/* Local Product Search Panel */}
-                  <div className="bg-white p-6 rounded-[28px] border border-zinc-200 shadow-sm flex flex-col lg:flex-row gap-4 items-center justify-between">
-                    <div className="flex flex-col sm:flex-row gap-4 items-center w-full lg:w-auto">
-                      <div className="relative w-full sm:w-80">
-                        <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" />
-                        <input 
-                          type="text"
-                          value={searchProductQuery}
-                          onChange={e => setSearchProductQuery(e.target.value)}
-                          placeholder="상품명, 영문명, 카테고리를 입력하여 검색..."
-                          className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl py-3 pl-11 pr-10 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-black/10 transition-all placeholder:text-zinc-400"
-                        />
-                        {searchProductQuery && (
-                          <button 
-                            onClick={() => setSearchProductQuery("")}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-black transition-colors"
-                          >
-                            <X size={14} />
-                          </button>
-                        )}
-                      </div>
-                      {searchProductQuery && (
-                        <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider select-none shrink-0">
-                          검색 결과 • {filteredPosts.length}개 발견
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2 flex-wrap w-full lg:w-auto justify-end">
-                      <div className="flex items-center gap-2 mr-3 bg-zinc-50 px-3 py-2 rounded-xl border border-zinc-150 shrink-0">
-                        <input 
-                          type="checkbox"
-                          id="selectAllPosts"
-                          checked={filteredPosts.length > 0 && filteredPosts.every(p => selectedPostIds.includes(p.id))}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              const allFilteredIds = filteredPosts.map(p => p.id);
-                              setSelectedPostIds(prev => Array.from(new Set([...prev, ...allFilteredIds])));
-                            } else {
-                              const allFilteredIds = filteredPosts.map(p => p.id);
-                              setSelectedPostIds(prev => prev.filter(id => !allFilteredIds.includes(id)));
-                            }
-                          }}
-                          className="w-4 h-4 text-black border-zinc-350 rounded focus:ring-black accent-black cursor-pointer"
-                        />
-                        <label htmlFor="selectAllPosts" className="text-xs font-black text-zinc-650 select-none cursor-pointer">
-                          전체 선택 {selectedPostIds.length > 0 && `(${selectedPostIds.length})`}
-                        </label>
-                      </div>
-
-                      <button
-                        disabled={selectedPostIds.length === 0}
-                        onClick={() => handleBulkStatus("public")}
-                        className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 ${
-                          selectedPostIds.length > 0 
-                            ? "bg-green-50 text-green-600 border border-green-200 hover:bg-green-100" 
-                            : "bg-zinc-50 text-zinc-300 border border-zinc-100 cursor-not-allowed"
-                        }`}
-                      >
-                        공개
-                      </button>
-                      <button
-                        disabled={selectedPostIds.length === 0}
-                        onClick={() => handleBulkStatus("hidden")}
-                        className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 ${
-                          selectedPostIds.length > 0 
-                            ? "bg-zinc-100 text-zinc-600 border border-zinc-200 hover:bg-zinc-200" 
-                            : "bg-zinc-50 text-zinc-300 border border-zinc-100 cursor-not-allowed"
-                        }`}
-                      >
-                        숨김
-                      </button>
-                      <button
-                        disabled={selectedPostIds.length === 0}
-                        onClick={() => handleBulkSoldOut(true)}
-                        className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 ${
-                          selectedPostIds.length > 0 
-                            ? "bg-red-50 text-red-600 border border-red-200 hover:bg-red-100" 
-                            : "bg-zinc-50 text-zinc-300 border border-zinc-100 cursor-not-allowed"
-                        }`}
-                      >
-                        품절
-                      </button>
-                      <button
-                        disabled={selectedPostIds.length === 0}
-                        onClick={() => handleBulkSoldOut(false)}
-                        className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 ${
-                          selectedPostIds.length > 0 
-                            ? "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100" 
-                            : "bg-zinc-50 text-zinc-300 border border-zinc-100 cursor-not-allowed"
-                        }`}
-                      >
-                        판매중
-                      </button>
-                      <button
-                        disabled={selectedPostIds.length === 0}
-                        onClick={handleBulkDelete}
-                        className={`px-4 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 ${
-                          selectedPostIds.length > 0 
-                            ? "bg-red-600 text-white hover:bg-red-700 shadow-sm animate-pulse-subtle" 
-                            : "bg-zinc-50 text-zinc-300 border border-zinc-100 cursor-not-allowed"
-                        }`}
-                      >
-                        삭제
-                      </button>
-                    </div>
-                  </div>
-
-                  <Reorder.Group 
-                    axis="y" 
-                    values={posts} 
-                    onReorder={handleReorder}
-                    className="grid grid-cols-1 gap-4"
-                  >
-                    {filteredPosts.map((post, idx) => (
-                      <Reorder.Item 
-                        key={post.id} 
-                        value={post}
-                        drag={!searchProductQuery ? "y" : false}
-                        onDragStart={startAutoScroll}
-                        onDragEnd={stopAutoScroll}
-                        onDrag={handleDrag}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        whileDrag={{ 
-                          scale: 1.01, 
-                          boxShadow: "0 10px 20px rgba(0,0,0,0.1)",
-                          zIndex: 50
-                        }}
-                        transition={{
-                          layout: { type: "spring", stiffness: 500, damping: 30, mass: 0.8 },
-                          opacity: { duration: 0.2 }
-                        }}
-                        onClick={(e) => handleRowClick(e, post, idx)}
-                        className={`px-4 py-2 rounded-xl border flex items-center gap-4 group transition-[border-color,box-shadow,background-color] relative cursor-pointer select-none ${
-                          selectedPostIds.includes(post.id) 
-                            ? "bg-zinc-50/80 border-black/30 shadow-sm" 
-                            : "bg-white border-zinc-200 hover:border-black/20"
-                        }`}
-                      >
-                        {/* Drag Handle */}
-                        {!searchProductQuery ? (
-                          <div className="flex-shrink-0 text-zinc-300 cursor-grab active:cursor-grabbing hover:text-black transition-colors">
-                            <GripVertical size={16} />
-                          </div>
-                        ) : (
-                          <div className="flex-shrink-0 w-4 h-4 rounded-full bg-zinc-100 flex items-center justify-center text-[8px] font-black text-zinc-400 select-none">
-                            •
-                          </div>
-                        )}
-
-                        {/* Checkbox for selection */}
-                        <div className="flex-shrink-0 flex items-center justify-center pl-1 pointer-events-none">
+                  {/* Unified Product List Container */}
+                  <div className="bg-white rounded-[28px] border border-zinc-200 shadow-sm overflow-hidden flex flex-col">
+                    {/* Local Product Search Panel */}
+                    <div className="p-6 flex flex-col lg:flex-row gap-4 items-center justify-between bg-zinc-50/10">
+                      <div className="flex flex-col sm:flex-row gap-4 items-center w-full lg:w-auto">
+                        <div className="relative w-full sm:w-80">
+                          <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" />
                           <input 
-                            type="checkbox"
-                            checked={selectedPostIds.includes(post.id)}
-                            readOnly
-                            className="w-4 h-4 text-black border-zinc-350 rounded focus:ring-black accent-black cursor-pointer"
+                            type="text"
+                            value={searchProductQuery}
+                            onChange={e => setSearchProductQuery(e.target.value)}
+                            placeholder="상품명, 영문명, 카테고리를 입력하여 검색..."
+                            className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl py-3 pl-11 pr-10 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-black/10 transition-all placeholder:text-zinc-400"
                           />
-                        </div>
-
-                        {/* Thumbnail */}
-                        <div className="w-10 h-10 bg-zinc-50 rounded-lg overflow-hidden flex-shrink-0 border border-zinc-100 flex items-center justify-center">
-                          {post.imageUrl ? (
-                            <img src={post.imageUrl} alt={post.title} className="w-full h-full object-cover" />
-                          ) : (
-                            <span className="text-[8px] font-black uppercase text-zinc-300">{post.image}</span>
+                          {searchProductQuery && (
+                            <button 
+                              onClick={() => setSearchProductQuery("")}
+                              className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-black transition-colors"
+                            >
+                              <X size={14} />
+                            </button>
                           )}
                         </div>
+                        {searchProductQuery && (
+                          <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider select-none shrink-0">
+                            검색 결과 • {filteredPosts.length}개 발견
+                          </span>
+                        )}
+                      </div>
 
-                        {/* Title & Info */}
-                        <div className="flex-grow min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-[10px] font-black uppercase text-zinc-400 tracking-tighter shrink-0">[{post.category || "No Cat"}]</span>
-                            <h4 className="text-sm font-bold truncate tracking-tight">{post.title}</h4>
-                            {post.titleEn && (
-                              <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">/ {post.titleEn}</span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[11px] font-bold text-black">{post.price}</span>
-                            {post.isSoldOut && (
-                              <span className="bg-red-50 text-red-500 text-[8px] font-black uppercase px-1.5 py-0.5 rounded">Sold Out</span>
-                            )}
-                          </div>
+                      <div className="flex items-center gap-2 flex-wrap w-full lg:w-auto justify-end">
+                        <div className="flex items-center gap-2 mr-3 bg-zinc-50 px-3 py-2 rounded-xl border border-zinc-150 shrink-0">
+                          <input 
+                            type="checkbox"
+                            id="selectAllPosts"
+                            checked={filteredPosts.length > 0 && filteredPosts.every(p => selectedPostIds.includes(p.id))}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                const allFilteredIds = filteredPosts.map(p => p.id);
+                                setSelectedPostIds(prev => Array.from(new Set([...prev, ...allFilteredIds])));
+                              } else {
+                                const allFilteredIds = filteredPosts.map(p => p.id);
+                                setSelectedPostIds(prev => prev.filter(id => !allFilteredIds.includes(id)));
+                              }
+                            }}
+                            className="w-4 h-4 text-black border-zinc-350 rounded focus:ring-black accent-black cursor-pointer"
+                          />
+                          <label htmlFor="selectAllPosts" className="text-xs font-black text-zinc-650 select-none cursor-pointer">
+                            전체 선택 {selectedPostIds.length > 0 && `(${selectedPostIds.length})`}
+                          </label>
                         </div>
 
-                        {/* Quick Actions */}
-                        <div className="flex items-center gap-2">
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleToggleStatus(post.id, post.status || "public");
+                        <button
+                          disabled={selectedPostIds.length === 0}
+                          onClick={() => handleBulkStatus("public")}
+                          className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 ${
+                            selectedPostIds.length > 0 
+                              ? "bg-green-50 text-green-600 border border-green-200 hover:bg-green-100" 
+                              : "bg-zinc-50 text-zinc-300 border border-zinc-100 cursor-not-allowed"
+                          }`}
+                        >
+                          공개
+                        </button>
+                        <button
+                          disabled={selectedPostIds.length === 0}
+                          onClick={() => handleBulkStatus("hidden")}
+                          className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 ${
+                            selectedPostIds.length > 0 
+                              ? "bg-zinc-100 text-zinc-600 border border-zinc-200 hover:bg-zinc-200" 
+                              : "bg-zinc-50 text-zinc-300 border border-zinc-100 cursor-not-allowed"
+                          }`}
+                        >
+                          숨김
+                        </button>
+                        <button
+                          disabled={selectedPostIds.length === 0}
+                          onClick={() => handleBulkSoldOut(true)}
+                          className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 ${
+                            selectedPostIds.length > 0 
+                              ? "bg-red-50 text-red-600 border border-red-200 hover:bg-red-100" 
+                              : "bg-zinc-50 text-zinc-300 border border-zinc-100 cursor-not-allowed"
+                          }`}
+                        >
+                          품절
+                        </button>
+                        <button
+                          disabled={selectedPostIds.length === 0}
+                          onClick={() => handleBulkSoldOut(false)}
+                          className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 ${
+                            selectedPostIds.length > 0 
+                              ? "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100" 
+                              : "bg-zinc-50 text-zinc-300 border border-zinc-100 cursor-not-allowed"
+                          }`}
+                        >
+                          판매중
+                        </button>
+                        <button
+                          disabled={selectedPostIds.length === 0}
+                          onClick={handleBulkDelete}
+                          className={`px-4 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 ${
+                            selectedPostIds.length > 0 
+                              ? "bg-red-600 text-white hover:bg-red-700 shadow-sm animate-pulse-subtle" 
+                              : "bg-zinc-50 text-zinc-300 border border-zinc-100 cursor-not-allowed"
+                          }`}
+                        >
+                          삭제
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Integrated Product List Area */}
+                    <div className="p-4 md:p-6 font-sans">
+                      {/* Product Table Header */}
+                      {filteredPosts.length > 0 && (
+                        <div className="px-4 py-2.5 mb-2.5 flex items-center gap-4 text-xs font-black text-zinc-400 select-none pb-[25px] border-b border-zinc-100">
+                          {/* Drag Handle Placeholder */}
+                          <div className="w-4 flex-shrink-0" />
+
+                          {/* Master Bulk Checkbox */}
+                          <div className="flex-shrink-0 flex items-center justify-center pl-1">
+                            <input 
+                              type="checkbox"
+                              checked={filteredPosts.length > 0 && filteredPosts.every(p => selectedPostIds.includes(p.id))}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  const allFilteredIds = filteredPosts.map(p => p.id);
+                                  setSelectedPostIds(prev => Array.from(new Set([...prev, ...allFilteredIds])));
+                                } else {
+                                  const allFilteredIds = filteredPosts.map(p => p.id);
+                                  setSelectedPostIds(prev => prev.filter(id => !allFilteredIds.includes(id)));
+                                }
+                              }}
+                              className="w-4 h-4 text-black border-zinc-350 rounded focus:ring-black accent-black cursor-pointer"
+                              title="전체 선택"
+                            />
+                          </div>
+
+                          {/* Thumbnail Header */}
+                          <div className="w-10 text-center flex-shrink-0 text-[10px] uppercase tracking-wider font-bold">
+                            이미지
+                          </div>
+
+                          {/* Title Header */}
+                          <div className="flex-grow min-w-0 text-[10px] uppercase tracking-wider font-bold pl-2">
+                            상품명
+                          </div>
+
+                          {/* Status Quick Actions Header */}
+                          <div className="w-32 flex-shrink-0 text-center text-[10px] uppercase tracking-wider font-bold">
+                            상태
+                          </div>
+
+                          {/* Action Controls Header */}
+                          <div className="w-[84px] flex-shrink-0 text-right text-[10px] uppercase tracking-wider font-bold pr-2">
+                            관리
+                          </div>
+                        </div>
+                      )}
+
+                      <Reorder.Group 
+                        axis="y" 
+                        values={posts} 
+                        onReorder={handleReorder}
+                        className="grid grid-cols-1 gap-1.5"
+                      >
+                        {filteredPosts.map((post, idx) => (
+                          <Reorder.Item 
+                            key={post.id} 
+                            value={post}
+                            drag={!searchProductQuery ? "y" : false}
+                            onDragStart={startAutoScroll}
+                            onDragEnd={stopAutoScroll}
+                            onDrag={handleDrag}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            whileDrag={{ 
+                              scale: 1.01, 
+                              boxShadow: "0 10px 20px rgba(0,0,0,0.1)",
+                              zIndex: 50
                             }}
-                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all border ${
-                              post.status === "hidden" 
-                                ? "bg-zinc-50 border-zinc-100 text-zinc-400" 
-                                : "bg-green-50 border-green-100 text-green-600"
+                            transition={{
+                              layout: { type: "spring", stiffness: 500, damping: 30, mass: 0.8 },
+                              opacity: { duration: 0.2 }
+                            }}
+                            onClick={(e) => handleRowClick(e, post, idx)}
+                            className={`px-4 py-3 rounded-xl flex items-center gap-4 group transition-[background-color,border-color,box-shadow,color] duration-150 relative cursor-pointer select-none ${
+                              selectedPostIds.includes(post.id) 
+                                ? "bg-zinc-100 text-black shadow-sm" 
+                                : "hover:bg-zinc-50 bg-white text-zinc-900"
                             }`}
                           >
-                            {post.status === "hidden" ? "숨김" : "공개"}
-                          </button>
+                            {/* Drag Handle */}
+                            {!searchProductQuery ? (
+                              <div className="flex-shrink-0 text-zinc-300 cursor-grab active:cursor-grabbing hover:text-black transition-colors">
+                                <GripVertical size={16} />
+                              </div>
+                            ) : (
+                              <div className="flex-shrink-0 w-4 h-4 rounded-full bg-zinc-100 flex items-center justify-center text-[8px] font-black text-zinc-400 select-none">
+                                •
+                              </div>
+                            )}
 
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleToggleSoldOut(post.id, !!post.isSoldOut);
-                            }}
-                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all border ${
-                              post.isSoldOut 
-                                ? "bg-red-50 border-red-100 text-red-600" 
-                                : "bg-white border-zinc-200 text-zinc-400 hover:border-black hover:text-black"
-                            }`}
-                          >
-                            {post.isSoldOut ? "복구" : "품절"}
-                          </button>
-                        </div>
+                            {/* Checkbox for selection */}
+                            <div className="flex-shrink-0 flex items-center justify-center pl-1 pointer-events-none">
+                              <input 
+                                type="checkbox"
+                                checked={selectedPostIds.includes(post.id)}
+                                readOnly
+                                className="w-4 h-4 text-black border-zinc-350 rounded focus:ring-black accent-black cursor-pointer"
+                              />
+                            </div>
 
-                        {/* Edit/Delete Icons */}
-                        <div className="flex items-center gap-1 pl-4 border-l border-zinc-100">
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              startEdit(post);
-                            }}
-                            className="p-2 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-lg transition-all"
-                            title="Edit"
-                          >
-                            <Edit2 size={16} />
-                          </button>
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDelete(post.id);
-                            }}
-                            className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                            title="Delete"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </Reorder.Item>
-                    ))}
-                  </Reorder.Group>
+                            {/* Thumbnail */}
+                            <div className="w-10 h-10 bg-zinc-50 rounded-lg overflow-hidden flex-shrink-0 border border-zinc-100 flex items-center justify-center">
+                              {post.imageUrl ? (
+                                <img src={post.imageUrl} alt={post.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              ) : (
+                                <span className="text-[8px] font-black uppercase text-zinc-300">{post.image}</span>
+                              )}
+                            </div>
+
+                            {/* Title & Info */}
+                            <div className="flex-grow min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[10px] font-black uppercase text-zinc-400 tracking-tighter shrink-0">[{post.category || "No Cat"}]</span>
+                                <h4 className="text-sm font-bold truncate tracking-tight">{post.title}</h4>
+                                {post.titleEn && (
+                                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">/ {post.titleEn}</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[11px] font-bold text-black">{post.price}</span>
+                                {post.isSoldOut && (
+                                  <span className="bg-red-50 text-red-500 text-[8px] font-black uppercase px-1.5 py-0.5 rounded">Sold Out</span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Quick Actions (Status) */}
+                            <div className="w-32 flex-shrink-0 flex items-center gap-2 justify-center">
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleStatus(post.id, post.status || "public");
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all border cursor-pointer ${
+                                  post.status === "hidden" 
+                                    ? "bg-zinc-50 border-zinc-100 text-zinc-400 hover:text-black hover:border-zinc-350" 
+                                    : "bg-green-50 border-green-100 text-green-600 hover:bg-green-100"
+                                }`}
+                              >
+                                {post.status === "hidden" ? "숨김" : "공개"}
+                              </button>
+
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleSoldOut(post.id, !!post.isSoldOut);
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all border cursor-pointer ${
+                                  post.isSoldOut 
+                                    ? "bg-red-50 border-red-100 text-red-600 hover:bg-red-100" 
+                                    : "bg-white border-zinc-200 text-zinc-400 hover:border-black hover:text-black"
+                                }`}
+                              >
+                                {post.isSoldOut ? "복구" : "품절"}
+                              </button>
+                            </div>
+
+                            {/* Edit/Delete Icons (Actions) */}
+                            <div className="w-[84px] flex-shrink-0 flex items-center gap-1 pl-4 border-l border-zinc-100 justify-end">
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  startEdit(post);
+                                }}
+                                className="p-2 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-lg transition-all cursor-pointer"
+                                title="Edit"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(post.id);
+                                }}
+                                className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
+                                title="Delete"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </Reorder.Item>
+                        ))}
+                      </Reorder.Group>
+                    </div>
+                  </div>
                   
                   {posts.length === 0 && (
                       <div className="text-center py-32 bg-zinc-50 border-2 border-dashed border-zinc-200 rounded-[40px] flex flex-col items-center">
@@ -2521,406 +2573,426 @@ export default function Admin() {
                     </div>
                   </div>
 
-                  {/* Controls & Filter Panel */}
-                  <div className="bg-white p-6 rounded-[32px] border border-zinc-200 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
-                    {/* Search Field */}
-                    <div className="relative w-full md:w-96">
-                      <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" />
-                      <input 
-                        type="text"
-                        value={searchUserQuery}
-                        onChange={e => setSearchUserQuery(e.target.value)}
-                        placeholder="이름, 이메일, UID로 회원 검색..."
-                        className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl py-3 pl-11 pr-4 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-black/10 transition-all placeholder:text-zinc-400"
-                      />
-                      {searchUserQuery && (
-                        <button 
-                          onClick={() => setSearchUserQuery("")}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-black transition-colors"
-                        >
-                          <X size={14} />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Filter Tabs */}
-                    <div className="flex gap-1 bg-zinc-50 p-1.5 rounded-2xl border border-zinc-100 w-full md:w-auto overflow-x-auto">
-                      <button
-                        onClick={() => setSelectedRoleFilter("all")}
-                        className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
-                          selectedRoleFilter === "all" 
-                            ? "bg-white text-black shadow-sm" 
-                            : "text-zinc-500 hover:text-black"
-                        }`}
-                      >
-                        전체 ({users.length})
-                      </button>
-                      <button
-                        onClick={() => setSelectedRoleFilter("admin")}
-                        className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
-                          selectedRoleFilter === "admin" 
-                            ? "bg-white text-indigo-600 shadow-sm" 
-                            : "text-zinc-500 hover:text-black"
-                        }`}
-                      >
-                        관리자 ({users.filter(u => u.isAdmin).length})
-                      </button>
-                      <button
-                        onClick={() => setSelectedRoleFilter("customer")}
-                        className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
-                          selectedRoleFilter === "customer" 
-                            ? "bg-white text-zinc-900 shadow-sm" 
-                            : "text-zinc-500 hover:text-black"
-                        }`}
-                      >
-                        일반 회원 ({users.filter(u => !u.isAdmin && !u.isBanned).length})
-                      </button>
-                      <button
-                        onClick={() => setSelectedRoleFilter("banned")}
-                        className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
-                          selectedRoleFilter === "banned" 
-                            ? "bg-white text-red-650 shadow-sm" 
-                            : "text-zinc-500 hover:text-red-500"
-                        }`}
-                      >
-                        금지 회원 ({users.filter(u => u.isBanned).length})
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Users Bulk Actions Bar */}
-                  {selectedUserIds.length > 0 && (
-                    <motion.div 
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="bg-black text-white px-6 py-4 rounded-[24px] flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl mb-4"
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className="bg-zinc-800 text-xs px-2.5 py-1 rounded-full font-black text-zinc-300">
-                          {selectedUserIds.length}명 선택됨
+                  {/* Unified User List Container */}
+                  <div className="bg-white rounded-[28px] border border-zinc-200 shadow-sm overflow-hidden flex flex-col">
+                    {/* User Search & Filter & Bulk Actions Panel */}
+                    <div className="p-6 flex flex-col lg:flex-row gap-4 items-center justify-between bg-zinc-50/10 border-b border-zinc-100">
+                      <div className="flex flex-col md:flex-row gap-4 items-center w-full lg:w-auto">
+                        {/* Search Field */}
+                        <div className="relative w-full md:w-80">
+                          <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" />
+                          <input 
+                            type="text"
+                            value={searchUserQuery}
+                            onChange={e => setSearchUserQuery(e.target.value)}
+                            placeholder="이름, 이메일, UID로 회원 검색..."
+                            className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl py-3 pl-11 pr-10 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-black/10 transition-all placeholder:text-zinc-400"
+                          />
+                          {searchUserQuery && (
+                            <button 
+                              onClick={() => setSearchUserQuery("")}
+                              className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-black transition-colors"
+                            >
+                              <X size={14} />
+                            </button>
+                          )}
                         </div>
-                        <p className="text-xs font-bold text-zinc-400">선택한 회원의 권한 등급을 일괄 조정하거나 계정을 전량 삭제할 수 있습니다.</p>
+
+                        {/* Filter Tabs */}
+                        <div className="flex gap-1 bg-zinc-100 p-1.5 rounded-2xl border border-zinc-200/55 w-full md:w-auto overflow-x-auto">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedRoleFilter("all")}
+                            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+                              selectedRoleFilter === "all" 
+                                ? "bg-white text-black shadow-sm" 
+                                : "text-zinc-500 hover:text-black"
+                            }`}
+                          >
+                            전체 ({users.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedRoleFilter("admin")}
+                            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+                              selectedRoleFilter === "admin" 
+                                ? "bg-white text-indigo-600 shadow-sm" 
+                                : "text-zinc-500 hover:text-black"
+                            }`}
+                          >
+                            관리자 ({users.filter(u => u.isAdmin).length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedRoleFilter("customer")}
+                            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+                              selectedRoleFilter === "customer" 
+                                ? "bg-white text-zinc-900 shadow-sm" 
+                                : "text-zinc-500 hover:text-black"
+                            }`}
+                          >
+                            일반 ({users.filter(u => !u.isAdmin && !u.isBanned).length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedRoleFilter("banned")}
+                            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+                              selectedRoleFilter === "banned" 
+                                ? "bg-white text-red-650 shadow-sm" 
+                                : "text-zinc-500 hover:text-red-500"
+                            }`}
+                          >
+                            금지 ({users.filter(u => u.isBanned).length})
+                          </button>
+                        </div>
                       </div>
-                      
-                      <div className="flex items-center gap-2 shrink-0">
+
+                      {/* Bulk Actions for Selected Users */}
+                      <div className="flex items-center gap-2 flex-wrap w-full lg:w-auto justify-end">
                         <button
+                          type="button"
+                          disabled={selectedUserIds.length === 0}
                           onClick={() => handleBulkUserRoleChange("admin")}
-                          className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap"
+                          className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${
+                            selectedUserIds.length > 0 
+                              ? "bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100" 
+                              : "bg-zinc-50 text-zinc-300 border border-zinc-100 cursor-not-allowed"
+                          }`}
                         >
                           관리자 지정
                         </button>
                         <button
+                          type="button"
+                          disabled={selectedUserIds.length === 0}
                           onClick={() => handleBulkUserRoleChange("customer")}
-                          className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-xs font-black transition-all border border-zinc-700 cursor-pointer whitespace-nowrap"
+                          className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${
+                            selectedUserIds.length > 0 
+                              ? "bg-zinc-150 text-zinc-805 border border-zinc-200 hover:bg-zinc-200" 
+                              : "bg-zinc-50 text-zinc-300 border border-zinc-100 cursor-not-allowed"
+                          }`}
                         >
                           일반 지정
                         </button>
                         <button
+                          type="button"
+                          disabled={selectedUserIds.length === 0}
                           onClick={() => handleBulkUserRoleChange("banned")}
-                          className="px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap"
+                          className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${
+                            selectedUserIds.length > 0 
+                              ? "bg-red-50 text-red-650 border border-red-200 hover:bg-red-150" 
+                              : "bg-zinc-50 text-zinc-300 border border-zinc-100 cursor-not-allowed"
+                          }`}
                         >
                           금지 지정
                         </button>
                         <button
+                          type="button"
+                          disabled={selectedUserIds.length === 0}
                           onClick={handleBulkUserDelete}
-                          className="px-3 py-2 bg-red-650 hover:bg-red-700 text-white rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap"
+                          className={`px-4 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${
+                            selectedUserIds.length > 0 
+                              ? "bg-red-600 text-white hover:bg-red-700 shadow-sm" 
+                              : "bg-zinc-50 text-zinc-300 border border-zinc-100 cursor-not-allowed"
+                          }`}
                         >
-                          일괄 삭제
-                        </button>
-                        <button
-                          onClick={() => setSelectedUserIds([])}
-                          className="px-3 py-2 bg-transparent text-zinc-400 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap"
-                        >
-                          선택 취소
+                          삭제
                         </button>
                       </div>
-                    </motion.div>
-                  )}
+                    </div>
 
-                  {/* Users Table */}
-                  <div className="bg-white p-8 rounded-[36px] border border-zinc-200 shadow-sm">
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-full table-auto border-collapse text-left">
-                        <thead>
-                          <tr className="border-b border-zinc-100 text-zinc-400">
-                            {/* Checkbox Header */}
-                            <th className="pb-4 w-12 text-left">
-                              <div className="flex items-center justify-center pl-1">
+
+                    {/* Integrated User List Area */}
+                    <div className="p-4 md:p-6 font-sans">
+                      {/* User Table Header */}
+                      {filteredUsers.length > 0 && (
+                        <div className="px-4 py-2.5 mb-2.5 flex items-center gap-4 text-xs font-black text-zinc-400 select-none pb-[25px] border-b border-zinc-100">
+                          {/* Master Bulk Checkbox Spacer */}
+                          <div className="w-4 flex-shrink-0" />
+
+                          {/* Master Bulk Checkbox */}
+                          <div className="flex-shrink-0 flex items-center justify-center pl-1">
+                            <input 
+                              type="checkbox"
+                              checked={filteredUsers.length > 0 && filteredUsers.every(u => selectedUserIds.includes(u.id))}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  const queryIds = filteredUsers.map(u => u.id);
+                                  setSelectedUserIds(prev => Array.from(new Set([...prev, ...queryIds])));
+                                } else {
+                                  const queryIds = filteredUsers.map(u => u.id);
+                                  setSelectedUserIds(prev => prev.filter(id => !queryIds.includes(id)));
+                                }
+                              }}
+                              className="w-4 h-4 text-black border-zinc-350 rounded focus:ring-black accent-black cursor-pointer"
+                              title="전체 선택"
+                            />
+                          </div>
+
+                          {/* Headers */}
+                          <div className="flex-grow min-w-0 md:w-[25%] text-[10px] uppercase tracking-wider font-bold pl-2">
+                            회원정보 (닉네임 / 이름 / 성별)
+                          </div>
+
+                          <div className="w-[30%] text-[10px] uppercase tracking-wider font-bold">
+                            연락처 (이메일 / 전화번호)
+                          </div>
+
+                          <div className="w-[15%] text-[10px] uppercase tracking-wider font-bold">
+                            비밀번호
+                          </div>
+
+                          <div className="w-[18%] text-right text-[10px] uppercase tracking-wider font-bold pr-4">
+                            회원 권한 등급
+                          </div>
+
+                          <div className="w-[12%] text-right text-[10px] uppercase tracking-wider font-bold pr-2">
+                            관리
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Users Flex List */}
+                      <div className="grid grid-cols-1 gap-1.5">
+                        {filteredUsers.map((u, idx) => {
+                          const isMasterAdmin = u.email === ADMIN_EMAIL;
+                          const isEditing = editingUserId === u.id;
+                          const isSelected = selectedUserIds.includes(u.id);
+
+                          return (
+                            <div 
+                              key={u.id} 
+                              onClick={(e) => handleUserRowClick(e, u, idx)}
+                              className={`px-4 py-3.5 rounded-xl flex items-center gap-4 group transition-[background-color,border-color,box-shadow,color] duration-150 relative cursor-pointer select-none border border-transparent ${
+                                isSelected 
+                                  ? "bg-zinc-100 text-black shadow-sm" 
+                                  : "hover:bg-zinc-50 bg-white text-zinc-900 border-zinc-100"
+                              }`}
+                            >
+                              {/* Selection checkbox */}
+                              <div className="flex-shrink-0 flex items-center justify-center pl-1 pointer-events-none">
                                 <input 
                                   type="checkbox"
-                                  id="selectAllUsers"
-                                  checked={filteredUsers.length > 0 && filteredUsers.every(u => selectedUserIds.includes(u.id))}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      const queryIds = filteredUsers.map(u => u.id);
-                                      setSelectedUserIds(prev => Array.from(new Set([...prev, ...queryIds])));
-                                    } else {
-                                      const queryIds = filteredUsers.map(u => u.id);
-                                      setSelectedUserIds(prev => prev.filter(id => !queryIds.includes(id)));
-                                    }
-                                  }}
+                                  checked={isSelected}
+                                  readOnly
                                   className="w-4 h-4 text-black border-zinc-350 rounded focus:ring-black accent-black cursor-pointer"
                                 />
                               </div>
-                            </th>
-                            <th className="pb-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[15%] whitespace-nowrap text-left">닉네임</th>
-                            <th className="pb-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[12%] whitespace-nowrap text-left">이름</th>
-                            <th className="pb-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[8%] whitespace-nowrap text-left">성별</th>
-                            <th className="pb-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[15%] whitespace-nowrap text-left">전화번호</th>
-                            <th className="pb-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[20%] whitespace-nowrap text-left">이메일</th>
-                            <th className="pb-4 pl-3 text-[10px] font-black uppercase tracking-[0.2em] w-[15%] whitespace-nowrap text-left">비밀번호</th>
-                            <th className="pb-4 pr-6 text-[10px] font-black uppercase tracking-[0.2em] w-[15%] whitespace-nowrap text-right">회원 권한 등급</th>
-                            <th className="pb-4 pr-4 text-[10px] font-black uppercase tracking-[0.2em] w-[10%] whitespace-nowrap text-right">관리</th>
-                            <th className="pb-4 pr-3 text-[10px] font-black uppercase tracking-[0.2em] w-[6%] whitespace-nowrap text-right">삭제</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-zinc-50 text-sm">
-                          {filteredUsers.map((u, idx) => {
-                            const isMasterAdmin = u.email === ADMIN_EMAIL;
-                            const isEditing = editingUserId === u.id;
-                            const isSelected = selectedUserIds.includes(u.id);
-                            return (
-                              <tr 
-                                key={u.id} 
-                                onClick={(e) => handleUserRowClick(e, u, idx)}
-                                className={`transition-all hover:bg-zinc-50/50 cursor-pointer ${
-                                  isSelected ? "bg-zinc-50/70" : ""
-                                }`}
-                              >
-                                {/* Checkbox cell */}
-                                <td className="py-5 w-12 text-left">
-                                  <div className="flex items-center justify-center pl-1">
-                                    <input 
-                                      type="checkbox"
-                                      checked={isSelected}
-                                      onChange={() => {
-                                        if (isSelected) {
-                                          setSelectedUserIds(prev => prev.filter(id => id !== u.id));
-                                        } else {
-                                          setSelectedUserIds(prev => [...prev, u.id]);
-                                        }
-                                        setLastClickedUserIndex(idx);
-                                      }}
-                                      className="w-4 h-4 text-black border-zinc-350 rounded focus:ring-black accent-black cursor-pointer"
-                                    />
-                                  </div>
-                                </td>
 
-                                {/* 닉네임 */}
-                                <td className="py-5 pl-3 align-middle">
-                                  {isEditing ? (
-                                    <input
-                                      type="text"
-                                      value={editUserInputs.nickname}
-                                      onChange={(e) => setEditUserInputs(prev => ({ ...prev, nickname: e.target.value }))}
-                                      className="w-full max-w-[120px] bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-black/10"
-                                    />
-                                  ) : (
-                                    <div className="font-extrabold text-zinc-900 select-all truncate max-w-[130px]" title={u.nickname || u.displayName || "미등록"}>
-                                      {u.nickname || u.displayName || "미등록"}
-                                    </div>
-                                  )}
-                                </td>
-
-                                {/* 이름 */}
-                                <td className="py-5 pl-3 align-middle">
-                                  {isEditing ? (
+                              {/* Identity Column */}
+                              {isEditing ? (
+                                <div className="flex-grow min-w-0 md:w-[25%] flex flex-col gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                  <input
+                                    type="text"
+                                    value={editUserInputs.nickname}
+                                    onChange={(e) => setEditUserInputs(prev => ({ ...prev, nickname: e.target.value }))}
+                                    placeholder="닉네임"
+                                    className="bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 text-xs font-black focus:outline-none focus:ring-2 focus:ring-black/10 w-full"
+                                  />
+                                  <div className="flex gap-1.5 w-full">
                                     <input
                                       type="text"
                                       value={editUserInputs.realName}
                                       onChange={(e) => setEditUserInputs(prev => ({ ...prev, realName: e.target.value }))}
-                                      className="w-full max-w-[100px] bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-black/10"
+                                      placeholder="이름"
+                                      className="w-2/3 bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-black/10"
                                     />
-                                  ) : (
-                                    <div className="font-bold text-zinc-800 truncate max-w-[110px]" title={u.realName || "-"}>
-                                      {u.realName || "-"}
-                                    </div>
-                                  )}
-                                </td>
-
-                                {/* 성별 */}
-                                <td className="py-5 pl-3 align-middle">
-                                  {isEditing ? (
                                     <select
                                       value={editUserInputs.gender}
                                       onChange={(e) => setEditUserInputs(prev => ({ ...prev, gender: e.target.value }))}
-                                      className="bg-zinc-50 border border-zinc-200 rounded-lg px-1 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-black/10 cursor-pointer"
+                                      className="w-1/3 bg-zinc-50 border border-zinc-200 rounded-lg px-1 py-1 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-black/10 cursor-pointer"
                                     >
                                       <option value="남">남</option>
                                       <option value="여">여</option>
                                     </select>
-                                  ) : (
-                                    <span className="font-semibold text-zinc-600 bg-zinc-100 px-2 py-1 rounded text-xs whitespace-nowrap">
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex-grow min-w-0 md:w-[25%] flex flex-col justify-center">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-extrabold text-zinc-900 truncate" title={u.nickname || u.displayName || "미등록"}>
+                                      {u.nickname || u.displayName || "미등록"}
+                                    </span>
+                                    {u.realName && (
+                                      <span className="text-xs font-semibold text-zinc-400">({u.realName})</span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[10px] font-bold text-zinc-500 bg-zinc-100 px-1.5 py-0.5 rounded uppercase">
                                       {u.gender || "남"}
                                     </span>
-                                  )}
-                                </td>
-
-                                {/* 전화번호 */}
-                                <td className="py-5 pl-3 align-middle">
-                                  {isEditing ? (
-                                    <input
-                                      type="text"
-                                      value={editUserInputs.phone}
-                                      onChange={(e) => setEditUserInputs(prev => ({ ...prev, phone: e.target.value.replace(/[^0-9]/g, '') }))}
-                                      className="w-full max-w-[130px] bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-black/10"
-                                      placeholder="01012345678"
-                                    />
-                                  ) : (
-                                    <span className="font-mono text-zinc-600 text-xs font-bold whitespace-nowrap">
-                                      {u.phone || "-"}
-                                    </span>
-                                  )}
-                                </td>
-
-                                {/* 이메일 */}
-                                <td className="py-5 pl-3 align-middle">
-                                  <div className="text-xs text-zinc-400 font-bold tracking-tight select-all truncate max-w-[180px]" title={u.email || "이메일 정보 없음"}>
-                                    {u.email || "이메일 정보 없음"}
                                   </div>
-                                </td>
+                                </div>
+                              )}
 
-                                {/* 비밀번호 */}
-                                <td className="py-5 pl-3 align-middle text-left">
-                                  {isEditing ? (
-                                    <input
-                                      type="text"
-                                      value={editUserInputs.password || ""}
-                                      onChange={(e) => setEditUserInputs(prev => ({ ...prev, password: e.target.value }))}
-                                      placeholder="비밀번호 설정"
-                                      className="w-full max-w-[120px] bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1.5 text-xs font-bold font-mono focus:outline-none focus:ring-2 focus:ring-black/10"
-                                    />
-                                  ) : u.password ? (
-                                    <div className="flex items-center gap-1.5 min-w-[110px]">
-                                      <span className="font-mono text-xs text-zinc-650 font-bold select-all bg-zinc-100 px-2 py-0.5 rounded">
-                                        {revealedPasswords[u.id] ? u.password : "••••••••"}
-                                      </span>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setRevealedPasswords(prev => ({ ...prev, [u.id]: !prev[u.id] }));
-                                        }}
-                                        className="p-1 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded transition-colors"
-                                        title={revealedPasswords[u.id] ? "숨기기" : "보기"}
-                                      >
-                                        {revealedPasswords[u.id] ? <EyeOff size={13} /> : <Eye size={13} />}
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <span className="text-xs text-zinc-450 font-semibold italic bg-zinc-50/50 px-2 py-0.5 rounded border border-zinc-100/50">
-                                      {u.email && !u.email.includes("@") ? "소셜인증" : "구글/미등록"}
+                              {/* Contact Info Column */}
+                              {isEditing ? (
+                                <div className="w-[30%] flex flex-col gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                  <span className="text-[10px] text-zinc-450 font-bold select-all truncate">{u.email || "이메일 없음"}</span>
+                                  <input
+                                    type="text"
+                                    value={editUserInputs.phone}
+                                    onChange={(e) => setEditUserInputs(prev => ({ ...prev, phone: e.target.value.replace(/[^0-9]/g, '') }))}
+                                    placeholder="전화번호"
+                                    className="bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-black/10 w-full"
+                                  />
+                                </div>
+                              ) : (
+                                <div className="w-[30%] flex flex-col justify-center">
+                                  <span className="text-xs text-zinc-550 font-bold select-all truncate" title={u.email || "이메일 없음"}>
+                                    {u.email || "이메일 없음"}
+                                  </span>
+                                  <span className="font-mono text-zinc-400 text-[11px] font-semibold mt-0.5">
+                                    {u.phone || "-"}
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* Credentials Column */}
+                              <div className="w-[15%] flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                {isEditing ? (
+                                  <input
+                                    type="text"
+                                    value={editUserInputs.password || ""}
+                                    onChange={(e) => setEditUserInputs(prev => ({ ...prev, password: e.target.value }))}
+                                    placeholder="비밀번호 설정"
+                                    className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 text-xs font-bold font-mono focus:outline-none focus:ring-2 focus:ring-black/10"
+                                  />
+                                ) : u.password ? (
+                                  <>
+                                    <span className="font-mono text-xs text-zinc-500 font-bold select-all bg-zinc-50 px-1.5 py-0.5 rounded border border-zinc-100/55">
+                                      {revealedPasswords[u.id] ? u.password : "••••••••"}
                                     </span>
-                                  )}
-                                </td>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setRevealedPasswords(prev => ({ ...prev, [u.id]: !prev[u.id] }));
+                                      }}
+                                      className="p-1 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded transition-colors"
+                                      title={revealedPasswords[u.id] ? "숨기기" : "보기"}
+                                    >
+                                      {revealedPasswords[u.id] ? <EyeOff size={12} /> : <Eye size={12} />}
+                                    </button>
+                                  </>
+                                ) : (
+                                  <span className="text-[10px] text-zinc-400 font-semibold italic bg-zinc-50/30 px-1.5 py-0.5 rounded border border-zinc-100/30">
+                                    {u.email && !u.email.includes("@") ? "소셜인증" : "구글/미등록"}
+                                  </span>
+                                )}
+                              </div>
 
-                                {/* 회원 권한 등급 */}
-                                <td className="py-5 pr-6 align-middle text-right bg-transparent">
+                              {/* Role Grade ("회원 권한 등급" with Combo Box in editing) */}
+                              <div className="w-[18%] flex justify-end items-center pr-4" onClick={(e) => e.stopPropagation()}>
+                                {isEditing ? (
+                                  <select
+                                    value={editUserInputs.isAdmin ? "admin" : (editUserInputs.isBanned ? "banned" : "customer")}
+                                    onChange={(e) => {
+                                      const role = e.target.value;
+                                      setEditUserInputs(prev => ({
+                                        ...prev,
+                                        isAdmin: role === "admin",
+                                        isBanned: role === "banned"
+                                      }));
+                                    }}
+                                    className="bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1.5 text-xs font-black text-zinc-900 focus:outline-none focus:ring-2 focus:ring-black/10 cursor-pointer"
+                                  >
+                                    <option value="customer">일반 회원</option>
+                                    <option value="admin">관리자</option>
+                                    <option value="banned">금지 회원</option>
+                                  </select>
+                                ) : (
                                   <span className={`px-2.5 py-1 rounded-full text-[10px] font-black tracking-widest inline-flex items-center gap-1.5 whitespace-nowrap ${
                                     u.isAdmin 
                                       ? "bg-indigo-50 text-indigo-600 border border-indigo-100" 
                                       : (u.isBanned 
-                                        ? "bg-red-50 text-red-650 border border-red-100" 
-                                        : "bg-zinc-100 text-zinc-650 animate-none")
+                                        ? "bg-red-50 text-red-650 border border-red-150" 
+                                        : "bg-zinc-100 text-zinc-650")
                                   }`}>
                                     <span className={`w-1.5 h-1.5 rounded-full ${
                                       u.isAdmin 
-                                        ? 'bg-indigo-500 animate-pulse' 
-                                        : (u.isBanned ? 'bg-red-500 animate-pulse' : 'bg-zinc-400')
+                                        ? "bg-indigo-500 animate-pulse" 
+                                        : (u.isBanned ? "bg-red-500 animate-pulse" : "bg-zinc-400")
                                     }`} />
                                     {u.isAdmin ? (isMasterAdmin ? "마스터" : "관리자") : (u.isBanned ? "금지 회원" : "일반 회원")}
                                   </span>
-                                </td>
+                                )}
+                              </div>
 
-                                {/* 관리 */}
-                                <td className="py-5 pr-4 align-middle text-right">
-                                  {isEditing ? (
-                                    <div className="flex items-center justify-end gap-1.5">
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleSaveUserInfo(u.id);
-                                        }}
-                                        disabled={isUpdatingUser === u.id}
-                                        className="px-2.5 py-1 bg-black text-white hover:bg-zinc-800 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1"
-                                        title="저장"
-                                      >
-                                        {isUpdatingUser === u.id ? <RefreshCw size={10} className="animate-spin" /> : <Save size={10} />}
-                                        저장
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleCancelEditUser();
-                                        }}
-                                        className="px-2 py-1 bg-white hover:bg-zinc-100 border border-zinc-250 rounded-lg text-[10px] font-black text-zinc-600 transition-all cursor-pointer"
-                                        title="취소"
-                                      >
-                                        취소
-                                      </button>
-                                    </div>
-                                  ) : (
+                              {/* Control/Manage Area */}
+                              <div className="w-[12%] flex justify-end gap-1 flex-shrink-0 items-center" onClick={(e) => e.stopPropagation()}>
+                                {isEditing ? (
+                                  <div className="flex items-center gap-1">
                                     <button
                                       type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleStartEditUser(u);
-                                      }}
-                                      className="p-2 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-xl transition-all cursor-pointer"
-                                      title="회원 정보 수정"
+                                      onClick={() => handleSaveUserInfo(u.id)}
+                                      disabled={isUpdatingUser === u.id}
+                                      className="p-1 px-1.5 bg-black text-white hover:bg-zinc-800 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-1 cursor-pointer"
+                                      title="저장"
                                     >
-                                      <Edit2 size={13} />
+                                      {isUpdatingUser === u.id ? <RefreshCw size={10} className="animate-spin" /> : <Save size={10} />}
                                     </button>
-                                  )}
-                                </td>
-
-                                {/* 삭제 */}
-                                <td className="py-5 pr-3 align-middle text-right">
-                                  <button 
-                                    onClick={async () => {
-                                      const isMaster = u.email === ADMIN_EMAIL;
-                                      if (isMaster) {
-                                        alert("최고 관리자 계정('rtytgb123@gmail.com')은 삭제할 수 없습니다.");
-                                        return;
-                                      }
-                                      if (u.id === user?.uid) {
-                                        alert("현재 로그인되어 있는 관리자 본인 계정은 삭제할 수 없습니다.");
-                                        return;
-                                      }
-                                      if (window.confirm(`[${u.nickname || u.email || '선택한 회원'}]님을 정말 회원 목록에서 영구 삭제하시겠습니까?`)) {
-                                        setIsUpdatingUser(u.id);
-                                        try {
-                                          await deleteDoc(doc(db, "users", u.id));
-                                          alert("성공적으로 삭제되었습니다.");
-                                        } catch (err) {
-                                          console.error("Failed to delete user:", err);
-                                          alert("회원 삭제 처리에 실패했습니다.");
-                                        } finally {
-                                          setIsUpdatingUser(null);
+                                    <button
+                                      type="button"
+                                      onClick={handleCancelEditUser}
+                                      className="p-1 px-1.5 bg-white hover:bg-zinc-100 border border-zinc-250 rounded-lg text-[10px] font-black text-zinc-650 transition-all cursor-pointer"
+                                      title="취소"
+                                    >
+                                      <X size={10} />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStartEditUser(u)}
+                                      className="p-1.5 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-lg transition-all cursor-pointer"
+                                      title="정보 수정"
+                                    >
+                                      <Edit2 size={14} />
+                                    </button>
+                                    <button 
+                                      type="button"
+                                      onClick={async () => {
+                                        const isMaster = u.email === ADMIN_EMAIL;
+                                        if (isMaster) {
+                                          alert("최고 관리자 계정('rtytgb123@gmail.com')은 삭제할 수 없습니다.");
+                                          return;
                                         }
-                                      }
-                                    }}
-                                    disabled={isUpdatingUser === u.id}
-                                    className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all disabled:opacity-50 cursor-pointer"
-                                    title="회원 삭제"
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                          {filteredUsers.length === 0 && (
-                            <tr>
-                              <td colSpan={10} className="py-16 text-center text-zinc-400 font-medium">
-                                등록된 회원이 존재하지 않습니다.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
+                                        if (u.id === user?.uid) {
+                                          alert("현재 로그인되어 있는 관리자 본인 계정은 삭제할 수 없습니다.");
+                                          return;
+                                        }
+                                        if (window.confirm(`[${u.nickname || u.email || '선택한 회원'}]님을 정말 회원 목록에서 영구 삭제하시겠습니까?`)) {
+                                          setIsUpdatingUser(u.id);
+                                          try {
+                                            await deleteDoc(doc(db, "users", u.id));
+                                            alert("성공적으로 삭제되었습니다.");
+                                          } catch (err) {
+                                            console.error("Failed to delete user:", err);
+                                            alert("회원 삭제 처리에 실패했습니다.");
+                                          } finally {
+                                            setIsUpdatingUser(null);
+                                          }
+                                        }
+                                      }}
+                                      disabled={isUpdatingUser === u.id}
+                                      className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all disabled:opacity-50 cursor-pointer"
+                                      title="회원 삭제"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {filteredUsers.length === 0 && (
+                          <div className="py-16 text-center text-zinc-400 font-medium bg-white rounded-2xl border border-zinc-100">
+                            등록된 회원이 존재하지 않습니다.
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </motion.div>
