@@ -202,10 +202,10 @@ export default function Question() {
                       {/* Accordion Trigger Header */}
                       <div 
                         onClick={() => handleToggleAccordion(q)}
-                        className="px-6 md:px-8 py-6 flex items-center justify-between gap-4 cursor-pointer select-none text-left"
+                        className="px-6 md:px-8 py-4 flex items-center justify-between gap-4 cursor-pointer select-none text-left"
                       >
                         <div className="flex-grow min-w-0">
-                          <div className="flex items-center gap-2.5 flex-wrap mb-2">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
                             {/* Answer status status indicator */}
                             {q.answer ? (
                               <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-700 uppercase tracking-wider">
@@ -228,7 +228,7 @@ export default function Question() {
                             {q.isPrivate && !isPrivateReadable ? "비밀글입니다." : q.title}
                           </h3>
 
-                          <div className="flex items-center gap-2.5 text-[10px] text-zinc-400 font-medium font-mono mt-1.5">
+                          <div className="flex items-center gap-2.5 text-[10px] text-zinc-400 font-medium font-mono mt-1">
                             <span>{maskName(q.authorName)}</span>
                             <span>•</span>
                             <span>{formatDate(q.createdAt)}</span>
@@ -262,17 +262,17 @@ export default function Question() {
                             transition={{ duration: 0.25, ease: "easeInOut" }}
                             className="overflow-hidden"
                           >
-                            <div className="px-6 md:px-8 pb-8 pt-2 border-t border-zinc-100/60 text-left">
-                              <div className="bg-white border border-zinc-150 rounded-2xl p-6 md:p-8 mb-4">
+                            <div className="px-6 md:px-8 pb-5 pt-1.5 border-t border-zinc-100/60 text-left">
+                              <div className="bg-white border border-zinc-150 rounded-2xl p-5 md:p-6 mb-3">
                                 {q.reference && (
-                                  <div className="mb-4 pb-4 border-b border-zinc-100">
-                                    <span className="text-[10px] font-black uppercase text-zinc-400 tracking-wider block mb-1.5 font-mono">REFERENCE COURSE / VIDEO</span>
-                                    <div className="text-xs font-bold text-zinc-800 bg-zinc-50 border border-zinc-150 rounded-xl px-3 py-2 inline-block">
+                                  <div className="mb-3 pb-3 border-b border-zinc-100">
+                                    <span className="text-[10px] font-black uppercase text-zinc-400 tracking-wider block mb-1 font-mono">REFERENCE COURSE / VIDEO</span>
+                                    <div className="text-xs font-bold text-zinc-800 bg-zinc-50 border border-zinc-150 rounded-xl px-3 py-1.5 inline-block">
                                       🎬 {q.reference}
                                     </div>
                                   </div>
                                 )}
-                                <span className="text-[10px] font-black uppercase text-zinc-400 tracking-wider block mb-2 font-mono">QUESTION CONTENT</span>
+                                <span className="text-[10px] font-black uppercase text-zinc-400 tracking-wider block mb-1 font-mono">QUESTION CONTENT</span>
                                 <div className="text-xs md:text-sm text-zinc-850 font-medium leading-relaxed whitespace-pre-wrap">
                                   {q.content}
                                 </div>
@@ -280,8 +280,8 @@ export default function Question() {
 
                               {/* Answer block */}
                               {q.answer ? (
-                                <div className="bg-zinc-50/80 border border-zinc-200 rounded-2xl p-6 md:p-8">
-                                  <div className="flex items-center gap-2 mb-3">
+                                <div className="bg-zinc-50/80 border border-zinc-200 rounded-2xl p-5 md:p-6">
+                                  <div className="flex items-center gap-2 mb-2">
                                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                                     <span className="text-[10px] font-black uppercase text-zinc-800 tracking-wider font-mono">PUT-IT-IN-YOUR-MOUTH (PUIMA) ANSWER</span>
                                   </div>
@@ -289,13 +289,13 @@ export default function Question() {
                                     {q.answer}
                                   </div>
                                   {q.answeredAt && (
-                                    <div className="text-[9px] text-zinc-400 font-mono font-medium mt-4">
+                                    <div className="text-[9px] text-zinc-400 font-mono font-medium mt-3">
                                       답변일: {formatDate(q.answeredAt)}
                                     </div>
                                   )}
                                 </div>
                               ) : (
-                                <div className="bg-zinc-50/40 border border-zinc-150 rounded-2xl p-6 text-center text-zinc-440 flex items-center justify-center gap-2 text-xs font-semibold">
+                                <div className="bg-zinc-50/40 border border-zinc-150 rounded-2xl p-4 text-center text-zinc-440 flex items-center justify-center gap-2 text-xs font-semibold">
                                   <AlertCircle size={14} className="text-zinc-400" />
                                   <span>푸이마 마스터가 질문을 확인하고 있습니다. 조금만 기다려주세요!</span>
                                 </div>
@@ -356,7 +356,7 @@ export default function Question() {
                     placeholder="예: 에그타르트 온도가 안 맞는데 어떻게 해야 하나요?"
                     value={newTitle}
                     onChange={(e) => setNewTitle(e.target.value)}
-                    className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-3.5 px-4 text-xs font-bold outline-none focus:bg-white focus:border-zinc-350 transition-all font-sans"
+                    className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-3.5 px-4 text-xs font-medium outline-none focus:bg-white focus:border-zinc-350 transition-all font-sans"
                   />
                 </div>
 
@@ -367,7 +367,7 @@ export default function Question() {
                     placeholder="예: 에그타르트 클래스 3강 / 유튜브 바삭한 타르트 쉘 굽기 영상"
                     value={newReference}
                     onChange={(e) => setNewReference(e.target.value)}
-                    className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-3.5 px-4 text-xs font-bold outline-none focus:bg-white focus:border-zinc-350 transition-all font-sans"
+                    className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-3.5 px-4 text-xs font-medium outline-none focus:bg-white focus:border-zinc-350 transition-all font-sans"
                   />
                 </div>
 
@@ -379,7 +379,7 @@ export default function Question() {
                     placeholder="조리 도구, 온도 세팅 등 구체적인 과정 정보를 함께 기입해주시면 더욱 정확한 마스터 피드백을 전달드릴 수 있습니다."
                     value={newContent}
                     onChange={(e) => setNewContent(e.target.value)}
-                    className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-3.5 px-4 text-xs font-bold outline-none focus:bg-white focus:border-zinc-350 transition-all font-sans resize-none"
+                    className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-3.5 px-4 text-xs font-medium outline-none focus:bg-white focus:border-zinc-350 transition-all font-sans resize-none"
                   />
                 </div>
 
