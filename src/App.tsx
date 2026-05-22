@@ -629,7 +629,7 @@ function HomePage() {
                       <p className="text-zinc-400 text-[11px] font-semibold mt-1">푸이마 마스터에게 첫 번째 질문을 해보세요!</p>
                     </div>
                   ) : (
-                    <div className="border border-zinc-150 rounded-[24px] overflow-hidden divide-y divide-zinc-100 bg-white shadow-sm/30">
+                    <div className="border border-zinc-200 rounded-[24px] overflow-hidden divide-y divide-zinc-100 bg-white shadow-sm/30">
                       {homeQuestions.slice(0, 5).map((q: any) => {
                         const hasAnswer = !!q.answer;
                         const maskName = (name: string) => {
@@ -664,7 +664,7 @@ function HomePage() {
                                   답변 완료
                                 </span>
                               ) : (
-                                <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-zinc-50 border border-zinc-150 text-zinc-400 shrink-0 uppercase tracking-wider">
+                                <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-zinc-50 border border-zinc-200 text-zinc-400 shrink-0 uppercase tracking-wider">
                                   답변 대기
                                 </span>
                               )}
