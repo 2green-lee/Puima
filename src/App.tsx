@@ -727,10 +727,6 @@ function HomePage() {
                       return (
                         <div key={i} className="flex gap-4">
                           {paddedList.map((item, idx) => {
-                            const textToShow = lang === "KOR" 
-                              ? (item.phrase || "수강생 작품") 
-                              : (item.phraseEn || "Verified Student Review");
-
                             return (
                               <div 
                                 key={`${item.id}-${i}-${idx}`} 
@@ -742,14 +738,6 @@ function HomePage() {
                                   className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                                   referrerPolicy="no-referrer"
                                 />
-                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-6 flex flex-col justify-end text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                  <p className="text-[9px] font-bold text-zinc-300 tracking-widest uppercase">
-                                    {lang === "KOR" ? "수강생 인증 후기" : "Verified Student Review"}
-                                  </p>
-                                  <p className="text-[12px] md:text-[13px] font-black leading-tight mt-1">
-                                    {textToShow}
-                                  </p>
-                                </div>
                               </div>
                             );
                           })}
