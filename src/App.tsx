@@ -895,13 +895,6 @@ function HomePage() {
                   COPYRIGHT © PUIMA. ALL RIGHTS RESERVED.
                 </p>
               </div>
-              
-              <button 
-                onClick={() => navigate('/admin')} 
-                className="text-[11px] font-medium text-zinc-400 hover:text-zinc-650 hover:bg-zinc-50 border border-zinc-200 hover:border-zinc-300 transition-all tracking-widest px-6 py-2 rounded-full active:scale-95"
-              >
-                {user ? "Admin" : "Admin login"}
-              </button>
             </div>
           </div>
         </footer>
