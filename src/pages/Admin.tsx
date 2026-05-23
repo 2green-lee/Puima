@@ -3464,8 +3464,7 @@ export default function Admin() {
                             {/* Workstation Header */}
                             <div className="p-6 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/40">
                               <div>
-                                <span className="text-[10px] font-black text-zinc-455 font-mono block uppercase tracking-wider">Inquiry Details</span>
-                                <h5 className="font-bold text-xs text-zinc-850 mt-1">{targetQ.authorName} 님의 질문</h5>
+                                <h5 className="font-semibold text-sm text-zinc-850">{targetQ.authorName} 님의 질문</h5>
                               </div>
                               <button 
                                 onClick={() => { setReplyingQId(null); setReplyText(""); }}

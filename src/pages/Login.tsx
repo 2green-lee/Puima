@@ -332,19 +332,6 @@ const Login: React.FC = () => {
             Google 계정으로 계속하기
           </motion.button>
 
-          {/* Preview Quick Admin Login Bypass */}
-          <motion.button 
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => {
-              localStorage.setItem('admin_bypass', 'true');
-              navigate('/admin');
-            }}
-            className="w-full mt-4 bg-zinc-50 border border-dashed border-zinc-300 text-zinc-650 rounded-3xl py-4 font-bold tracking-wider text-[11px] flex items-center justify-center gap-2 hover:bg-zinc-100/80 hover:border-zinc-400 transition-all cursor-pointer"
-          >
-            <ShieldCheck size={16} className="text-zinc-500" />
-            [미리보기 전용] 비밀번호 없이 어드민 대시보드 바로 가기
-          </motion.button>
 
           <div className="mt-8 text-center border-t border-zinc-50 pt-6">
             <button 

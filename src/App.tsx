@@ -47,15 +47,6 @@ const ProtectedRoute = ({ children, adminOnly = false }: { children: React.React
         <div className="flex flex-col gap-3">
           <button onClick={() => window.location.href = '/'} className="w-full px-8 py-4 bg-black text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-zinc-800 transition-all">Back Home</button>
           
-          <button 
-            onClick={() => {
-              localStorage.setItem('admin_bypass', 'true');
-              window.location.reload();
-            }} 
-            className="w-full px-8 py-4 bg-zinc-50 border border-zinc-100 text-black rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-zinc-100 transition-all font-bold"
-          >
-            [미리보기 전용] 어드민 강제 접속 / Admin Bypass
-          </button>
 
           <button onClick={() => { signOut(auth); localStorage.removeItem('admin_bypass'); window.location.reload(); }} className="w-full px-8 py-4 bg-white border border-zinc-200 text-black rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-zinc-50 transition-all">Sign Out</button>
         </div>
@@ -547,8 +538,8 @@ function HomePage() {
 
               {/* Journal & News Section (Banners) */}
               {banners.length > 0 && (
-                <section className="pt-8 md:pt-0 px-6 md:px-0 mb-[100px]">
-                  <div className="flex justify-center items-center mb-[70px]">
+                <section className="pt-8 md:pt-0 px-6 md:px-0 mb-[85px] md:mb-[100px]">
+                  <div className="flex justify-center items-center mb-[45px] md:mb-[70px]">
                     <h2 className="text-[14px] font-normal uppercase tracking-[0.3em] text-black text-center">Bake Happiness</h2>
                   </div>
 
@@ -564,7 +555,7 @@ function HomePage() {
                         className="group cursor-pointer bg-white border border-zinc-300 rounded-[24px] h-[60px] px-6 flex items-center justify-center text-center hover:shadow-xl hover:shadow-zinc-200/50 transition-all duration-500"
                       >
                         <h3 className="text-[13px] md:text-[14px] font-semibold md:font-bold tracking-tight leading-tight group-hover:text-black transition-colors line-clamp-2">
-                          {banner.title}
+                           {banner.title}
                         </h3>
                       </motion.div>
                     ))}
@@ -573,7 +564,7 @@ function HomePage() {
               )}
 
               {/* Collection Section */}
-              <div className="px-6 md:px-0 flex justify-center items-center mb-[70px]">
+              <div className="px-6 md:px-0 flex justify-center items-center mb-[45px] md:mb-[70px]">
                 <h2 className="text-[14px] font-normal uppercase tracking-[0.3em] text-black text-center">Eat Happiness</h2>
               </div>
 
@@ -605,7 +596,7 @@ function HomePage() {
               </main>
 
               {posts.length > 9 && (
-                <div className="flex justify-center pt-8 pb-32">
+                <div className="flex justify-center pt-8 pb-[115px] md:pb-32">
                   <button 
                     onClick={handleLoadMore}
                     className="group flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-900 border-b border-zinc-900 pb-1 hover:text-zinc-400 hover:border-zinc-400 transition-all"
@@ -616,10 +607,10 @@ function HomePage() {
               )}
 
               {/* Question Q&A Preview Section */}
-              <section className="pb-24 bg-white pt-24 border-t border-zinc-100/60">
+              <section className="pb-24 bg-white pt-[50px] md:pt-24 border-t border-zinc-100/60">
                 <div className="px-6 md:px-0 flex flex-col justify-center items-center mb-[50px]">
                   <h2 className="text-[14px] font-normal uppercase tracking-[0.3em] text-black text-center mb-1">QUESTION</h2>
-                  <p className="text-zinc-400 text-[10px] font-black uppercase tracking-wider text-center">푸이마에게 질문하세요 / Ask Puima</p>
+                  <p className="text-zinc-400 text-[11px] font-bold uppercase tracking-wider text-center">푸이마에게 질문하세요</p>
                 </div>
 
                 <div className="max-w-[850px] mx-auto px-6">
@@ -634,9 +625,7 @@ function HomePage() {
                         const hasAnswer = !!q.answer;
                         const maskName = (name: string) => {
                           if (!name) return "익명";
-                          if (name.length <= 1) return name;
-                          if (name.length === 2) return name[0] + "*";
-                          return name[0] + "*".repeat(name.length - 2) + name[name.length - 1];
+                          return name[0] + "**";
                         };
                         const formatDate = (isoStr: string) => {
                           if (!isoStr) return "";
@@ -680,10 +669,10 @@ function HomePage() {
                               </span>
                             </div>
 
-                            <div className="flex items-center gap-3 text-[10px] text-zinc-400 font-medium font-mono shrink-0">
+                            <div className="flex items-center gap-2.5 md:gap-3 text-[10px] text-zinc-400 font-medium font-mono shrink-0">
                               <span>{maskName(q.authorName)}</span>
-                              <span className="text-zinc-200">|</span>
-                              <span>{formatDate(q.createdAt)}</span>
+                              <span className="hidden md:inline text-zinc-200">|</span>
+                              <span className="hidden md:inline">{formatDate(q.createdAt)}</span>
                             </div>
                           </div>
                         );
@@ -867,29 +856,6 @@ function HomePage() {
 
         <footer className="bg-white border-t border-zinc-100 pt-16 pb-24 px-6 md:px-12">
           <div className="max-w-[1100px] mx-auto">
-            {/* Upper Links */}
-            <div className="flex flex-wrap gap-x-4 gap-y-2 mb-10 text-[11px] font-bold text-zinc-500 uppercase tracking-tighter">
-              <a href="#" className="hover:text-black transition-colors">이용약관</a>
-              <span className="text-zinc-300">|</span>
-              <a href="#" className="hover:text-black transition-colors text-black">개인정보처리방침</a>
-              <span className="text-zinc-300">|</span>
-              <a href="#" className="hover:text-black transition-colors">법적고지</a>
-              <span className="text-zinc-300">|</span>
-              <a href="#" className="hover:text-black transition-colors">입점안내</a>
-              <span className="text-zinc-300">|</span>
-              <a href="#" className="hover:text-black transition-colors">안전거래센터</a>
-              <span className="text-zinc-300">|</span>
-              <a href="#" className="hover:text-black transition-colors">고객센터</a>
-            </div>
-
-            {/* Platform Disclaimer */}
-            <div className="mb-10 pb-10 border-b border-zinc-200">
-              <p className="text-[11px] leading-relaxed text-zinc-400 font-medium font-sans">
-                푸이마(PUIMA)는 통신판매중개자이며, 통신판매의 당사자가 아닙니다. 게시된 상품, 상품정보, 거래에 관한 의무와 책임은 각 판매자에게 있습니다.<br />
-                소비자 보호를 위해 안전한 거래 환경을 제공하며, 모든 클래스는 정식 라이선스 계약을 통해 운영됩니다.
-              </p>
-            </div>
-
             {/* Business Details Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12 mb-16">
               <div className="space-y-4">
@@ -926,7 +892,7 @@ function HomePage() {
               <div className="flex items-center gap-6">
                 <span className="text-3xl font-script leading-none">Puima</span>
                 <p className="text-[10px] font-bold text-zinc-400 tracking-widest uppercase">
-                  COPYRIGHT © PUIMA ATELIER. ALL RIGHTS RESERVED.
+                  COPYRIGHT © PUIMA. ALL RIGHTS RESERVED.
                 </p>
               </div>
               

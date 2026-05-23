@@ -29,16 +29,16 @@ export function FixedHeader({ handleBackToHome }: { handleBackToHome?: () => voi
 
   return (
     <div className="fixed top-0 left-0 w-full md:min-w-[1100px] h-[60px] md:h-[100px] bg-white border-b border-zinc-100 z-50 flex items-center justify-center px-6 md:px-12 lg:px-0">
-      <div className="w-full max-w-[1100px] h-full flex items-center justify-end md:justify-between relative px-2 lg:px-0">
+      <div className="w-full max-w-[1100px] h-full flex items-center justify-between relative px-2 lg:px-0">
         {/* Social Links on the Left */}
-        <div className="hidden md:flex items-center gap-5">
+        <div className="flex items-center gap-3.5 md:gap-5">
           <a 
             href="https://www.youtube.com/@%ED%91%B8%EC%9D%B4%EB%A7%88" 
             target="_blank" 
             rel="noreferrer"
             className="text-zinc-400 hover:text-black transition-all group"
           >
-            <Youtube size={24} className="group-hover:scale-110 transition-transform" />
+            <Youtube size={22} className="group-hover:scale-110 transition-transform" />
           </a>
           <a 
             href="https://instagram.com/puima_official" 
@@ -46,14 +46,14 @@ export function FixedHeader({ handleBackToHome }: { handleBackToHome?: () => voi
             rel="noreferrer"
             className="text-zinc-400 hover:text-black transition-all group"
           >
-            <Instagram size={24} className="group-hover:scale-110 transition-transform" />
+            <Instagram size={22} className="group-hover:scale-110 transition-transform" />
           </a>
         </div>
 
-        {/* Logo in the center */}
-        <span className="absolute left-1/2 -translate-x-1/2 font-script text-3xl md:text-4xl cursor-pointer select-none" onClick={handleLogoClick}>Puima</span>
-        
-        {/* Language Toggle & Login/Logout actions */}
+        {/* Logo always centered absolute */}
+        <span className="absolute left-1/2 -translate-x-1/2 font-script text-[28px] md:text-4xl cursor-pointer select-none" onClick={handleLogoClick}>Puima</span>
+
+        {/* Language Toggle & Login actions on the Right */}
         <div className="flex items-center gap-2 md:gap-4 text-[10px] md:text-[11px] font-bold tracking-widest">
           {/* Beautiful Pill Toggle for Language (Desktop Only) */}
           <div className="hidden md:flex bg-white border border-zinc-200 rounded-full p-0.5 items-center select-none">
@@ -85,7 +85,7 @@ export function FixedHeader({ handleBackToHome }: { handleBackToHome?: () => voi
             <div className="flex items-center gap-1.5 md:gap-2.5 select-none text-[11px] md:text-xs">
               <button 
                 onClick={handleMyPageClick}
-                className="inline-flex items-center gap-1 text-zinc-700 hover:text-black font-semibold tracking-tight transition-colors cursor-pointer border border-zinc-200 rounded-full px-2.5 py-1 md:py-1 md:px-3 bg-zinc-50/50 hover:bg-zinc-100/50"
+                className="inline-flex items-center gap-1 text-zinc-700 hover:text-black font-semibold tracking-tight transition-colors cursor-pointer border border-zinc-200 rounded-full px-2 py-0.5 md:py-1 md:px-3 bg-zinc-50/50 hover:bg-zinc-100/50"
                 id="bar-profile"
               >
                 <User size={13} className="text-zinc-400" />
@@ -94,20 +94,12 @@ export function FixedHeader({ handleBackToHome }: { handleBackToHome?: () => voi
                 </span>
                 <span className="text-zinc-400 font-medium text-[10px]">님</span>
               </button>
-              <span className="hidden md:inline text-zinc-200">/</span>
-              <button 
-                onClick={() => { signOut(auth); localStorage.removeItem('admin_bypass'); window.location.reload(); }}
-                className="text-zinc-400 hover:text-black transition-colors cursor-pointer uppercase text-[11px] md:text-xs border border-zinc-300 md:border-none rounded-full px-3 py-1 md:p-0"
-                id="bar-logout"
-              >
-                {lang === "KOR" ? "로그아웃" : "LOGOUT"}
-              </button>
             </div>
           ) : (
             <div className="flex items-center gap-1.5 md:gap-3 select-none text-[11px] md:text-xs">
               <button 
                 onClick={() => navigate('/login', { state: { from: location.pathname, mode: 'signup' } })}
-                className="hidden md:inline text-zinc-400 hover:text-black transition-colors cursor-pointer"
+                className="hidden md:inline text-zinc-400 hover:text-black transition-colors cursor-pointer font-extrabold"
                 id="bar-signup"
               >
                 {lang === "KOR" ? "회원가입" : "JOIN"}
@@ -115,7 +107,7 @@ export function FixedHeader({ handleBackToHome }: { handleBackToHome?: () => voi
               <span className="hidden md:inline text-zinc-200">/</span>
               <button 
                 onClick={() => navigate('/login', { state: { from: location.pathname, mode: 'login' } })}
-                className="text-zinc-600 hover:text-black transition-colors cursor-pointer uppercase text-[11px] md:text-xs border border-zinc-300 md:border-none rounded-full px-3 py-1 md:p-0 font-extrabold"
+                className="text-zinc-650 hover:text-black transition-colors cursor-pointer uppercase text-[10px] md:text-xs border border-zinc-300 md:border-none rounded-full px-2.5 py-1 md:p-0 font-extrabold"
                 id="bar-login"
               >
                 {lang === "KOR" ? "로그인" : "LOGIN"}

@@ -129,9 +129,7 @@ export default function Question() {
 
   const maskName = (name: string) => {
     if (!name) return "익명";
-    if (name.length <= 1) return name;
-    if (name.length === 2) return name[0] + "*";
-    return name[0] + "*".repeat(name.length - 2) + name[name.length - 1];
+    return name[0] + "**";
   };
 
   const formatDate = (isoStr: string) => {
@@ -230,8 +228,8 @@ export default function Question() {
 
                           <div className="flex items-center gap-2.5 text-[10px] text-zinc-400 font-medium font-mono mt-1">
                             <span>{maskName(q.authorName)}</span>
-                            <span>•</span>
-                            <span>{formatDate(q.createdAt)}</span>
+                            <span className="hidden md:inline">•</span>
+                            <span className="hidden md:inline">{formatDate(q.createdAt)}</span>
                             {(user?.uid === q.authorId || isAdminUser) && (
                               <>
                                 <span>•</span>
@@ -263,16 +261,16 @@ export default function Question() {
                             className="overflow-hidden"
                           >
                             <div className="px-6 md:px-8 pb-5 pt-1.5 border-t border-zinc-100/60 text-left">
-                              <div className="bg-white border border-zinc-150 rounded-2xl p-5 md:p-6 mb-3">
+                              <div className="bg-white border border-zinc-300 rounded-2xl p-5 md:p-6 mb-3">
                                 {q.reference && (
                                   <div className="mb-3 pb-3 border-b border-zinc-100">
-                                    <span className="text-[10px] font-black uppercase text-zinc-400 tracking-wider block mb-1 font-mono">REFERENCE COURSE / VIDEO</span>
-                                    <div className="text-xs font-bold text-zinc-800 bg-zinc-50 border border-zinc-150 rounded-xl px-3 py-1.5 inline-block">
+                                    <span className="text-[11px] font-extrabold uppercase text-zinc-400 tracking-wider block mb-1 font-mono">강좌명 또는 유튜브 영상 제목</span>
+                                    <div className="text-xs md:text-sm font-medium text-zinc-800 mt-1">
                                       🎬 {q.reference}
                                     </div>
                                   </div>
                                 )}
-                                <span className="text-[10px] font-black uppercase text-zinc-400 tracking-wider block mb-1 font-mono">QUESTION CONTENT</span>
+                                <span className="text-[11px] font-extrabold uppercase text-zinc-400 tracking-wider block mb-1 font-mono">질문 내용</span>
                                 <div className="text-xs md:text-sm text-zinc-850 font-medium leading-relaxed whitespace-pre-wrap">
                                   {q.content}
                                 </div>
@@ -280,7 +278,7 @@ export default function Question() {
 
                               {/* Answer block */}
                               {q.answer ? (
-                                <div className="bg-zinc-50/80 border border-zinc-200 rounded-2xl p-5 md:p-6">
+                                <div className="bg-zinc-50/80 border border-zinc-300 rounded-2xl p-5 md:p-6">
                                   <div className="flex items-center gap-2 mb-2">
                                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                                     <span className="text-[10px] font-black uppercase text-zinc-800 tracking-wider font-mono">PUT-IT-IN-YOUR-MOUTH (PUIMA) ANSWER</span>
@@ -295,7 +293,7 @@ export default function Question() {
                                   )}
                                 </div>
                               ) : (
-                                <div className="bg-zinc-50/40 border border-zinc-150 rounded-2xl p-4 text-center text-zinc-440 flex items-center justify-center gap-2 text-xs font-semibold">
+                                <div className="bg-zinc-50/40 border border-zinc-300 rounded-2xl p-4 text-center text-zinc-440 flex items-center justify-center gap-2 text-xs font-semibold">
                                   <AlertCircle size={14} className="text-zinc-400" />
                                   <span>푸이마 마스터가 질문을 확인하고 있습니다. 조금만 기다려주세요!</span>
                                 </div>
