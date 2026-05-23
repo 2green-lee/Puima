@@ -895,18 +895,18 @@ function HomePage() {
               <div className="space-y-4">
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Business Info</h4>
                 <div className="text-[11px] leading-relaxed text-zinc-600 space-y-1">
-                  <p><span className="text-zinc-400">상호명 :</span> 푸이마 아틀리에 (PUIMA ATELIER)</p>
-                  <p><span className="text-zinc-400">대표이사 :</span> 최수연 (Puima Choi)</p>
-                  <p><span className="text-zinc-400">사업자등록번호 :</span> 220-81-62517</p>
-                  <p><span className="text-zinc-400">통신판매업신고 :</span> 제2024-서울강남-0000호</p>
+                  <p><span className="text-zinc-400">상호명 :</span> 푸이마</p>
+                  <p><span className="text-zinc-400">대표자 :</span> 이근석</p>
+                  <p><span className="text-zinc-400">사업자등록번호 :</span> 139-07-65106</p>
+                  <p><span className="text-zinc-400">통신판매업번호 :</span> 2023-부산수영-0980</p>
                 </div>
               </div>
 
               <div className="space-y-4">
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Contact & Address</h4>
                 <div className="text-[11px] leading-relaxed text-zinc-600 space-y-1">
-                  <p><span className="text-zinc-400">주소 :</span> 서울특별시 강남구 도산대로 1784, PUIMA 빌딩</p>
-                  <p><span className="text-zinc-400">이메일 :</span> support@puima-atelier.com</p>
+                  <p><span className="text-zinc-400">사업장 소재지 :</span> 부산광역시 수영구 수영로594번길 42 2층 풋잇인유어마우스 (우 : 48294)</p>
+                  <p><span className="text-zinc-400">e-mail :</span> putitinyourmouth@naver.com</p>
                   <p><span className="text-zinc-400">호스팅 서비스 제공 :</span> Google Cloud / Vercel</p>
                 </div>
               </div>
@@ -914,7 +914,7 @@ function HomePage() {
               <div className="space-y-4">
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Customer Support</h4>
                 <div className="text-[11px] leading-relaxed text-zinc-600 space-y-1">
-                  <p className="text-lg font-black text-black">1588-3820</p>
+                  <p className="text-lg font-black text-black">010-9919-9620</p>
                   <p><span className="text-zinc-400">운영시간 :</span> 평일 10:00 - 18:00 (주말/공휴일 제외)</p>
                   <p><span className="text-zinc-400">점심시간 :</span> 12:30 - 13:30</p>
                 </div>
