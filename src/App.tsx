@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Youtube, Instagram, MessageCircle, ChevronDown, Settings, ArrowRight, X, ShieldCheck, User, Mail, Lock, BookOpen, CreditCard, CheckCircle2, AlertCircle, ShoppingBag, Phone, RefreshCw } from "lucide-react";
+import { Youtube, Instagram, MessageCircle, ChevronDown, Settings, ArrowRight, X, ShieldCheck, User, Mail, Lock, BookOpen, CreditCard, CheckCircle2, AlertCircle, ShoppingBag, Phone, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import React, { useState, useEffect } from "react";
 import { Routes, Route, useNavigate, useLocation, useSearchParams } from "react-router-dom";
@@ -99,6 +99,8 @@ interface Notice {
   isActive: boolean;
   url?: string;
   isBanner?: boolean;
+  imageUrl?: string;
+  order?: number;
 }
 
 interface StudentReview {
@@ -133,6 +135,39 @@ const INITIAL_POSTS: ClassPost[] = [
   { id: "20", title: "[파티쉐 클래스] 1강 구움과자 (휘낭시에&마들렌)", visuals: "Fundamental tea cakes", image: "macaronsImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩49,900" },
   { id: "21", title: "[마스터 클래스] 딸기 크림치즈 타르트", visuals: "Rich & Sweet pairing", image: "pastryImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", price: "₩49,900" },
   { id: "22", title: "[택배배송] 푸이마 휘낭시에 세트", visuals: "Fresh seasonal set", image: "cakeImg", naverUrl: "https://smartstore.naver.com/putitinyourmouth", originalPrice: "₩3,000", price: "₩2,700" }
+];
+
+const DEFAULT_BANNERS = [
+  {
+    id: "default-1",
+    title: "시그니처 구움과자 주문하기",
+    titleEn: "Order Signature Baked Goods",
+    content: "푸이마만의 노하우가 담긴 최고급 휘낭시에 & 구움과자 세트",
+    imageUrl: pastryImg,
+    url: "https://smartstore.naver.com/putitinyourmouth",
+    isActive: true,
+    isDefault: true
+  },
+  {
+    id: "default-2",
+    title: "푸이마 오감만족 베이킹 마스터 클래스",
+    titleEn: "Puima Premium Baking Masterclass",
+    content: "천연 버터 향미 극대화 및 완벽한 미각 시그니처 연출 기법",
+    imageUrl: heroImg,
+    url: "/?category=Masterclass",
+    isActive: true,
+    isDefault: true
+  },
+  {
+    id: "default-3",
+    title: "프리미엄 기획전 & 레시피 가이드",
+    titleEn: "Premium Tea Cakes Exhibition",
+    content: "정통 프랑스 구움과자 레시피 아카이브와 특별 혜택 안내",
+    imageUrl: macaronsImg,
+    url: "https://smartstore.naver.com/putitinyourmouth",
+    isActive: true,
+    isDefault: true
+  }
 ];
 
 function HomePage() {
@@ -184,6 +219,26 @@ function HomePage() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSuccessMsg, setProfileSuccessMsg] = useState("");
   const [profileErrorMsg, setProfileErrorMsg] = useState("");
+
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  // Active Banners: custom active banners from Firestore OR default banners
+  const activeBanners = banners.length > 0
+    ? banners.map((b, idx) => ({
+        ...b,
+        imageUrl: b.imageUrl || [pastryImg, heroImg, macaronsImg, cakeImg][idx % 4],
+        isDefault: false
+      }))
+    : DEFAULT_BANNERS;
+
+  // Slideshow auto-play
+  useEffect(() => {
+    if (activeBanners.length <= 1) return;
+    const timer = setInterval(() => {
+      setCurrentSlide(prev => (prev + 1) % activeBanners.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [activeBanners.length]);
 
   // Set up ?profile=true listener
   useEffect(() => {
@@ -512,6 +567,11 @@ function HomePage() {
               <div className="bg-white text-black py-4 px-6 flex items-center justify-between border-y border-zinc-100 mb-12">
                 <div className="flex gap-6 items-center flex-grow overflow-hidden">
                   <span className="text-black text-[10px] font-black uppercase tracking-widest flex-shrink-0">Notice</span>
+                  {notices[0].imageUrl && (
+                    <div className="w-10 h-10 shrink-0 overflow-hidden bg-zinc-50 border border-zinc-100 rounded-lg">
+                      <img src={notices[0].imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    </div>
+                  )}
                   <div className="flex flex-col gap-1 overflow-hidden">
                     <span className="text-sm font-bold tracking-tight truncate text-black">{notices[0].title}</span>
                     <span className="text-[11px] text-zinc-900 font-medium truncate">{notices[0].content}</span>
@@ -536,32 +596,152 @@ function HomePage() {
               transition={{ duration: 0.6 }}
             >
 
-              {/* Journal & News Section (Banners) */}
-              {banners.length > 0 && (
-                <section className="pt-8 md:pt-0 px-6 md:px-0 mb-[85px] md:mb-[100px]">
-                  <div className="flex justify-center items-center mb-[45px] md:mb-[70px]">
-                    <h2 className="text-[14px] font-normal uppercase tracking-[0.3em] text-black text-center">Bake Happiness</h2>
-                  </div>
+              {/* Main Banner Heading */}
+              <div className="px-6 md:px-0 flex justify-center items-center mb-[45px] md:mb-[70px] mt-4">
+                <h2 className="text-[14px] font-normal uppercase tracking-[0.3em] text-black text-center">Bake Happiness</h2>
+              </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {banners.slice(0, 3).map((banner, i) => (
-                      <motion.div 
-                        key={banner.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ delay: i * 0.1 }}
-                        onClick={() => banner.url && window.open(banner.url, "_blank")}
-                        className="group cursor-pointer bg-white border border-zinc-300 rounded-[24px] h-[60px] px-6 flex items-center justify-center text-center hover:shadow-xl hover:shadow-zinc-200/50 transition-all duration-500"
-                      >
-                        <h3 className="text-[13px] md:text-[14px] font-semibold md:font-bold tracking-tight leading-tight group-hover:text-black transition-colors line-clamp-2">
-                           {banner.title}
-                        </h3>
-                      </motion.div>
-                    ))}
+              {/* Premium Split Hero Banner (Left: Interactive Image, Right: Clean Navigation Tabs) */}
+              <section className="mb-[85px] md:mb-[100px] mt-0 px-4 md:px-0">
+                {bannersLoading ? (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-0 bg-white rounded-none h-auto md:h-[450px]">
+                    {/* Left Column Skeleton */}
+                    <div className="md:col-span-2 relative aspect-[16/9] md:aspect-auto md:h-full overflow-hidden bg-zinc-100 flex items-stretch rounded-none animate-pulse"></div>
+                    {/* Right Column Skeleton */}
+                    <div className="hidden md:flex md:col-span-1 flex-row md:flex-col justify-start bg-white p-4 md:p-6 gap-3 md:gap-4 overflow-x-auto md:overflow-x-visible h-full animate-pulse">
+                      {[1, 2, 3].map((val) => (
+                        <div 
+                          key={val} 
+                          className="flex-1 md:flex-initial rounded-[35px] bg-zinc-50 border border-zinc-100 min-w-[150px] md:min-w-0 h-10 md:h-[80px]"
+                        />
+                      ))}
+                    </div>
                   </div>
-                </section>
-              )}
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-0 bg-white rounded-none h-auto md:h-[450px]">
+                    
+                    {/* Left Column: Focused Interactive Image Banner */}
+                    <div className="md:col-span-2 relative bg-white md:bg-zinc-50 flex flex-col md:h-full rounded-none group overflow-visible md:overflow-hidden">
+                      <AnimatePresence mode="wait">
+                        <motion.div
+                          key={currentSlide}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.5, ease: "easeInOut" }}
+                          onClick={() => {
+                            const targetUrl = activeBanners[currentSlide]?.url;
+                            if (targetUrl) {
+                              if (targetUrl.startsWith('http')) {
+                                window.open(targetUrl, "_blank");
+                              } else {
+                                if (targetUrl.includes("category=")) {
+                                  const cate = targetUrl.split("category=")[1];
+                                  setSelectedCategory(cate.toUpperCase());
+                                  setView("grid");
+                                } else if (targetUrl.startsWith("/")) {
+                                  navigate(targetUrl);
+                                }
+                              }
+                            }
+                          }}
+                          className="w-full flex flex-col md:block md:h-full relative cursor-pointer"
+                        >
+                          {/* Image Box Wrapper */}
+                          <div className="relative w-full aspect-[16/9] md:aspect-auto md:absolute md:inset-0 overflow-hidden flex items-stretch rounded-xl md:rounded-none">
+                            {/* Borderless left and right navigation arrows */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCurrentSlide((prev) => (prev === 0 ? activeBanners.length - 1 : prev - 1));
+                              }}
+                              className="absolute left-2 md:left-4 top-1/2 -translate-y-1/2 z-20 p-1.5 md:p-2.5 text-white/70 hover:text-white transition-all hover:scale-110 active:scale-90 bg-black/15 hover:bg-black/30 md:bg-transparent md:hover:bg-transparent rounded-full focus:outline-none"
+                              aria-label="Previous slide"
+                            >
+                              <ChevronLeft className="w-5 h-5 md:w-9 md:h-9 stroke-[2.5]" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCurrentSlide((prev) => (prev === activeBanners.length - 1 ? 0 : prev + 1));
+                              }}
+                              className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 z-20 p-1.5 md:p-2.5 text-white/70 hover:text-white transition-all hover:scale-110 active:scale-90 bg-black/15 hover:bg-black/30 md:bg-transparent md:hover:bg-transparent rounded-full focus:outline-none"
+                              aria-label="Next slide"
+                            >
+                              <ChevronRight className="w-5 h-5 md:w-9 md:h-9 stroke-[2.5]" />
+                            </button>
+
+                            {/* Banner Image */}
+                            <img 
+                              src={activeBanners[currentSlide]?.imageUrl} 
+                              alt={activeBanners[currentSlide]?.title}
+                              className="w-full h-full object-cover transition-transform duration-700 ease-out scale-100 group-hover:scale-105"
+                              referrerPolicy="no-referrer"
+                            />
+                            
+                            {/* Dark Gradient scrim on image (rendered only on desktop) */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-10 text-white hidden md:flex">
+                              <div className="max-w-[650px] space-y-2">
+                                <h2 className="text-[32px] font-black tracking-tight leading-tight drop-shadow-sm font-sans uppercase">
+                                  {lang === "KOR" 
+                                    ? activeBanners[currentSlide]?.title 
+                                    : (activeBanners[currentSlide]?.titleEn || activeBanners[currentSlide]?.title)}
+                                </h2>
+
+                                <p className="text-xs text-zinc-200/90 font-medium tracking-wide">
+                                  {activeBanners[currentSlide]?.content}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Mobile Wording Space (below the image container) */}
+                          <div className="block md:hidden pt-4 pb-2 px-1 text-black">
+                            <h2 className="text-xl font-bold tracking-tight leading-tight font-sans uppercase text-zinc-900">
+                              {lang === "KOR" 
+                                ? activeBanners[currentSlide]?.title 
+                                : (activeBanners[currentSlide]?.titleEn || activeBanners[currentSlide]?.title)}
+                            </h2>
+                            {activeBanners[currentSlide]?.content && (
+                              <p className="text-xs text-zinc-500 font-medium tracking-wide mt-1.5 leading-relaxed">
+                                {activeBanners[currentSlide]?.content}
+                              </p>
+                            )}
+                          </div>
+                        </motion.div>
+                      </AnimatePresence>
+                    </div>
+
+                    {/* Right Column: Sleek Nav Tabs */}
+                    <div className="hidden md:flex md:col-span-1 flex-row md:flex-col justify-start bg-white p-4 md:p-6 gap-3 md:gap-4 overflow-x-auto md:overflow-x-visible h-full">
+                      {activeBanners.map((banner, idx) => {
+                        const isSelected = idx === currentSlide;
+                        return (
+                          <button
+                            key={banner.id}
+                            onClick={() => setCurrentSlide(idx)}
+                            className={`flex-1 md:flex-initial text-center px-4 py-3 md:py-5 transition-all duration-300 relative rounded-[32px] flex flex-col justify-center items-center gap-1.5 focus:outline-none min-w-[150px] md:min-w-0 md:h-[80px] border ${
+                              isSelected 
+                                ? 'bg-white text-black border-zinc-650 shadow-md shadow-zinc-200' 
+                                : 'bg-white text-black border-zinc-200 hover:bg-zinc-50'
+                            }`}
+                          >
+                            <div className="flex flex-col justify-center items-center gap-1.5 w-full">
+                              <h3 className={`text-[16px] md:text-[18px] tracking-tight text-center truncate w-full ${isSelected ? 'font-semibold' : 'font-medium'}`}>
+                                {lang === "KOR" ? banner.title : (banner.titleEn || banner.title)}
+                              </h3>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                  </div>
+                )}
+              </section>
 
               {/* Collection Section */}
               <div className="px-6 md:px-0 flex justify-center items-center mb-[45px] md:mb-[70px]">
@@ -615,12 +795,12 @@ function HomePage() {
 
                 <div className="max-w-[850px] mx-auto px-6">
                   {homeQuestions.length === 0 ? (
-                    <div className="py-12 text-center border border-dashed border-zinc-200 rounded-[24px] bg-zinc-50/20">
+                    <div className="py-12 text-center border border-dashed border-zinc-200 rounded-xl bg-zinc-50/20">
                       <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">No questions registered yet.</p>
                       <p className="text-zinc-400 text-[11px] font-semibold mt-1">푸이마 마스터에게 첫 번째 질문을 해보세요!</p>
                     </div>
                   ) : (
-                    <div className="border border-zinc-200 rounded-[24px] overflow-hidden divide-y divide-zinc-100 bg-white shadow-sm/30">
+                    <div className="border border-zinc-200 rounded-xl overflow-hidden divide-y divide-zinc-100 bg-white shadow-sm/30">
                       {homeQuestions.slice(0, 5).map((q: any) => {
                         const hasAnswer = !!q.answer;
                         const maskName = (name: string) => {
@@ -680,7 +860,7 @@ function HomePage() {
                     </div>
                   )}
 
-                  <div className="flex justify-center mt-8 gap-2">
+                  <div className="flex justify-center mt-16 gap-2">
                     <button 
                       onClick={() => { navigate('/question'); window.scrollTo(0, 0); }}
                       className="group flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-900 border-b border-zinc-900 pb-1 hover:text-zinc-400 hover:border-zinc-400 transition-all cursor-pointer"
@@ -730,7 +910,7 @@ function HomePage() {
                             return (
                               <div 
                                 key={`${item.id}-${i}-${idx}`} 
-                                className="w-[280px] md:w-[320px] aspect-[4/5] bg-white overflow-hidden group border border-zinc-100 relative rounded-3xl shadow-sm"
+                                className="w-[280px] md:w-[320px] aspect-[4/5] bg-white overflow-hidden group border border-zinc-100 relative rounded-xl shadow-sm"
                               >
                                 <img 
                                   src={item.imageUrl} 
@@ -1450,15 +1630,28 @@ function NoticePage() {
 
           <div className="space-y-px bg-zinc-200 border border-zinc-200">
             {notices.map((notice) => (
-              <div key={notice.id} className="bg-white px-8 py-8 flex flex-col md:flex-row md:items-center justify-between gap-8 hover:bg-zinc-50 transition-colors cursor-pointer group">
-                <div className="flex-1">
-                  <div className="flex items-center gap-4 mb-3">
-                    <span className="text-[10px] font-mono text-zinc-300 uppercase tracking-widest">Announcement</span>
+              <div 
+                key={notice.id} 
+                onClick={() => notice.url && window.open(notice.url, "_blank")}
+                className={`bg-white px-8 py-8 flex flex-col md:flex-row md:items-center justify-between gap-8 hover:bg-zinc-50 transition-colors ${notice.url ? 'cursor-pointer' : 'cursor-default'} group`}
+              >
+                <div className="flex-1 flex flex-col md:flex-row gap-6 items-start md:items-center">
+                  {notice.imageUrl && (
+                    <div className="w-24 h-24 sm:w-32 sm:h-32 shrink-0 bg-zinc-100 border border-zinc-200 overflow-hidden flex items-center justify-center">
+                      <img src={notice.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-4 mb-3">
+                      <span className="text-[10px] font-mono text-zinc-300 uppercase tracking-widest">Announcement</span>
+                    </div>
+                    <h3 className="text-[20px] font-bold leading-tight group-hover:underline underline-offset-8 decoration-zinc-200">{notice.title}</h3>
+                    <p className="mt-3 text-zinc-400 text-[14px] leading-relaxed break-all whitespace-pre-wrap">{notice.content}</p>
                   </div>
-                  <h3 className="text-[20px] font-bold leading-tight group-hover:underline underline-offset-8 decoration-zinc-200">{notice.title}</h3>
-                  <p className="mt-3 text-zinc-400 text-[14px] leading-relaxed line-clamp-2">{notice.content}</p>
                 </div>
-                <ArrowRight size={20} className="text-zinc-200 group-hover:text-black group-hover:translate-x-2 transition-all" />
+                {notice.url && (
+                  <ArrowRight size={20} className="text-zinc-200 group-hover:text-black group-hover:translate-x-2 transition-all" />
+                )}
               </div>
             ))}
           </div>

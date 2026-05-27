@@ -54,7 +54,7 @@ export default function GridItem({
     >
       <div className="w-full h-full flex flex-col">
         {/* Visual Image Container */}
-        <div className={`relative w-full overflow-hidden bg-zinc-50 ${
+        <div className={`relative w-full overflow-hidden bg-zinc-50 rounded-xl md:rounded-none ${
           uniform ? "aspect-square" : (isLarge ? "md:aspect-[4/5] aspect-[3/4]" : isWide ? "md:aspect-[21/9] aspect-[3/4]" : "aspect-[3/4]")
         }`}>
           {!isLoaded && (

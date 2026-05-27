@@ -60,6 +60,8 @@ interface Notice {
   isActive: boolean;
   url?: string;
   isBanner?: boolean;
+  imageUrl?: string;
+  order?: number;
 }
 
 interface UserProfile {
@@ -97,13 +99,14 @@ export default function Admin() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
-  const [newNotice, setNewNotice] = useState({ title: "", content: "", url: "", isBanner: false });
+  const [newNotice, setNewNotice] = useState({ title: "", content: "", url: "", isBanner: false, imageUrl: "" });
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryNameEn, setNewCategoryNameEn] = useState("");
   const [reviews, setReviews] = useState<StudentReview[]>([]);
   const [adminQuestions, setAdminQuestions] = useState<any[]>([]);
   const [newReview, setNewReview] = useState({ imageUrl: "", phrase: "", phraseEn: "" });
   const [reviewUploading, setReviewUploading] = useState(false);
+  const [noticeImgUploading, setNoticeImgUploading] = useState(false);
   const [isSavingReview, setIsSavingReview] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<Post>>({});
@@ -339,6 +342,43 @@ export default function Admin() {
     reader.readAsDataURL(file);
   };
 
+  const handleNoticeImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file size (5MB limit)
+    if (file.size > 5 * 1024 * 1024) {
+      alert("이미지 용량이 너무 큽니다 (최대 5MB).");
+      return;
+    }
+
+    setNoticeImgUploading(true);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setNewNotice(prev => ({ ...prev, imageUrl: reader.result as string }));
+      setNoticeImgUploading(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleEditNoticeImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("이미지 용량이 너무 큽니다 (최대 5MB).");
+      return;
+    }
+
+    setNoticeImgUploading(true);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setNoticeFormData(prev => ({ ...prev, imageUrl: reader.result as string }));
+      setNoticeImgUploading(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
   useEffect(() => {
     const isBypassed = localStorage.getItem('admin_bypass') === 'true';
     if (user?.email === ADMIN_EMAIL || isAdmin || designMode || isBypassed) {
@@ -381,13 +421,22 @@ export default function Admin() {
         setDataLoading(false);
       });
 
-      const noticeQ = query(collection(db, "notices"), orderBy("createdAt", "desc"));
+      const noticeQ = query(collection(db, "notices"));
       const unsubscribeNotices = onSnapshot(noticeQ, (snapshot) => {
         const docs = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         })) as Notice[];
-        setNotices(docs);
+        const sortedDocs = [...docs].sort((a, b) => {
+          const aOrder = a.order !== undefined ? a.order : 999999;
+          const bOrder = b.order !== undefined ? b.order : 999999;
+          if (aOrder !== bOrder) return aOrder - bOrder;
+          
+          const aTime = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt instanceof Date ? a.createdAt.getTime() : 0);
+          const bTime = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt instanceof Date ? b.createdAt.getTime() : 0);
+          return bTime - aTime;
+        });
+        setNotices(sortedDocs);
       }, (err) => {
         console.error("Firestore error on loading notices:", err);
         setDataLoading(false);
@@ -592,9 +641,27 @@ export default function Admin() {
       await addDoc(collection(db, "notices"), {
         ...newNotice,
         createdAt: serverTimestamp(),
-        isActive: true
+        isActive: true,
+        order: notices.length
       });
-      setNewNotice({ title: "", content: "", url: "", isBanner: false });
+      setNewNotice({ title: "", content: "", url: "", isBanner: false, imageUrl: "" });
+    });
+  };
+
+  const handleNoticeReorder = async (newOrder: Notice[]) => {
+    setNotices(newOrder);
+    
+    handleAutoSaveAction(async () => {
+      const updates = newOrder.map((notice, index) => {
+        if (notice.order !== index) {
+          return updateDoc(doc(db, "notices", notice.id), { order: index });
+        }
+        return null;
+      }).filter(Boolean);
+      
+      if (updates.length > 0) {
+        await Promise.all(updates);
+      }
     });
   };
 
@@ -1975,6 +2042,38 @@ export default function Admin() {
                       </div>
                     </div>
                     
+                    {/* Notice/Banner Image Uploader (Optional) */}
+                    <div className="p-6 bg-white border border-zinc-100 rounded-2xl">
+                      <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-3">공지 및 배너 이미지 등록 (선택)</label>
+                      <div className="flex flex-col md:flex-row gap-6 items-center">
+                        <input 
+                          type="file" 
+                          accept="image/*"
+                          onChange={handleNoticeImageUpload} 
+                          className="hidden" 
+                          id="notice-file-upload" 
+                        />
+                        <label 
+                          htmlFor="notice-file-upload" 
+                          className="px-6 py-3 bg-zinc-50 border border-zinc-200 hover:border-black rounded-xl text-xs font-semibold tracking-wider cursor-pointer transition-all active:scale-95 text-center min-w-[200px]"
+                        >
+                          {noticeImgUploading ? "업로드 중..." : "이미지 파일 선택"}
+                        </label>
+                        {newNotice.imageUrl && (
+                          <div className="relative w-40 h-20 rounded-xl overflow-hidden border border-zinc-200">
+                            <img src={newNotice.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            <button 
+                              type="button" 
+                              onClick={() => setNewNotice(prev => ({ ...prev, imageUrl: "" }))}
+                              className="absolute top-1 right-1 p-1 bg-black/60 hover:bg-black rounded-full text-white"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
                     <button 
                       type="submit"
                       className="bg-black text-white px-10 py-4 rounded-2xl font-black text-sm hover:bg-zinc-800 transition-all active:scale-95 flex items-center gap-2"
@@ -1984,11 +2083,29 @@ export default function Admin() {
                     </button>
                   </form>
 
-                  <div className="space-y-4">
+                  <Reorder.Group 
+                    axis="y" 
+                    values={notices} 
+                    onReorder={handleNoticeReorder}
+                    className="space-y-4"
+                  >
                     {notices.map(notice => (
-                      <div key={notice.id} className="p-6 bg-white border border-zinc-200 rounded-[32px] flex flex-col gap-4 group hover:border-black/20 transition-all">
+                      <Reorder.Item 
+                        key={notice.id} 
+                        value={notice}
+                        drag={editingNoticeId === null ? "y" : false}
+                        whileDrag={{ 
+                          scale: 1.01, 
+                          boxShadow: "0 10px 20px rgba(0,0,0,0.05)",
+                          zIndex: 50
+                        }}
+                        transition={{
+                          layout: { type: "spring", stiffness: 500, damping: 30, mass: 0.8 }
+                        }}
+                        className="p-6 bg-white border border-zinc-200 rounded-[32px] flex flex-col gap-4 group hover:border-black/20 transition-all cursor-pointer select-none"
+                      >
                         {editingNoticeId === notice.id ? (
-                          <div className="space-y-4">
+                          <div className="space-y-4" onClick={(e) => e.stopPropagation()}>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div>
                                 <label className="block text-[8px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-1">Title</label>
@@ -2021,6 +2138,39 @@ export default function Admin() {
                                 className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black/10"
                               />
                             </div>
+
+                            {/* Notice Image Editor (Optional) */}
+                            <div className="p-4 bg-zinc-50 border border-zinc-200 rounded-xl">
+                              <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-2">공지 및 배너 이미지 수정 (선택)</label>
+                              <div className="flex flex-col sm:flex-row gap-4 items-center">
+                                <input 
+                                  type="file" 
+                                  accept="image/*"
+                                  onChange={handleEditNoticeImageUpload} 
+                                  className="hidden" 
+                                  id={`edit-notice-file-upload-${notice.id}`} 
+                                />
+                                <label 
+                                  htmlFor={`edit-notice-file-upload-${notice.id}`} 
+                                  className="px-4 py-2 bg-white border border-zinc-200 hover:border-black rounded-lg text-xs font-semibold cursor-pointer transition-all active:scale-95 text-center min-w-[150px]"
+                                >
+                                  {noticeImgUploading ? "업로드 중..." : "이미지 파일 선택"}
+                                </label>
+                                {noticeFormData.imageUrl && (
+                                  <div className="relative w-32 h-16 rounded-lg overflow-hidden border border-zinc-200">
+                                    <img src={noticeFormData.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                    <button 
+                                      type="button" 
+                                      onClick={() => setNoticeFormData(prev => ({ ...prev, imageUrl: "" }))}
+                                      className="absolute top-1 right-1 p-0.5 bg-black/60 hover:bg-black rounded-full text-white"
+                                    >
+                                      <X size={10} />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
                             <div className="flex justify-between items-center bg-zinc-50 p-3 rounded-xl">
                               <div className="flex items-center gap-3">
                                 <button 
@@ -2046,8 +2196,19 @@ export default function Admin() {
                           </div>
                         ) : (
                           <div className="flex items-center gap-6">
-                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${notice.isBanner ? 'bg-amber-100 text-amber-600' : 'bg-zinc-100 text-zinc-400'}`}>
-                              {notice.isBanner ? <Tag size={20} /> : <Megaphone size={20} />}
+                            {/* Drag Handle */}
+                            <div className="flex-shrink-0 text-zinc-300 cursor-grab active:cursor-grabbing hover:text-black transition-colors" onClick={(e) => e.stopPropagation()}>
+                              <GripVertical size={16} />
+                            </div>
+
+                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 overflow-hidden ${notice.isBanner ? 'bg-amber-100 text-amber-600' : 'bg-zinc-100 text-zinc-400'}`}>
+                              {notice.imageUrl ? (
+                                <img src={notice.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              ) : notice.isBanner ? (
+                                <Tag size={20} />
+                              ) : (
+                                <Megaphone size={20} />
+                              )}
                             </div>
                             <div className="flex-grow min-w-0">
                               <div className="flex items-center gap-2 mb-1">
@@ -2064,7 +2225,7 @@ export default function Admin() {
                                 )}
                               </div>
                             </div>
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-4" onClick={(e) => e.stopPropagation()}>
                               <button 
                                 onClick={() => handleToggleNotice(notice.id, notice.isActive)}
                                 className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
@@ -2093,14 +2254,14 @@ export default function Admin() {
                             </div>
                           </div>
                         )}
-                      </div>
+                      </Reorder.Item>
                     ))}
-                    {notices.length === 0 && (
-                      <div className="py-20 text-center text-zinc-400 font-medium">
-                        첫 공지사항을 작성해 보세요.
-                      </div>
-                    )}
-                  </div>
+                  </Reorder.Group>
+                  {notices.length === 0 && (
+                    <div className="py-20 text-center text-zinc-400 font-medium">
+                      첫 공지사항을 작성해 보세요.
+                    </div>
+                  )}
                 </motion.div>
               )}
 

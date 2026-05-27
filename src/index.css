@@ -12,6 +12,7 @@
   --color-brand-bg: #FFFFFF;
   --color-brand-text: #000000;
   --color-brand-border: #E5E5E5;
+  --color-zinc-650: #484850;
 }
 
 @layer base {
