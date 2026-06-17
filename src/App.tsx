@@ -14,6 +14,7 @@ import GridItem from "./components/GridItem";
 import Admin from "./pages/Admin";
 import Login from "./pages/Login";
 import Question from "./pages/Question";
+import MyClasses from "./pages/MyClasses";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { initGA, trackPageView } from "./utils/analytics";
 import { FixedHeader } from "./components/FixedHeader";
@@ -223,13 +224,34 @@ function HomePage() {
   const [currentSlide, setCurrentSlide] = useState(0);
 
   // Active Banners: custom active banners from Firestore OR default banners
-  const activeBanners = banners.length > 0
+  const dbOrDefaultForThree = banners.length > 0
     ? banners.map((b, idx) => ({
         ...b,
         imageUrl: b.imageUrl || [pastryImg, heroImg, macaronsImg, cakeImg][idx % 4],
         isDefault: false
       }))
     : DEFAULT_BANNERS;
+
+  const padBanners = [...dbOrDefaultForThree];
+  while (padBanners.length < 3) {
+    const nextDefault = DEFAULT_BANNERS[padBanners.length] || DEFAULT_BANNERS[0];
+    padBanners.push({ ...nextDefault, id: `pad-${padBanners.length}` });
+  }
+
+  const activeBanners = [
+    ...padBanners.slice(0, 3),
+    {
+      id: "coming-soon",
+      title: "새로운 클래스 준비중",
+      titleEn: "New Class Coming Soon",
+      content: "더 풍성하고 다채로운 레시피가 곧 공개됩니다.",
+      imageUrl: cakeImg,
+      url: "",
+      isActive: true,
+      isDefault: true,
+      isComingSoon: true
+    }
+  ];
 
   // Slideshow auto-play
   useEffect(() => {
@@ -618,10 +640,10 @@ function HomePage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-0 bg-white rounded-none h-auto md:h-[450px]">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-0 bg-white rounded-none md:rounded-xl border-t border-b md:border border-zinc-200 overflow-visible md:overflow-hidden h-auto md:h-[450px]">
                     
                     {/* Left Column: Focused Interactive Image Banner */}
-                    <div className="md:col-span-2 relative bg-white md:bg-zinc-50 flex flex-col md:h-full rounded-none group overflow-visible md:overflow-hidden">
+                    <div className="md:col-span-2 relative bg-white md:bg-zinc-50 flex flex-col md:h-full rounded-none group overflow-visible md:overflow-hidden md:border-r md:border-zinc-200">
                       <AnimatePresence mode="wait">
                         <motion.div
                           key={currentSlide}
@@ -711,29 +733,84 @@ function HomePage() {
                               </p>
                             )}
                           </div>
+
+                          {/* Mobile Rectangular Tab Bar (Beautifully structured row) */}
+                          <div className="flex md:hidden w-full grid grid-cols-4 border border-zinc-200 rounded-lg overflow-hidden mt-3 h-[42px] bg-zinc-50 shadow-sm">
+                            {activeBanners.map((banner: any, idx) => {
+                              const isSelected = idx === currentSlide;
+                              return (
+                                <button
+                                  key={banner.id}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCurrentSlide(idx);
+                                  }}
+                                  className={`flex-1 py-1 text-center text-[10px] tracking-tight font-bold transition-all uppercase flex items-center justify-center focus:outline-none border-r border-zinc-200 last:border-r-0 ${
+                                    isSelected 
+                                      ? 'bg-zinc-950 text-white font-black' 
+                                      : 'bg-white text-zinc-500 hover:bg-zinc-50 font-medium'
+                                  }`}
+                                >
+                                  <span className="truncate px-0.5">
+                                    {banner.isComingSoon 
+                                      ? (lang === "KOR" ? "준비중" : "Soon")
+                                      : (lang === "KOR" 
+                                          ? (banner.title.includes("주문") 
+                                              ? "주문하기" 
+                                              : banner.title.includes("클래스") 
+                                                ? "온라인 클래스" 
+                                                : "네이버 스토어") 
+                                          : (banner.titleEn || banner.title).slice(0, 15))}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
                         </motion.div>
                       </AnimatePresence>
                     </div>
 
-                    {/* Right Column: Sleek Nav Tabs */}
-                    <div className="hidden md:flex md:col-span-1 flex-row md:flex-col justify-start bg-white p-4 md:p-6 gap-3 md:gap-4 overflow-x-auto md:overflow-x-visible h-full">
-                      {activeBanners.map((banner, idx) => {
+                    {/* Right Column: Sleek Nav Tabs (Integrated rectangular block height-matched panels) */}
+                    <div className="hidden md:flex md:col-span-1 flex-col justify-stretch bg-white overflow-hidden h-full divide-y divide-zinc-200">
+                      {activeBanners.map((banner: any, idx) => {
                         const isSelected = idx === currentSlide;
+                        const isComingSoon = banner.isComingSoon;
                         return (
                           <button
                             key={banner.id}
                             onClick={() => setCurrentSlide(idx)}
-                            className={`flex-1 md:flex-initial text-center px-4 py-3 md:py-5 transition-all duration-300 relative rounded-[32px] flex flex-col justify-center items-center gap-1.5 focus:outline-none min-w-[150px] md:min-w-0 md:h-[80px] border ${
+                            className={`flex-1 transition-all duration-300 relative rounded-none flex flex-col justify-center focus:outline-none w-full ${
+                              isComingSoon 
+                                ? "items-center text-center px-4 py-5" 
+                                : "items-start text-left px-8 py-5"
+                            } ${
                               isSelected 
-                                ? 'bg-white text-black border-zinc-650 shadow-md shadow-zinc-200' 
-                                : 'bg-white text-black border-zinc-200 hover:bg-zinc-50'
+                                ? "bg-zinc-950 text-white" 
+                                : "bg-white text-zinc-900 hover:bg-zinc-50"
                             }`}
                           >
-                            <div className="flex flex-col justify-center items-center gap-1.5 w-full">
-                              <h3 className={`text-[16px] md:text-[18px] tracking-tight text-center truncate w-full ${isSelected ? 'font-semibold' : 'font-medium'}`}>
-                                {lang === "KOR" ? banner.title : (banner.titleEn || banner.title)}
-                              </h3>
-                            </div>
+                            {isComingSoon ? (
+                              <div className="flex flex-col justify-center items-center w-full relative z-10">
+                                <span className={`text-[12px] font-black uppercase tracking-[0.25em] ${isSelected ? "text-white" : "text-zinc-400"}`}>
+                                  COMING SOON
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col justify-center items-start gap-1 w-full relative z-10">
+                                <span className={`text-[10px] font-bold uppercase tracking-widest ${isSelected ? "text-zinc-400" : "text-zinc-500"}`}>
+                                  {idx === 0 ? "01 / ORDER & SHOP" : idx === 1 ? "02 / ONLINE CLASS" : "03 / ONLINE STORE"}
+                                </span>
+                                <h3 className={`text-[14px] lg:text-[15px] tracking-tight truncate w-full mt-1.5 ${isSelected ? "font-bold text-white" : "font-semibold text-zinc-900"}`}>
+                                  {lang === "KOR" ? banner.title : (banner.titleEn || banner.title)}
+                                </h3>
+                                {banner.content && (
+                                  <p className={`text-[11px] tracking-tight mt-1 line-clamp-1 w-full leading-relaxed ${isSelected ? "text-zinc-300/90" : "text-zinc-500"}`}>
+                                    {banner.content}
+                                  </p>
+                                )}
+                              </div>
+                            )}
                           </button>
                         );
                       })}
@@ -1473,118 +1550,7 @@ function HomePage() {
           )}
         </AnimatePresence>
 
-        {/* Dynamic Learning Classroom Modal popup */}
-        <AnimatePresence>
-          {activeLearningClass && (
-            <>
-              {/* Backdrop */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setActiveLearningClass(null)}
-                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10000]"
-              />
 
-              {/* Classroom Overlay Panel */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 15 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 15 }}
-                className="fixed inset-4 md:inset-x-12 md:inset-y-16 lg:max-w-4xl lg:mx-auto bg-zinc-950 text-white rounded-[28px] overflow-hidden shadow-2xl z-[10001] flex flex-col border border-zinc-800 font-sans"
-              >
-                {/* Classroom Header */}
-                <div className="bg-zinc-900 border-b border-zinc-850 px-6 py-5 flex items-center justify-between shrink-0">
-                  <div className="flex items-center gap-2.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">PUIMA ONLINE MASTERCLASS</h4>
-                  </div>
-                  <button 
-                    onClick={() => setActiveLearningClass(null)}
-                    className="p-1 text-zinc-500 hover:text-white rounded-full hover:bg-zinc-850 transition-colors cursor-pointer"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-
-                {/* Main Content Areas */}
-                <div className="flex-1 overflow-y-auto flex flex-col md:flex-row min-h-0 bg-zinc-950">
-                  
-                  {/* Video Simulator Container */}
-                  <div className="w-full md:w-3/5 bg-black p-4 flex flex-col justify-between aspect-video md:aspect-auto border-r border-zinc-900 relative">
-                    <div className="absolute inset-0 bg-zinc-900 flex items-center justify-center opacity-95">
-                      <div className="text-center p-6 space-y-4">
-                        <BookOpen size={48} className="mx-auto text-zinc-600 animate-bounce" />
-                        <div className="space-y-1.5">
-                          <p className="text-sm font-bold text-white tracking-tight">시그니처 비디오 강의 아카이브를 로드 중입니다.</p>
-                          <p className="text-[11px] text-zinc-500 max-w-[320px] mx-auto leading-relaxed">
-                            온라인 수강권 인가가 정상 확인되었습니다. 고화질 실습 자료 및 조리 과학 이론에 입각한 4K 자막 비디오를 즉시 재생하실 수 있습니다.
-                          </p>
-                        </div>
-                        <button className="bg-white text-black px-6 py-2.5 rounded-full text-[10px] font-black hover:bg-zinc-200 transition-colors uppercase tracking-widest cursor-pointer shadow">
-                          강의 재생하기 (Play Video)
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Syllabus chapters lists */}
-                  <div className="w-full md:w-2/5 p-6 flex flex-col bg-zinc-905 overflow-y-auto max-h-[300px] md:max-h-none border-t md:border-t-0 border-zinc-850">
-                    <div className="mb-4 text-left">
-                      <span className="text-[9px] bg-zinc-800 text-zinc-400 border border-zinc-700 font-bold tracking-widest uppercase px-2.5 py-1 rounded-full">{activeLearningClass.category}</span>
-                      <h3 className="text-sm font-extrabold text-white tracking-tight mt-2.5">{activeLearningClass.title}</h3>
-                      <p className="text-[10px] text-zinc-500 font-medium mt-1">지도: 최수연 아틀리에 마스터 (Puima Master)</p>
-                    </div>
-
-                    <div className="border-t border-zinc-800 pt-4 flex-1 space-y-3.5">
-                      <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-650 text-left">실시간 파티세리 커리큘럼</h4>
-                      
-                      <div className="space-y-2.5 text-left text-xs font-semibold">
-                        <div className="bg-zinc-900 p-3 rounded-xl border border-zinc-850 flex items-center gap-3.5">
-                          <div className="w-6 h-6 bg-zinc-850 border border-zinc-800 text-zinc-400 flex items-center justify-center rounded-lg text-[10px] font-black font-mono shrink-0">01</div>
-                          <div className="min-w-0">
-                            <p className="text-white truncate text-[11px]">파티세리 오리엔테이션 및 밀가루 배합과학</p>
-                            <span className="text-[10px] text-zinc-500 font-mono font-medium">25분 분량 고화질 촬영본</span>
-                          </div>
-                        </div>
-
-                        <div className="bg-zinc-900 p-3 rounded-xl border border-zinc-850 flex items-center gap-3.5">
-                          <div className="w-6 h-6 bg-zinc-850 border border-zinc-800 text-zinc-400 flex items-center justify-center rounded-lg text-[10px] font-black font-mono shrink-0">02</div>
-                          <div className="min-w-0">
-                            <p className="text-white truncate text-[11px]">수분율(Hydration)에 따른 팽창 시뮬레이션</p>
-                            <span className="text-[10px] text-emerald-400 font-medium font-mono">45분 핵심 비법 코스</span>
-                          </div>
-                        </div>
-
-                        <div className="bg-zinc-900 p-3 rounded-xl border border-zinc-850 flex items-center gap-3.5">
-                          <div className="w-6 h-6 bg-zinc-850 border border-zinc-800 text-zinc-400 flex items-center justify-center rounded-lg text-[10px] font-black font-mono shrink-0">03</div>
-                          <div className="min-w-0">
-                            <p className="text-white truncate text-[11px]">천연 버터 향미 극대화 및 미각 시그니처 연출</p>
-                            <span className="text-[10px] text-zinc-500 font-mono font-medium">35분 심사 전수 가이드</span>
-                          </div>
-                        </div>
-
-                        <div className="bg-zinc-900 p-3 rounded-xl border border-zinc-850 flex items-center gap-3.5 opacity-60">
-                          <div className="w-6 h-6 bg-zinc-850 border border-zinc-800 text-zinc-400 flex items-center justify-center rounded-lg text-[10px] font-black font-mono shrink-0">04</div>
-                          <div className="min-w-0">
-                            <p className="text-white truncate text-[11px]">질문 답변(Q&A) 및 졸업 피드백 세션</p>
-                            <span className="text-[10px] text-zinc-500 font-mono font-medium font-medium">서면 제출 기반 맞춤 피드백</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Footer specs */}
-                <div className="bg-zinc-900 border-t border-zinc-850 px-6 py-4 flex items-center justify-between shrink-0 text-[10px] font-bold text-zinc-650">
-                  <span className="font-mono">수강 정보 식별: {activeLearningClass.purchaseNo}</span>
-                  <span>모든 영상자료의 무단 도용 및 복제를 엄격히 금지합니다.</span>
-                </div>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
       </div>
     </div>
   </div>
@@ -1681,10 +1647,10 @@ const AnalyticsTracker = () => {
   return null;
 };
 
-export default function App() {
+function AppContent() {
+  const { activeLearningClass, setActiveLearningClass } = useAuth();
   return (
-    <AuthProvider>
-      <AnalyticsTracker />
+    <>
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route 
@@ -1698,7 +1664,137 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/notice" element={<NoticePage />} />
         <Route path="/question" element={<Question />} />
+        <Route 
+          path="/my-classes" 
+          element={
+            <ProtectedRoute>
+              <MyClasses />
+            </ProtectedRoute>
+          } 
+        />
       </Routes>
+
+      {/* Dynamic Learning Classroom Modal popup */}
+      <AnimatePresence>
+        {activeLearningClass && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setActiveLearningClass(null)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10000]"
+            />
+
+            {/* Classroom Overlay Panel */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="fixed inset-4 md:inset-x-12 md:inset-y-16 lg:max-w-4xl lg:mx-auto bg-zinc-950 text-white rounded-[28px] overflow-hidden shadow-2xl z-[10001] flex flex-col border border-zinc-800 font-sans"
+            >
+              {/* Classroom Header */}
+              <div className="bg-zinc-900 border-b border-zinc-850 px-6 py-5 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse bg-emerald-500"></span>
+                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 font-sans">PUIMA ONLINE MASTERCLASS</h4>
+                </div>
+                <button 
+                  onClick={() => setActiveLearningClass(null)}
+                  className="p-1 text-zinc-500 hover:text-white rounded-full hover:bg-zinc-850 transition-colors cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Main Content Areas */}
+              <div className="flex-1 overflow-y-auto flex flex-col md:flex-row min-h-0 bg-zinc-950">
+                
+                {/* Video Simulator Container */}
+                <div className="w-full md:w-3/5 bg-black p-4 flex flex-col justify-between aspect-video md:aspect-auto border-r border-zinc-900 relative">
+                  <div className="absolute inset-0 bg-zinc-900 flex items-center justify-center opacity-95">
+                    <div className="text-center p-6 space-y-4">
+                      <BookOpen size={48} className="mx-auto text-zinc-650 animate-bounce" />
+                      <div className="space-y-1.5">
+                        <p className="text-sm font-bold text-white tracking-tight">시그니처 비디오 강의 아카이브를 로드 중입니다.</p>
+                        <p className="text-[11px] text-zinc-500 max-w-[320px] mx-auto leading-relaxed">
+                          온라인 수강권 인가가 정상 확인되었습니다. 고화질 실습 자료 및 조리 과학 이론에 입각한 4K 자막 비디오를 즉시 재생하실 수 있습니다.
+                        </p>
+                      </div>
+                      <button className="bg-white text-black px-6 py-2.5 rounded-full text-[10px] font-black hover:bg-zinc-200 transition-colors uppercase tracking-widest cursor-pointer shadow">
+                        강의 재생하기 (Play Video)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Syllabus chapters lists */}
+                <div className="w-full md:w-2/5 p-6 flex flex-col bg-zinc-905 overflow-y-auto max-h-[300px] md:max-h-none border-t md:border-t-0 border-zinc-850">
+                  <div className="mb-4 text-left">
+                    <span className="text-[9px] bg-zinc-800 text-zinc-400 border border-zinc-700 font-bold tracking-widest uppercase px-2.5 py-1 rounded-full">{activeLearningClass.category}</span>
+                    <h3 className="text-sm font-extrabold text-white tracking-tight mt-2.5">{activeLearningClass.title}</h3>
+                    <p className="text-[10px] text-zinc-500 font-medium mt-1">지도: 최수연 아틀리에 마스터 (Puima Master)</p>
+                  </div>
+
+                  <div className="border-t border-zinc-800 pt-4 flex-1 space-y-3.5">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-650 text-left">실시간 파티세리 커리큘럼</h4>
+                    
+                    <div className="space-y-2.5 text-left text-xs font-semibold">
+                      <div className="bg-zinc-900 p-3 rounded-xl border border-zinc-850 flex items-center gap-3.5">
+                        <div className="w-6 h-6 bg-zinc-850 border border-zinc-800 text-zinc-400 flex items-center justify-center rounded-lg text-[10px] font-black font-mono shrink-0">01</div>
+                        <div className="min-w-0">
+                          <p className="text-white truncate text-[11px]">파티세리 오리엔테이션 및 밀가루 배합과학</p>
+                          <span className="text-[10px] text-zinc-500 font-mono font-medium">25분 분량 고화질 촬영본</span>
+                        </div>
+                      </div>
+
+                      <div className="bg-zinc-900 p-3 rounded-xl border border-zinc-850 flex items-center gap-3.5">
+                        <div className="w-6 h-6 bg-zinc-850 border border-zinc-800 text-zinc-400 flex items-center justify-center rounded-lg text-[10px] font-black font-mono shrink-0">02</div>
+                        <div className="min-w-0">
+                          <p className="text-white truncate text-[11px]">수분율(Hydration)에 따른 팽창 시뮬레이션</p>
+                          <span className="text-[10px] text-emerald-400 font-medium font-mono">45분 핵심 비법 코스</span>
+                        </div>
+                      </div>
+
+                      <div className="bg-zinc-900 p-3 rounded-xl border border-zinc-850 flex items-center gap-3.5">
+                        <div className="w-6 h-6 bg-zinc-850 border border-zinc-800 text-zinc-400 flex items-center justify-center rounded-lg text-[10px] font-black font-mono shrink-0">03</div>
+                        <div className="min-w-0">
+                          <p className="text-white truncate text-[11px]">천연 버터 향미 극대화 및 미각 시그니처 연출</p>
+                          <span className="text-[10px] text-zinc-500 font-mono font-medium">35분 심사 전수 가이드</span>
+                        </div>
+                      </div>
+
+                      <div className="bg-zinc-900 p-3 rounded-xl border border-zinc-850 flex items-center gap-3.5 opacity-60">
+                        <div className="w-6 h-6 bg-zinc-850 border border-zinc-800 text-zinc-400 flex items-center justify-center rounded-lg text-[10px] font-black font-mono shrink-0">04</div>
+                        <div className="min-w-0">
+                          <p className="text-white truncate text-[11px]">질문 답변(Q&A) 및 졸업 피드백 세션</p>
+                          <span className="text-[10px] text-zinc-500 font-mono font-medium">서면 제출 기반 맞춤 피드백</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer specs */}
+              <div className="bg-zinc-900 border-t border-zinc-850 px-6 py-4 flex items-center justify-between shrink-0 text-[10px] font-bold text-zinc-650">
+                <span className="font-mono">수강 정보 식별: {activeLearningClass.purchaseNo}</span>
+                <span>모든 영상자료의 무단 도용 및 복제를 엄격히 금지합니다.</span>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </ AnimatePresence>
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AnalyticsTracker />
+      <AppContent />
     </AuthProvider>
   );
 }

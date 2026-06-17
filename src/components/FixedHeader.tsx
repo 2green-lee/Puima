@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { Youtube, Instagram, User } from "lucide-react";
+import { Youtube, Instagram, User, BookOpen, Settings, LogOut, ChevronDown } from "lucide-react";
 import { auth } from "../lib/firebase";
 import { signOut } from "firebase/auth";
 
@@ -9,6 +9,7 @@ export function FixedHeader({ handleBackToHome }: { handleBackToHome?: () => voi
   const { user, userProfile, lang, setLang, setIsProfileOpen } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const handleLogoClick = () => {
     if (handleBackToHome) {
@@ -20,11 +21,28 @@ export function FixedHeader({ handleBackToHome }: { handleBackToHome?: () => voi
   };
 
   const handleMyPageClick = () => {
+    setDropdownOpen(!dropdownOpen);
+  };
+
+  const handleGoToMyClasses = () => {
+    setDropdownOpen(false);
+    navigate("/my-classes");
+  };
+
+  const handleOpenProfileDrawer = () => {
+    setDropdownOpen(false);
     if (location.pathname !== "/") {
       navigate("/?profile=true");
     } else {
       setIsProfileOpen(true);
     }
+  };
+
+  const handleLogoutAction = () => {
+    setDropdownOpen(false);
+    signOut(auth);
+    localStorage.removeItem("admin_bypass");
+    window.location.reload();
   };
 
   return (
@@ -82,18 +100,63 @@ export function FixedHeader({ handleBackToHome }: { handleBackToHome?: () => voi
           </div>
 
           {user ? (
-            <div className="flex items-center gap-1.5 md:gap-2.5 select-none text-[11px] md:text-xs">
+            <div className="relative flex items-center gap-1.5 md:gap-2.5 select-none text-[11px] md:text-xs">
               <button 
                 onClick={handleMyPageClick}
-                className="inline-flex items-center gap-1 text-zinc-700 hover:text-black font-semibold tracking-tight transition-colors cursor-pointer border border-zinc-200 rounded-full px-2 py-0.5 md:py-1 md:px-3 bg-zinc-50/50 hover:bg-zinc-100/50"
+                className="inline-flex items-center gap-1 text-zinc-700 hover:text-black font-semibold tracking-tight transition-colors cursor-pointer border border-zinc-200 rounded-full px-2 py-1 md:py-1.5 md:px-3 bg-zinc-50/50 hover:bg-zinc-100/50"
                 id="bar-profile"
               >
                 <User size={13} className="text-zinc-400" />
-                <span className="max-w-[50px] sm:max-w-[90px] truncate">
+                <span className="max-w-[50px] sm:max-w-[90px] truncate font-extrabold">
                   {userProfile?.nickname || user.displayName || user.email?.split('@')[0]}
                 </span>
                 <span className="text-zinc-400 font-medium text-[10px]">님</span>
+                <ChevronDown size={11} className={`text-zinc-400 transition-transform ${dropdownOpen ? "rotate-180" : ""}`} />
               </button>
+
+              {/* Outside Click Invisible Backdrop */}
+              {dropdownOpen && (
+                <div 
+                  className="fixed inset-0 z-40 bg-transparent" 
+                  onClick={() => setDropdownOpen(false)}
+                />
+              )}
+
+              {/* Dropdown Menu Container */}
+              {dropdownOpen && (
+                <div className="absolute right-0 top-full mt-2 w-44 bg-white border border-zinc-150 rounded-2xl shadow-xl z-50 py-2.5 animate-fadeIn font-sans text-left">
+                  <div className="px-4 py-2 border-b border-zinc-50 mb-1.5 shrink-0 select-none">
+                    <p className="text-[9px] font-black tracking-widest text-zinc-400 uppercase leading-none mb-1">My Account</p>
+                    <p className="text-[11px] font-bold text-black truncate">{user.email}</p>
+                  </div>
+
+                  <button
+                    onClick={handleGoToMyClasses}
+                    className="w-full px-4 py-2 text-xs font-extrabold text-zinc-700 hover:text-black hover:bg-zinc-50 transition-colors flex items-center gap-2 cursor-pointer text-left"
+                  >
+                    <BookOpen size={13} className="text-zinc-400" />
+                    <span>나의 수강 강의</span>
+                  </button>
+
+                  <button
+                    onClick={handleOpenProfileDrawer}
+                    className="w-full px-4 py-2 text-xs font-extrabold text-zinc-700 hover:text-black hover:bg-zinc-50 transition-colors flex items-center gap-2 cursor-pointer text-left"
+                  >
+                    <Settings size={13} className="text-zinc-400" />
+                    <span>내 정보 수정</span>
+                  </button>
+
+                  <div className="h-px bg-zinc-100 my-1.5" />
+
+                  <button
+                    onClick={handleLogoutAction}
+                    className="w-full px-4 py-2 text-xs font-extrabold text-red-650 hover:text-red-750 hover:bg-red-50/30 transition-colors flex items-center gap-2 cursor-pointer text-left"
+                  >
+                    <LogOut size={13} className="text-red-400" />
+                    <span>로그아웃</span>
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="flex items-center gap-1.5 md:gap-3 select-none text-[11px] md:text-xs">
