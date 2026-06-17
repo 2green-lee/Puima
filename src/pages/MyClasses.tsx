@@ -102,7 +102,7 @@ export default function MyClasses() {
           <div className="mb-10 text-left">
             <button
               onClick={() => navigate("/")}
-              className="text-zinc-400 hover:text-black transition-colors text-xs font-normal tracking-widest inline-flex items-center gap-1.5 cursor-pointer uppercase"
+              className="text-zinc-400 hover:text-black transition-colors text-xs font-medium tracking-widest inline-flex items-center gap-1.5 cursor-pointer uppercase"
             >
               <ArrowLeft size={14} />
               <span>메인 홈페이지로 돌아가기</span>

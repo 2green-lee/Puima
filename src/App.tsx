@@ -15,6 +15,7 @@ import Admin from "./pages/Admin";
 import Login from "./pages/Login";
 import Question from "./pages/Question";
 import MyClasses from "./pages/MyClasses";
+import AdLanding from "./pages/AdLanding";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { initGA, trackPageView } from "./utils/analytics";
 import { FixedHeader } from "./components/FixedHeader";
@@ -1664,6 +1665,7 @@ function AppContent() {
         <Route path="/login" element={<Login />} />
         <Route path="/notice" element={<NoticePage />} />
         <Route path="/question" element={<Question />} />
+        <Route path="/ad" element={<AdLanding />} />
         <Route 
           path="/my-classes" 
           element={
@@ -1692,7 +1694,7 @@ function AppContent() {
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="fixed inset-4 md:inset-x-12 md:inset-y-16 lg:max-w-4xl lg:mx-auto bg-zinc-950 text-white rounded-[28px] overflow-hidden shadow-2xl z-[10001] flex flex-col border border-zinc-800 font-sans"
+              className="fixed inset-[50px] bg-zinc-950 text-white rounded-[28px] overflow-hidden shadow-2xl z-[10001] flex flex-col border border-zinc-800 font-sans"
             >
               {/* Classroom Header */}
               <div className="bg-zinc-900 border-b border-zinc-850 px-6 py-5 flex items-center justify-between shrink-0">
