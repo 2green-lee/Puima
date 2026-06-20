@@ -4,6 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { Youtube, Instagram, User, BookOpen, Settings, LogOut, ChevronDown } from "lucide-react";
 import { auth } from "../lib/firebase";
 import { signOut } from "firebase/auth";
+import { translate } from "../utils/translate";
 
 export function FixedHeader({ handleBackToHome }: { handleBackToHome?: () => void }) {
   const { user, userProfile, lang, setLang, setIsProfileOpen } = useAuth();
@@ -31,11 +32,7 @@ export function FixedHeader({ handleBackToHome }: { handleBackToHome?: () => voi
 
   const handleOpenProfileDrawer = () => {
     setDropdownOpen(false);
-    if (location.pathname !== "/") {
-      navigate("/?profile=true");
-    } else {
-      setIsProfileOpen(true);
-    }
+    navigate("/profile");
   };
 
   const handleLogoutAction = () => {
@@ -110,7 +107,7 @@ export function FixedHeader({ handleBackToHome }: { handleBackToHome?: () => voi
                 <span className="max-w-[50px] sm:max-w-[90px] truncate font-extrabold">
                   {userProfile?.nickname || user.displayName || user.email?.split('@')[0]}
                 </span>
-                <span className="text-zinc-400 font-medium text-[10px]">님</span>
+                <span className="text-zinc-400 font-medium text-[10px]">{translate("님", lang)}</span>
                 <ChevronDown size={11} className={`text-zinc-400 transition-transform ${dropdownOpen ? "rotate-180" : ""}`} />
               </button>
 
@@ -135,7 +132,7 @@ export function FixedHeader({ handleBackToHome }: { handleBackToHome?: () => voi
                     className="w-full px-4 py-2 text-xs font-extrabold text-zinc-700 hover:text-black hover:bg-zinc-50 transition-colors flex items-center gap-2 cursor-pointer text-left"
                   >
                     <BookOpen size={13} className="text-zinc-400" />
-                    <span>나의 수강 강의</span>
+                    <span>{translate("나의 수강 강의", lang)}</span>
                   </button>
 
                   <button
@@ -143,7 +140,7 @@ export function FixedHeader({ handleBackToHome }: { handleBackToHome?: () => voi
                     className="w-full px-4 py-2 text-xs font-extrabold text-zinc-700 hover:text-black hover:bg-zinc-50 transition-colors flex items-center gap-2 cursor-pointer text-left"
                   >
                     <Settings size={13} className="text-zinc-400" />
-                    <span>내 정보 수정</span>
+                    <span>{translate("내 정보 수정", lang)}</span>
                   </button>
 
                   <div className="h-px bg-zinc-100 my-1.5" />
@@ -153,30 +150,12 @@ export function FixedHeader({ handleBackToHome }: { handleBackToHome?: () => voi
                     className="w-full px-4 py-2 text-xs font-extrabold text-red-650 hover:text-red-750 hover:bg-red-50/30 transition-colors flex items-center gap-2 cursor-pointer text-left"
                   >
                     <LogOut size={13} className="text-red-400" />
-                    <span>로그아웃</span>
+                    <span>{translate("로그아웃", lang)}</span>
                   </button>
                 </div>
               )}
             </div>
-          ) : (
-            <div className="flex items-center gap-1.5 md:gap-3 select-none text-[11px] md:text-xs">
-              <button 
-                onClick={() => navigate('/login', { state: { from: location.pathname, mode: 'signup' } })}
-                className="hidden md:inline text-zinc-400 hover:text-black transition-colors cursor-pointer font-extrabold"
-                id="bar-signup"
-              >
-                {lang === "KOR" ? "회원가입" : "JOIN"}
-              </button>
-              <span className="hidden md:inline text-zinc-200">/</span>
-              <button 
-                onClick={() => navigate('/login', { state: { from: location.pathname, mode: 'login' } })}
-                className="text-zinc-650 hover:text-black transition-colors cursor-pointer uppercase text-[10px] md:text-xs border border-zinc-300 md:border-none rounded-full px-2.5 py-1 md:p-0 font-extrabold"
-                id="bar-login"
-              >
-                {lang === "KOR" ? "로그인" : "LOGIN"}
-              </button>
-            </div>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

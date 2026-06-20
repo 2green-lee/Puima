@@ -92,6 +92,36 @@ export default function MyClasses() {
 
   const enrolledList = userProfile?.enrolledClasses || [];
 
+  const getDates = (registeredAtStr?: string) => {
+    const regDateStr = registeredAtStr || new Date().toISOString().split("T")[0];
+    const start = new Date(regDateStr);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 90); // 90 days enrollment
+    
+    // Now get local today or matching today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const endZero = new Date(end);
+    endZero.setHours(0, 0, 0, 0);
+    
+    const diffTime = endZero.getTime() - today.getTime();
+    const diffDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    
+    const formatDate = (d: Date) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    
+    return {
+      start: formatDate(start),
+      end: formatDate(end),
+      daysLeft: diffDays
+    };
+  };
+
   return (
     <div className="min-h-screen bg-white flex flex-col items-center selection:bg-black selection:text-white pt-[60px] md:pt-[100px] md:min-w-[1100px]">
       <FixedHeader />
@@ -171,55 +201,62 @@ export default function MyClasses() {
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4">
-                {enrolledList.map((item: any, i: number) => (
-                  <div 
-                    key={item.id || i} 
-                    className="bg-white border border-zinc-200 hover:border-black rounded-2xl p-5 md:p-6 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-6 transition-all shadow-sm"
-                  >
-                    <div className="flex items-center gap-5 min-w-0 flex-1">
-                      {/* Image Preview */}
-                      <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-zinc-50 border border-zinc-100 overflow-hidden shrink-0">
-                        {item.imageUrl ? (
-                          <img src={item.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" alt={item.title} />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-[10px] text-zinc-400 font-bold bg-zinc-100">CLASS</div>
-                        )}
-                      </div>
+                {enrolledList.map((item: any, i: number) => {
+                  const dates = getDates(item.registeredAt);
+                  return (
+                    <div 
+                      key={item.id || i} 
+                      className="bg-white border border-zinc-200 hover:border-black rounded-2xl p-5 md:p-6 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-6 transition-all shadow-sm"
+                    >
+                      <div className="flex items-center gap-5 min-w-0 flex-1">
+                        {/* Image Preview */}
+                        <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-zinc-50 border border-zinc-100 overflow-hidden shrink-0">
+                          {item.imageUrl ? (
+                            <img src={item.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" alt={item.title} />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-[10px] text-zinc-400 font-bold bg-zinc-100">CLASS</div>
+                          )}
+                        </div>
 
-                      {/* Info Panel */}
-                      <div className="text-left min-w-0 flex-1">
-                        <span className="inline-block px-2.5 py-1 bg-zinc-100 rounded-full text-[9px] font-black text-black uppercase tracking-widest mb-2 leading-none">
-                          {item.category || "Masterclass"}
-                        </span>
-                        <h3 className="font-bold text-base md:text-lg text-zinc-900 leading-snug truncate" title={item.title}>
-                          {item.title}
-                        </h3>
-                        
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-3 text-xs text-zinc-450 font-medium">
-                          <span className="flex items-center gap-1">
-                            <Clipboard size={13} className="text-zinc-400" />
-                            <span>주문번호 : <strong className="font-mono text-zinc-700">{item.purchaseNo || "PM-0000"}</strong></span>
+                        {/* Info Panel */}
+                        <div className="text-left min-w-0 flex-1">
+                          <span className="inline-block px-2.5 py-1 bg-zinc-100 rounded-full text-[9px] font-black text-black uppercase tracking-widest mb-2 leading-none">
+                            {item.category || "Masterclass"}
                           </span>
-                          <span className="text-zinc-200 hidden md:inline">|</span>
-                          <span className="flex items-center gap-1">
-                            <Calendar size={13} className="text-zinc-400" />
-                            <span>등록일 : <strong className="font-mono text-zinc-700">{item.registeredAt}</strong></span>
-                          </span>
+                          <h3 className="font-bold text-base md:text-lg text-zinc-900 leading-snug truncate" title={item.title}>
+                            {item.title}
+                          </h3>
+                                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-3 text-xs text-zinc-450 font-medium">
+                            <span className="flex items-center gap-1">
+                              <Clipboard size={13} className="text-zinc-400" />
+                              <span>주문번호 : <strong className="font-mono text-zinc-700">{item.purchaseNo || "PM-0000"}</strong></span>
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Calendar size={13} className="text-zinc-400" />
+                              <span>
+                                강의 시작일 : <strong className="font-mono text-zinc-700">{dates.start}</strong>{" ~ "}
+                                강의 종료일 : <strong className="font-mono text-zinc-700">{dates.end}</strong>{" "}
+                                <span className={`ml-1 font-bold ${dates.daysLeft > 10 ? "text-emerald-600" : "text-rose-500"}`}>
+                                  ({String(dates.daysLeft).padStart(2, "0")}일 남음)
+                                </span>
+                              </span>
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Play Lecture Button */}
-                    <button
-                      type="button"
-                      onClick={() => setActiveLearningClass(item)}
-                      className="w-full md:w-auto px-6 py-4 bg-zinc-950 text-white hover:bg-black rounded-xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2 font-bold shrink-0 shadow"
-                    >
-                      <Play size={12} className="fill-white" />
-                      <span>강의 재생하기 (Study)</span>
-                    </button>
-                  </div>
-                ))}
+                      {/* Play Lecture Button */}
+                      <button
+                        type="button"
+                        onClick={() => setActiveLearningClass(item)}
+                        className="w-full md:w-auto px-6 py-3.5 bg-zinc-950 text-white hover:bg-black rounded-full text-xs font-black uppercase tracking-widest transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2 shrink-0 shadow hover:shadow-md border border-zinc-800"
+                      >
+                        <Play size={11} className="fill-white" />
+                        <span>강의 재생하기 (Study)</span>
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

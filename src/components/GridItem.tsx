@@ -1,6 +1,7 @@
 import { Star } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
+import { translate } from "../utils/translate";
 
 interface GridItemProps {
   key?: string | number;
@@ -39,7 +40,8 @@ export default function GridItem({
   const isWide = !uniform && (index + 1) % 7 === 0;  // Every 7th item is wider
   
   const displayImage = imageUrl || image;
-  const displayTitle = lang === "ENG" && titleEn ? titleEn : title;
+  const displayTitle = lang === "ENG" ? (titleEn || translate(title, "ENG")) : title;
+  const displayCategory = category ? (lang === "ENG" ? translate(category, "ENG") : category) : "";
 
   return (
     <motion.div 
@@ -85,9 +87,9 @@ export default function GridItem({
         <div className="mt-3 md:mt-6 px-1">
           <div className="flex flex-col sm:flex-row justify-between items-start gap-1 sm:gap-4">
             <div className="space-y-1 flex-1">
-              {category && (
+              {displayCategory && (
                 <span className="block text-[8px] md:text-[9px] font-black uppercase tracking-[0.25em] text-zinc-400">
-                  {category}
+                  {displayCategory}
                 </span>
               )}
               <h3 className="text-[10px] md:text-[14px] font-bold leading-tight tracking-tight text-zinc-900 group-hover:text-zinc-500 transition-colors">

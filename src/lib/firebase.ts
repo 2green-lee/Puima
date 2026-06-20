@@ -9,11 +9,18 @@ import {
   onAuthStateChanged
 } from 'firebase/auth';
 import { getFirestore, serverTimestamp } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase
+const configWithStorage = {
+  ...firebaseConfig,
+  storageBucket: "gen-lang-client-0688933242.firebasestorage.app"
+};
+const app = initializeApp(configWithStorage);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
+export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
 
 export const loginWithGoogle = () => signInWithPopup(auth, googleProvider);

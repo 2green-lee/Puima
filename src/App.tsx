@@ -16,9 +16,13 @@ import Login from "./pages/Login";
 import Question from "./pages/Question";
 import MyClasses from "./pages/MyClasses";
 import AdLanding from "./pages/AdLanding";
+import Profile from "./pages/Profile";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { initGA, trackPageView } from "./utils/analytics";
 import { FixedHeader } from "./components/FixedHeader";
+import { translate } from "./utils/translate";
+import { TranslatedText } from "./components/TranslatedText";
+import { SecureVerticalPlayer } from "./components/SecureVerticalPlayer";
 
 const ProtectedRoute = ({ children, adminOnly = false }: { children: React.ReactNode, adminOnly?: boolean }) => {
   const { user, loading, isAdmin } = useAuth();
@@ -97,7 +101,9 @@ interface ClassPost {
 interface Notice {
   id: string;
   title: string;
+  titleEn?: string;
   content: string;
+  contentEn?: string;
   isActive: boolean;
   url?: string;
   isBanner?: boolean;
@@ -195,6 +201,7 @@ function HomePage() {
   const [homeQuestions, setHomeQuestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [bannersLoading, setBannersLoading] = useState(true);
+  const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const navigate = useNavigate();
 
@@ -266,10 +273,9 @@ function HomePage() {
   // Set up ?profile=true listener
   useEffect(() => {
     if (searchParams.get("profile") === "true") {
-      setIsProfileOpen(true);
-      navigate("/", { replace: true });
+      navigate("/profile", { replace: true });
     }
-  }, [searchParams, setIsProfileOpen, navigate]);
+  }, [searchParams, navigate]);
 
   // Reset password verification when profile gets closed or tab changes
   useEffect(() => {
@@ -507,6 +513,10 @@ function HomePage() {
       setLoading(false);
     }, (error) => {
       console.error("Error fetching posts:", error);
+      const isQuota = error.message?.includes("Quota") || error.code === "resource-exhausted" || error.code === "permission-denied";
+      if (isQuota) {
+        setIsQuotaExceeded(true);
+      }
       setLoading(false);
     });
 
@@ -519,6 +529,13 @@ function HomePage() {
       setNotices(docs.filter(n => !n.isBanner));
       setBanners(docs.filter(n => n.isBanner));
       setBannersLoading(false);
+    }, (error) => {
+      console.error("Error fetching notices:", error);
+      const isQuota = error.message?.includes("Quota") || error.code === "resource-exhausted" || error.code === "permission-denied";
+      if (isQuota) {
+        setIsQuotaExceeded(true);
+      }
+      setBannersLoading(false);
     });
 
     const reviewsQ = query(collection(db, "reviews"), orderBy("createdAt", "desc"));
@@ -528,6 +545,12 @@ function HomePage() {
         ...doc.data()
       })) as StudentReview[];
       setReviews(docs);
+    }, (error) => {
+      console.error("Error fetching reviews:", error);
+      const isQuota = error.message?.includes("Quota") || error.code === "resource-exhausted" || error.code === "permission-denied";
+      if (isQuota) {
+        setIsQuotaExceeded(true);
+      }
     });
 
     const questionsQ = query(collection(db, "questions"), orderBy("createdAt", "desc"));
@@ -537,6 +560,12 @@ function HomePage() {
         ...doc.data()
       }));
       setHomeQuestions(docs);
+    }, (error) => {
+      console.error("Error fetching questions:", error);
+      const isQuota = error.message?.includes("Quota") || error.code === "resource-exhausted" || error.code === "permission-denied";
+      if (isQuota) {
+        setIsQuotaExceeded(true);
+      }
     });
 
     return () => {
@@ -557,7 +586,9 @@ function HomePage() {
     window.scrollTo(0, 0);
   };
 
-  const rawCategories = Array.from(new Set(posts.map(p => p.category?.trim().toUpperCase()).filter(Boolean) as string[]));
+  const displayPosts = (isQuotaExceeded && posts.length === 0) ? INITIAL_POSTS : posts;
+
+  const rawCategories = Array.from(new Set(displayPosts.map(p => p.category?.trim().toUpperCase()).filter(Boolean) as string[]));
   rawCategories.sort((a, b) => {
     const isMasterA = a === "MASTERCLASS" || a.includes("MASTER");
     const isMasterB = b === "MASTERCLASS" || b.includes("MASTER");
@@ -567,7 +598,7 @@ function HomePage() {
   });
   const categories = ["ALL", ...rawCategories];
 
-  const rawPublicPosts = posts.filter(post => {
+  const rawPublicPosts = displayPosts.filter(post => {
     const isPublic = post.status !== "hidden";
     const matchesCategory = selectedCategory === "ALL" || post.category?.toUpperCase() === selectedCategory;
     return isPublic && matchesCategory;
@@ -580,6 +611,32 @@ function HomePage() {
     <div className="min-h-screen bg-white selection:bg-black selection:text-white pt-[60px] md:pt-[100px] md:min-w-[1100px]">
       {/* Persistent Global Fixed Top Bar */}
       <FixedHeader handleBackToHome={handleBackToHome} />
+
+      {isQuotaExceeded && (
+        <div className="mx-auto max-w-[1100px] mt-[10px] md:mt-[20px] px-4 md:px-0">
+          <div className="p-5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-sm flex items-start gap-3 shadow-sm">
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="font-bold">Firestore 데이터베이스 일일 무료 사용량 초과 (Daily Quota Exceeded)</p>
+              <p className="text-xs text-amber-800 leading-relaxed">
+                현재 데이터베이스의 일일 무료 읽기 한도(Quota)가 모두 소진되어, 실시간 데이터 대신 **기본 레시피 및 강좌 목록**이 표시되고 있습니다.
+                실시간 데이터 조회 및 관리를 계속 진행하시려면 빌링 등록을 하시거나 일일 사용량이 초기화되기를 기다리셔야 합니다.
+              </p>
+              <div className="pt-2">
+                <a 
+                  href="https://console.firebase.google.com/project/gen-lang-client-0688933242/firestore/databases/ai-studio-343d78a5-2296-4394-b756-6432f5c52a72/data?openUpgradeDialog=true" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm"
+                >
+                  Firebase 콘솔에서 빌링/할당량 확인하기
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex justify-center px-4 md:px-12 lg:px-0 md:min-w-[1100px]">
         <div className="w-full max-w-[1100px] md:min-w-[1100px] bg-white text-black font-sans relative pt-[30px] md:pt-[100px]">
@@ -596,8 +653,12 @@ function HomePage() {
                     </div>
                   )}
                   <div className="flex flex-col gap-1 overflow-hidden">
-                    <span className="text-sm font-bold tracking-tight truncate text-black">{notices[0].title}</span>
-                    <span className="text-[11px] text-zinc-900 font-medium truncate">{notices[0].content}</span>
+                    <span className="text-sm font-bold tracking-tight truncate text-black">
+                      {lang === "ENG" && notices[0].titleEn ? notices[0].titleEn : <TranslatedText text={notices[0].title || ""} lang={lang} />}
+                    </span>
+                    <span className="text-[11px] text-zinc-900 font-medium truncate">
+                      {lang === "ENG" && notices[0].contentEn ? notices[0].contentEn : <TranslatedText text={notices[0].content || ""} lang={lang} />}
+                    </span>
                   </div>
                 </div>
                 <button 
@@ -609,15 +670,15 @@ function HomePage() {
               </div>
             )}
 
-        <AnimatePresence mode="wait">
-          {view === "landing" ? (
-            <motion.div
-              key="landing-content"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.6 }}
-            >
+            <AnimatePresence mode="wait">
+              {view === "landing" ? (
+                <motion.div
+                  key="landing-content"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.6 }}
+                >
 
               {/* Main Banner Heading */}
               <div className="px-6 md:px-0 flex justify-center items-center mb-[45px] md:mb-[70px] mt-4">
@@ -627,16 +688,20 @@ function HomePage() {
               {/* Premium Split Hero Banner (Left: Interactive Image, Right: Clean Navigation Tabs) */}
               <section className="mb-[85px] md:mb-[100px] mt-0 px-4 md:px-0">
                 {bannersLoading ? (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-0 bg-white rounded-none h-auto md:h-[450px]">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-0 bg-white rounded-none md:rounded-xl border-t border-b md:border border-zinc-200 overflow-hidden h-auto md:h-[450px]">
                     {/* Left Column Skeleton */}
-                    <div className="md:col-span-2 relative aspect-[16/9] md:aspect-auto md:h-full overflow-hidden bg-zinc-100 flex items-stretch rounded-none animate-pulse"></div>
+                    <div className="md:col-span-2 relative aspect-[16/9] md:aspect-auto md:h-full overflow-hidden bg-zinc-100 flex items-stretch rounded-none animate-pulse md:border-r md:border-zinc-200"></div>
                     {/* Right Column Skeleton */}
-                    <div className="hidden md:flex md:col-span-1 flex-row md:flex-col justify-start bg-white p-4 md:p-6 gap-3 md:gap-4 overflow-x-auto md:overflow-x-visible h-full animate-pulse">
+                    <div className="hidden md:flex md:col-span-1 flex-col justify-stretch bg-white overflow-hidden h-full divide-y divide-zinc-200 animate-pulse">
                       {[1, 2, 3].map((val) => (
                         <div 
                           key={val} 
-                          className="flex-1 md:flex-initial rounded-[35px] bg-zinc-50 border border-zinc-100 min-w-[150px] md:min-w-0 h-10 md:h-[80px]"
-                        />
+                          className="flex-1 flex flex-col justify-center items-start px-8 py-5 gap-2 bg-white"
+                        >
+                          <div className="h-2.5 bg-zinc-100 rounded w-20"></div>
+                          <div className="h-4 bg-zinc-100 rounded w-44 mt-1"></div>
+                          <div className="h-3 bg-zinc-100 rounded w-32 mt-0.5"></div>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -653,6 +718,10 @@ function HomePage() {
                           exit={{ opacity: 0 }}
                           transition={{ duration: 0.5, ease: "easeInOut" }}
                           onClick={() => {
+                            if (activeBanners[currentSlide]?.isComingSoon) {
+                              setCurrentSlide((prev) => (prev + 1) % activeBanners.length);
+                              return;
+                            }
                             const targetUrl = activeBanners[currentSlide]?.url;
                             if (targetUrl) {
                               if (targetUrl.startsWith('http')) {
@@ -697,43 +766,55 @@ function HomePage() {
                               <ChevronRight className="w-5 h-5 md:w-9 md:h-9 stroke-[2.5]" />
                             </button>
 
-                            {/* Banner Image */}
-                            <img 
-                              src={activeBanners[currentSlide]?.imageUrl} 
-                              alt={activeBanners[currentSlide]?.title}
-                              className="w-full h-full object-cover transition-transform duration-700 ease-out scale-100 group-hover:scale-105"
-                              referrerPolicy="no-referrer"
-                            />
-                            
-                            {/* Dark Gradient scrim on image (rendered only on desktop) */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-10 text-white hidden md:flex">
-                              <div className="max-w-[650px] space-y-2">
-                                <h2 className="text-[32px] font-black tracking-tight leading-tight drop-shadow-sm font-sans uppercase">
-                                  {lang === "KOR" 
-                                    ? activeBanners[currentSlide]?.title 
-                                    : (activeBanners[currentSlide]?.titleEn || activeBanners[currentSlide]?.title)}
-                                </h2>
-
-                                <p className="text-xs text-zinc-200/90 font-medium tracking-wide">
-                                  {activeBanners[currentSlide]?.content}
-                                </p>
+                            {activeBanners[currentSlide]?.isComingSoon ? (
+                              <div className="absolute inset-0 bg-zinc-950 flex flex-col justify-center items-center p-8 text-center text-white select-none">
+                                <span className="text-[28px] md:text-[40px] font-bold uppercase tracking-[0.3em] text-white font-sans pl-[0.3em]">
+                                  COMING SOON
+                                </span>
                               </div>
-                            </div>
+                            ) : (
+                              <>
+                                {/* Banner Image */}
+                                <img 
+                                  src={activeBanners[currentSlide]?.imageUrl} 
+                                  alt={activeBanners[currentSlide]?.title}
+                                  className="w-full h-full object-cover transition-transform duration-700 ease-out scale-100 group-hover:scale-105"
+                                  referrerPolicy="no-referrer"
+                                />
+                                
+                                {/* Dark Gradient scrim on image (rendered only on desktop) */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-10 text-white hidden md:flex">
+                                  <div className="max-w-[650px] space-y-2">
+                                    <h2 className="text-[32px] font-black tracking-tight leading-tight drop-shadow-sm font-sans uppercase">
+                                      {lang === "KOR" 
+                                        ? activeBanners[currentSlide]?.title 
+                                        : (activeBanners[currentSlide]?.titleEn || activeBanners[currentSlide]?.title)}
+                                    </h2>
+
+                                    <p className="text-xs text-zinc-200/90 font-medium tracking-wide">
+                                      {activeBanners[currentSlide]?.content}
+                                    </p>
+                                  </div>
+                                </div>
+                              </>
+                            )}
                           </div>
 
                           {/* Mobile Wording Space (below the image container) */}
-                          <div className="block md:hidden pt-4 pb-2 px-1 text-black">
-                            <h2 className="text-xl font-bold tracking-tight leading-tight font-sans uppercase text-zinc-900">
-                              {lang === "KOR" 
-                                ? activeBanners[currentSlide]?.title 
-                                : (activeBanners[currentSlide]?.titleEn || activeBanners[currentSlide]?.title)}
-                            </h2>
-                            {activeBanners[currentSlide]?.content && (
-                              <p className="text-xs text-zinc-500 font-medium tracking-wide mt-1.5 leading-relaxed">
-                                {activeBanners[currentSlide]?.content}
-                              </p>
-                            )}
-                          </div>
+                          {!activeBanners[currentSlide]?.isComingSoon && (
+                            <div className="block md:hidden pt-4 pb-2 px-1 text-black">
+                              <h2 className="text-xl font-bold tracking-tight leading-tight font-sans uppercase text-zinc-900">
+                                {lang === "KOR" 
+                                  ? activeBanners[currentSlide]?.title 
+                                  : (activeBanners[currentSlide]?.titleEn || activeBanners[currentSlide]?.title)}
+                              </h2>
+                              {activeBanners[currentSlide]?.content && (
+                                <p className="text-xs text-zinc-500 font-medium tracking-wide mt-1.5 leading-relaxed">
+                                  {activeBanners[currentSlide]?.content}
+                                </p>
+                              )}
+                            </div>
+                          )}
 
                           {/* Mobile Rectangular Tab Bar (Beautifully structured row) */}
                           <div className="flex md:hidden w-full grid grid-cols-4 border border-zinc-200 rounded-lg overflow-hidden mt-3 h-[42px] bg-zinc-50 shadow-sm">
@@ -780,7 +861,9 @@ function HomePage() {
                         return (
                           <button
                             key={banner.id}
-                            onClick={() => setCurrentSlide(idx)}
+                            onClick={() => {
+                              setCurrentSlide(idx);
+                            }}
                             className={`flex-1 transition-all duration-300 relative rounded-none flex flex-col justify-center focus:outline-none w-full ${
                               isComingSoon 
                                 ? "items-center text-center px-4 py-5" 
@@ -816,7 +899,6 @@ function HomePage() {
                         );
                       })}
                     </div>
-
                   </div>
                 )}
               </section>
@@ -829,7 +911,7 @@ function HomePage() {
               <main className="min-h-[600px] mb-8">
                 {loading ? (
                   <div className="py-32 flex flex-col items-center gap-4">
-                    <div className="w-8 h-8 border border-zinc-200 border-t-black rounded-full animate-spin"></div>
+                     <div className="w-8 h-8 border border-zinc-200 border-t-black rounded-full animate-spin"></div>
                   </div>
                 ) : (
                   <div className="grid grid-cols-3 md:grid-cols-4 gap-x-2 md:gap-x-8 gap-y-4 px-2 md:px-0">
@@ -859,7 +941,7 @@ function HomePage() {
                     onClick={handleLoadMore}
                     className="group flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-900 border-b border-zinc-900 pb-1 hover:text-zinc-400 hover:border-zinc-400 transition-all"
                   >
-                    더 많은 제품보러가기
+                    {translate("더 많은 제품보러가기", lang)}
                   </button>
                 </div>
               )}
@@ -868,21 +950,21 @@ function HomePage() {
               <section className="pb-24 bg-white pt-[50px] md:pt-24 border-t border-zinc-100/60">
                 <div className="px-6 md:px-0 flex flex-col justify-center items-center mb-[50px]">
                   <h2 className="text-[14px] font-normal uppercase tracking-[0.3em] text-black text-center mb-1">QUESTION</h2>
-                  <p className="text-zinc-400 text-[11px] font-bold uppercase tracking-wider text-center">푸이마에게 질문하세요</p>
+                  <p className="text-zinc-400 text-[11px] font-bold uppercase tracking-wider text-center">{translate("푸이마에게 질문하세요", lang)}</p>
                 </div>
 
                 <div className="max-w-[850px] mx-auto px-6">
                   {homeQuestions.length === 0 ? (
                     <div className="py-12 text-center border border-dashed border-zinc-200 rounded-xl bg-zinc-50/20">
                       <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">No questions registered yet.</p>
-                      <p className="text-zinc-400 text-[11px] font-semibold mt-1">푸이마 마스터에게 첫 번째 질문을 해보세요!</p>
+                      <p className="text-zinc-400 text-[11px] font-semibold mt-1">{translate("푸이마 마스터에게 첫 번째 질문을 해보세요!", lang)}</p>
                     </div>
                   ) : (
                     <div className="border border-zinc-200 rounded-xl overflow-hidden divide-y divide-zinc-100 bg-white shadow-sm/30">
                       {homeQuestions.slice(0, 5).map((q: any) => {
                         const hasAnswer = !!q.answer;
                         const maskName = (name: string) => {
-                          if (!name) return "익명";
+                          if (!name) return translate("익명", lang);
                           return name[0] + "**";
                         };
                         const formatDate = (isoStr: string) => {
@@ -908,11 +990,11 @@ function HomePage() {
                               {/* Status Badge */}
                               {hasAnswer ? (
                                 <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-700 shrink-0 uppercase tracking-wider">
-                                  답변 완료
+                                  {translate("답변 완료", lang)}
                                 </span>
                               ) : (
                                 <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-zinc-50 border border-zinc-200 text-zinc-400 shrink-0 uppercase tracking-wider">
-                                  답변 대기
+                                  {translate("답변 대기", lang)}
                                 </span>
                               )}
 
@@ -923,7 +1005,7 @@ function HomePage() {
                               )}
 
                               <span className="text-xs font-bold text-zinc-905 truncate leading-snug">
-                                {q.isPrivate ? "비밀글입니다." : q.title}
+                                {q.isPrivate ? translate("비밀글입니다.", lang) : q.title}
                               </span>
                             </div>
 
@@ -943,7 +1025,7 @@ function HomePage() {
                       onClick={() => { navigate('/question'); window.scrollTo(0, 0); }}
                       className="group flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-900 border-b border-zinc-900 pb-1 hover:text-zinc-400 hover:border-zinc-400 transition-all cursor-pointer"
                     >
-                      <span>질문하러가기</span>
+                      <span>{translate("질문하러가기", lang)}</span>
                     </button>
                   </div>
                 </div>
@@ -1030,7 +1112,7 @@ function HomePage() {
                             : "bg-white border-zinc-200 text-zinc-500 hover:border-zinc-400"
                         }`}
                       >
-                        {cat}
+                        {translate(cat, lang)}
                       </button>
                     );
                   })}
@@ -1048,10 +1130,10 @@ function HomePage() {
                           : "text-zinc-300 hover:text-zinc-600"
                       }`}
                     >
-                      {cat}
+                      {translate(cat, lang)}
                       {selectedCategory === cat && (
                         <motion.div 
-                          layoutId="activeCategory"
+                           layoutId="activeCategory"
                           className="absolute bottom-0 left-0 w-full h-[2px] bg-black"
                         />
                       )}
@@ -1093,7 +1175,7 @@ function HomePage() {
                   onClick={handleBackToHome}
                   className="group flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-900 border-b border-zinc-900 pb-1 hover:text-zinc-400 hover:border-zinc-400 transition-all cursor-pointer"
                 >
-                  돌아가기
+                  {translate("돌아가기", lang)}
                 </button>
               </div>
             </motion.div>
@@ -1107,19 +1189,19 @@ function HomePage() {
               <div className="space-y-4">
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Business Info</h4>
                 <div className="text-[11px] leading-relaxed text-zinc-600 space-y-1">
-                  <p><span className="text-zinc-400">상호명 :</span> 푸이마</p>
-                  <p><span className="text-zinc-400">대표자 :</span> 이근석</p>
-                  <p><span className="text-zinc-400">사업자등록번호 :</span> 139-07-65106</p>
-                  <p><span className="text-zinc-400">통신판매업번호 :</span> 2023-부산수영-0980</p>
+                  <p><span className="text-zinc-400">{translate("상호명", lang)} :</span> {translate("푸이마", lang)}</p>
+                  <p><span className="text-zinc-400">{translate("대표자", lang)} :</span> {translate("이근석", lang)}</p>
+                  <p><span className="text-zinc-400">{translate("사업자등록번호", lang)} :</span> 139-07-65106</p>
+                  <p><span className="text-zinc-400">{translate("통신판매업번호", lang)} :</span> 2023-부산수영-0980</p>
                 </div>
               </div>
 
               <div className="space-y-4">
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Contact & Address</h4>
                 <div className="text-[11px] leading-relaxed text-zinc-600 space-y-1">
-                  <p><span className="text-zinc-400">사업장 소재지 :</span> 부산광역시 수영구 수영로594번길 42 2층 풋잇인유어마우스 (우 : 48294)</p>
+                  <p><span className="text-zinc-400">{translate("사업장 소재지", lang)} :</span> {translate("부산광역시 수영구 수영로594번길 42 2층 풋잇인유어마우스 (우 : 48294)", lang)}</p>
                   <p><span className="text-zinc-400">e-mail :</span> putitinyourmouth@naver.com</p>
-                  <p><span className="text-zinc-400">호스팅 서비스 제공 :</span> Google Cloud / Vercel</p>
+                  <p><span className="text-zinc-400">{translate("호스팅 서비스 제공", lang)} :</span> Google Cloud / Vercel</p>
                 </div>
               </div>
 
@@ -1127,8 +1209,8 @@ function HomePage() {
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Customer Support</h4>
                 <div className="text-[11px] leading-relaxed text-zinc-600 space-y-1">
                   <p className="text-lg font-black text-black">010-9919-9620</p>
-                  <p><span className="text-zinc-400">운영시간 :</span> 평일 10:00 - 18:00 (주말/공휴일 제외)</p>
-                  <p><span className="text-zinc-400">점심시간 :</span> 12:30 - 13:30</p>
+                  <p><span className="text-zinc-400">{translate("운영시간", lang)} :</span> {translate("평일 10:00 - 18:00 (주말/공휴일 제외)", lang)}</p>
+                  <p><span className="text-zinc-400">{translate("점심시간", lang)} :</span> 12:30 - 13:30</p>
                 </div>
               </div>
             </div>
@@ -1145,9 +1227,9 @@ function HomePage() {
           </div>
         </footer>
 
-        {/* Profile Info Overlay Side-Drawer */}
+        {/* Profile Info Overlay Side-Drawer (now migrated to a dedicated page /profile) */}
         <AnimatePresence>
-          {isProfileOpen && (
+          {false && (
             <>
               {/* Backdrop */}
               <motion.div
@@ -1210,7 +1292,7 @@ function HomePage() {
                     }`}
                   >
                     <BookOpen size={14} />
-                    <span>수강 / 구매 내역</span>
+                    <span>{translate("수강 / 구매 내역", lang)}</span>
                   </button>
                   <button 
                     onClick={() => { setProfileTab("profile"); setProfileErrorMsg(""); setProfileSuccessMsg(""); }}
@@ -1221,7 +1303,7 @@ function HomePage() {
                     }`}
                   >
                     <User size={14} />
-                    <span>내 정보 수정</span>
+                    <span>{translate("내 정보 수정", lang)}</span>
                   </button>
                 </div>
 
@@ -1247,16 +1329,18 @@ function HomePage() {
                       {/* Course / Order history 목록 */}
                       <div className="space-y-3.5">
                         <div className="flex items-center justify-between">
-                          <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">나의 마스터클래스</h4>
-                          <span className="text-[10px] text-zinc-400 font-mono">총 {(userProfile?.enrolledClasses || []).length}개 강좌</span>
+                          <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">{translate("나의 마스터클래스", lang)}</h4>
+                          <span className="text-[10px] text-zinc-400 font-mono">
+                            {lang === "KOR" ? `총 ${(userProfile?.enrolledClasses || []).length}개 강좌` : `Total ${(userProfile?.enrolledClasses || []).length} courses`}
+                          </span>
                         </div>
 
                         {(!userProfile?.enrolledClasses || userProfile.enrolledClasses.length === 0) ? (
                           <div className="border border-dashed border-zinc-200 rounded-3xl p-8 text-center bg-zinc-50/30">
                             <ShoppingBag className="mx-auto text-zinc-300 mb-3" size={28} />
-                            <p className="text-xs font-bold text-zinc-650 mb-1">등록된 수강 클래스가 없습니다.</p>
+                            <p className="text-xs font-bold text-zinc-650 mb-1">{translate("등록된 수강 클래스가 없습니다.", lang)}</p>
                             <p className="text-[11px] text-zinc-400 leading-relaxed mb-4 max-w-[320px] mx-auto font-medium">
-                              수강을 시작하시려면 네이버 스마트스토어 혹은 외부 결제를 이용해 주세요. 아래 체험용 테스트를 바로 이용하실 수도 있습니다.
+                              {translate("수강을 시작하시려면 네이버 스마트스토어 혹은 외부 결제를 이용해 주세요. 아래 체험용 테스트를 바로 이용하실 수도 있습니다.", lang)}
                             </p>
                           </div>
                         ) : (
@@ -1273,15 +1357,15 @@ function HomePage() {
                                   </div>
                                   <div className="truncate text-left">
                                     <span className="inline-block px-2 py-0.5 bg-zinc-100 rounded-full text-[9px] font-black text-black uppercase tracking-widest mb-1 leading-none">
-                                      {item.category}
+                                      {translate(item.category, lang)}
                                     </span>
                                     <h5 className="font-extrabold text-xs text-zinc-900 truncate" title={item.title}>
-                                      {item.title}
+                                      {lang === "KOR" ? item.title : (item.titleEn || item.title)}
                                     </h5>
                                     <div className="flex items-center gap-2 mt-1 text-[10px] text-zinc-400 font-mono">
-                                      <span>주문: {item.purchaseNo || "PM-0000"}</span>
+                                      <span>{translate("주문", lang)}: {item.purchaseNo || "PM-0000"}</span>
                                       <span>/</span>
-                                      <span>수강일: {item.registeredAt}</span>
+                                      <span>{translate("수강일익", lang)}: {item.registeredAt}</span>
                                     </div>
                                   </div>
                                 </div>
@@ -1290,7 +1374,7 @@ function HomePage() {
                                   onClick={() => setActiveLearningClass(item)}
                                   className="px-3.5 py-2 bg-black text-white hover:bg-zinc-855 transition-colors text-[10px] font-black rounded-lg tracking-widest uppercase shrink-0 active:scale-95 cursor-pointer flex items-center gap-1.5"
                                 >
-                                  <span>학습하기</span>
+                                  <span>{translate("학습하기", lang)}</span>
                                 </button>
                               </div>
                             ))}
@@ -1298,14 +1382,14 @@ function HomePage() {
                         )}
                       </div>
 
-                      {/* 테스트용 신청 섹션 */}
+                      {/* 테스트용 신청 신청 섹션 */}
                       <div className="pt-6 border-t border-zinc-100 space-y-4">
                         <div className="space-y-1 text-left">
                           <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
-                            [체험 전용] 수강 신청 시뮬레이션
+                            {translate("[체험 전용] 수강 신청 시뮬레이션", lang)}
                           </h4>
                           <p className="text-[10px] text-zinc-400 font-semibold">
-                            아래 상품 카탈로그에서 바로 1-Click 수강 등록을 하여 학습 대시보드를 테스트하실 수 있습니다.
+                            {translate("아래 상품 카탈로그에서 바로 1-Click 수강 등록을 하여 학습 대시보드를 테스트하실 수 있습니다.", lang)}
                           </p>
                         </div>
 
@@ -1315,9 +1399,9 @@ function HomePage() {
                             return (
                               <div key={classPost.id} className="bg-zinc-50/50 hover:bg-zinc-100/50 rounded-xl p-3 border border-zinc-150 flex items-center justify-between gap-3 text-left">
                                 <div className="truncate">
-                                  <p className="text-[10px] font-mono text-zinc-400 tracking-wider uppercase leading-none mb-1">{classPost.category || "Class"}</p>
+                                  <p className="text-[10px] font-mono text-zinc-400 tracking-wider uppercase leading-none mb-1">{translate(classPost.category || "Class", lang)}</p>
                                   <h6 className="text-[11px] font-extrabold text-zinc-800 truncate" title={classPost.title}>
-                                    {classPost.title}
+                                    {lang === "KOR" ? classPost.title : (classPost.titleEn || classPost.title)}
                                   </h6>
                                 </div>
                                 <button
@@ -1330,7 +1414,7 @@ function HomePage() {
                                       : "bg-white text-zinc-800 border border-zinc-200 hover:border-black active:scale-95 cursor-pointer font-bold"
                                   }`}
                                 >
-                                  {isEnrolled ? "신청완료" : "수강신청"}
+                                  {isEnrolled ? translate("신청완료", lang) : translate("수강신청", lang)}
                                 </button>
                               </div>
                             );
@@ -1561,6 +1645,7 @@ function HomePage() {
 
 function NoticePage() {
   const navigate = useNavigate();
+  const { lang } = useAuth();
   const [notices, setNotices] = useState<Notice[]>([]);
 
   useEffect(() => {
@@ -1586,13 +1671,13 @@ function NoticePage() {
               onClick={() => navigate("/")}
               className="text-zinc-400 hover:text-black transition-colors text-xs font-bold tracking-tight inline-flex items-center gap-1.5 cursor-pointer"
             >
-              ← 돌아가기
+              ← {translate("돌아가기", lang)}
             </button>
           </div>
 
           <div className="mb-24">
             <h2 className="text-[120px] leading-[0.8] font-script tracking-tight mb-8">Notice</h2>
-            <p className="text-zinc-400 text-sm font-medium tracking-tight">푸이마 아틀리에의 소식과 공지사항을 안내드립니다.</p>
+            <p className="text-zinc-400 text-sm font-medium tracking-tight">{translate("푸이마 아틀리에의 소식과 공지사항을 안내드립니다.", lang)}</p>
           </div>
 
           <div className="space-y-px bg-zinc-200 border border-zinc-200">
@@ -1610,10 +1695,14 @@ function NoticePage() {
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-4 mb-3">
-                      <span className="text-[10px] font-mono text-zinc-300 uppercase tracking-widest">Announcement</span>
+                      <span className="text-[10px] font-mono text-zinc-300 uppercase tracking-widest">{lang === "ENG" ? "Announcement" : "공지사항"}</span>
                     </div>
-                    <h3 className="text-[20px] font-bold leading-tight group-hover:underline underline-offset-8 decoration-zinc-200">{notice.title}</h3>
-                    <p className="mt-3 text-zinc-400 text-[14px] leading-relaxed break-all whitespace-pre-wrap">{notice.content}</p>
+                    <h3 className="text-[20px] font-bold leading-tight group-hover:underline underline-offset-8 decoration-zinc-200">
+                      {lang === "ENG" && notice.titleEn ? notice.titleEn : <TranslatedText text={notice.title} lang={lang} />}
+                    </h3>
+                    <p className="mt-3 text-zinc-400 text-[14px] leading-relaxed break-all whitespace-pre-wrap">
+                      {lang === "ENG" && notice.contentEn ? notice.contentEn : <TranslatedText text={notice.content} lang={lang} />}
+                    </p>
                   </div>
                 </div>
                 {notice.url && (
@@ -1649,7 +1738,15 @@ const AnalyticsTracker = () => {
 };
 
 function AppContent() {
-  const { activeLearningClass, setActiveLearningClass } = useAuth();
+  const { activeLearningClass, setActiveLearningClass, user } = useAuth();
+  const [activeChapter, setActiveChapter] = useState(0);
+
+  useEffect(() => {
+    if (activeLearningClass) {
+      setActiveChapter(0);
+    }
+  }, [activeLearningClass]);
+
   return (
     <>
       <Routes>
@@ -1674,6 +1771,14 @@ function AppContent() {
             </ProtectedRoute>
           } 
         />
+        <Route 
+          path="/profile" 
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          } 
+        />
       </Routes>
 
       {/* Dynamic Learning Classroom Modal popup */}
@@ -1694,95 +1799,44 @@ function AppContent() {
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="fixed inset-[50px] bg-zinc-950 text-white rounded-[28px] overflow-hidden shadow-2xl z-[10001] flex flex-col border border-zinc-800 font-sans"
+              className="fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-[1100px] md:h-[85vh] bg-zinc-950 text-white rounded-[28px] overflow-hidden shadow-2xl z-[10001] flex flex-col border border-zinc-800 font-sans"
             >
               {/* Classroom Header */}
-              <div className="bg-zinc-900 border-b border-zinc-850 px-6 py-5 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-2.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse bg-emerald-500"></span>
-                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 font-sans">PUIMA ONLINE MASTERCLASS</h4>
+              <div className="bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 border-b border-zinc-900/80 px-6 py-4 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3.5">
+                  <div className="flex items-center px-2.5 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded text-[10px] font-black uppercase tracking-[0.15em] font-mono shadow-inner">
+                    {activeLearningClass.category || "MASTERCLASS"}
+                  </div>
+                  <div className="h-4 w-[1px] bg-zinc-800 hidden sm:block"></div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] hidden sm:block animate-pulse shrink-0" />
+                    <h2 className="text-[16px] sm:text-[18px] font-black tracking-tight leading-none">
+                      <span className="bg-clip-text text-transparent bg-gradient-to-r from-white via-zinc-100 to-zinc-300 font-black">
+                        {activeLearningClass.title}
+                      </span>
+                    </h2>
+                  </div>
                 </div>
-                <button 
+                <button
                   onClick={() => setActiveLearningClass(null)}
-                  className="p-1 text-zinc-500 hover:text-white rounded-full hover:bg-zinc-850 transition-colors cursor-pointer"
+                  className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-900 border border-transparent hover:border-zinc-800 transition-all cursor-pointer flex items-center justify-center p-2 hover:scale-105"
                 >
-                  <X size={18} />
+                  <X size={16} />
                 </button>
               </div>
 
-              {/* Main Content Areas */}
-              <div className="flex-1 overflow-y-auto flex flex-col md:flex-row min-h-0 bg-zinc-950">
-                
-                {/* Video Simulator Container */}
-                <div className="w-full md:w-3/5 bg-black p-4 flex flex-col justify-between aspect-video md:aspect-auto border-r border-zinc-900 relative">
-                  <div className="absolute inset-0 bg-zinc-900 flex items-center justify-center opacity-95">
-                    <div className="text-center p-6 space-y-4">
-                      <BookOpen size={48} className="mx-auto text-zinc-650 animate-bounce" />
-                      <div className="space-y-1.5">
-                        <p className="text-sm font-bold text-white tracking-tight">시그니처 비디오 강의 아카이브를 로드 중입니다.</p>
-                        <p className="text-[11px] text-zinc-500 max-w-[320px] mx-auto leading-relaxed">
-                          온라인 수강권 인가가 정상 확인되었습니다. 고화질 실습 자료 및 조리 과학 이론에 입각한 4K 자막 비디오를 즉시 재생하실 수 있습니다.
-                        </p>
-                      </div>
-                      <button className="bg-white text-black px-6 py-2.5 rounded-full text-[10px] font-black hover:bg-zinc-200 transition-colors uppercase tracking-widest cursor-pointer shadow">
-                        강의 재생하기 (Play Video)
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Syllabus chapters lists */}
-                <div className="w-full md:w-2/5 p-6 flex flex-col bg-zinc-905 overflow-y-auto max-h-[300px] md:max-h-none border-t md:border-t-0 border-zinc-850">
-                  <div className="mb-4 text-left">
-                    <span className="text-[9px] bg-zinc-800 text-zinc-400 border border-zinc-700 font-bold tracking-widest uppercase px-2.5 py-1 rounded-full">{activeLearningClass.category}</span>
-                    <h3 className="text-sm font-extrabold text-white tracking-tight mt-2.5">{activeLearningClass.title}</h3>
-                    <p className="text-[10px] text-zinc-500 font-medium mt-1">지도: 최수연 아틀리에 마스터 (Puima Master)</p>
-                  </div>
-
-                  <div className="border-t border-zinc-800 pt-4 flex-1 space-y-3.5">
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-650 text-left">실시간 파티세리 커리큘럼</h4>
-                    
-                    <div className="space-y-2.5 text-left text-xs font-semibold">
-                      <div className="bg-zinc-900 p-3 rounded-xl border border-zinc-850 flex items-center gap-3.5">
-                        <div className="w-6 h-6 bg-zinc-850 border border-zinc-800 text-zinc-400 flex items-center justify-center rounded-lg text-[10px] font-black font-mono shrink-0">01</div>
-                        <div className="min-w-0">
-                          <p className="text-white truncate text-[11px]">파티세리 오리엔테이션 및 밀가루 배합과학</p>
-                          <span className="text-[10px] text-zinc-500 font-mono font-medium">25분 분량 고화질 촬영본</span>
-                        </div>
-                      </div>
-
-                      <div className="bg-zinc-900 p-3 rounded-xl border border-zinc-850 flex items-center gap-3.5">
-                        <div className="w-6 h-6 bg-zinc-850 border border-zinc-800 text-zinc-400 flex items-center justify-center rounded-lg text-[10px] font-black font-mono shrink-0">02</div>
-                        <div className="min-w-0">
-                          <p className="text-white truncate text-[11px]">수분율(Hydration)에 따른 팽창 시뮬레이션</p>
-                          <span className="text-[10px] text-emerald-400 font-medium font-mono">45분 핵심 비법 코스</span>
-                        </div>
-                      </div>
-
-                      <div className="bg-zinc-900 p-3 rounded-xl border border-zinc-850 flex items-center gap-3.5">
-                        <div className="w-6 h-6 bg-zinc-850 border border-zinc-800 text-zinc-400 flex items-center justify-center rounded-lg text-[10px] font-black font-mono shrink-0">03</div>
-                        <div className="min-w-0">
-                          <p className="text-white truncate text-[11px]">천연 버터 향미 극대화 및 미각 시그니처 연출</p>
-                          <span className="text-[10px] text-zinc-500 font-mono font-medium">35분 심사 전수 가이드</span>
-                        </div>
-                      </div>
-
-                      <div className="bg-zinc-900 p-3 rounded-xl border border-zinc-850 flex items-center gap-3.5 opacity-60">
-                        <div className="w-6 h-6 bg-zinc-850 border border-zinc-800 text-zinc-400 flex items-center justify-center rounded-lg text-[10px] font-black font-mono shrink-0">04</div>
-                        <div className="min-w-0">
-                          <p className="text-white truncate text-[11px]">질문 답변(Q&A) 및 졸업 피드백 세션</p>
-                          <span className="text-[10px] text-zinc-500 font-mono font-medium">서면 제출 기반 맞춤 피드백</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              {/* Secure Vertical Video Player and Timeline landmarks */}
+              <SecureVerticalPlayer 
+                classData={activeLearningClass} 
+                userEmail={user?.email || "guest@puima.com"} 
+                activeChapter={activeChapter} 
+                setActiveChapter={setActiveChapter} 
+              />
 
               {/* Footer specs */}
-              <div className="bg-zinc-900 border-t border-zinc-850 px-6 py-4 flex items-center justify-between shrink-0 text-[10px] font-bold text-zinc-650">
-                <span className="font-mono">수강 정보 식별: {activeLearningClass.purchaseNo}</span>
-                <span>모든 영상자료의 무단 도용 및 복제를 엄격히 금지합니다.</span>
+              <div className="bg-zinc-950 border-t border-zinc-900 px-6 py-4 flex items-center justify-between shrink-0 text-[10px] font-bold text-zinc-500">
+                <span className="font-mono text-zinc-500">수강 정보 식별: {activeLearningClass.purchaseNo}</span>
+                <span className="text-zinc-550">모든 영상자료의 무단 도용 및 복제를 엄격히 금지합니다.</span>
               </div>
             </motion.div>
           </>

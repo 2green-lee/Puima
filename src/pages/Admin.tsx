@@ -11,10 +11,12 @@ import {
   orderBy, 
   serverTimestamp,
   getDoc,
-  setDoc
+  setDoc,
+  collectionGroup
 } from "firebase/firestore";
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { db, auth, loginWithGoogle, logout, handleFirestoreError, OperationType } from "../lib/firebase";
+import { db, auth, storage, loginWithGoogle, logout, handleFirestoreError, OperationType } from "../lib/firebase";
 import { useAuth } from "../contexts/AuthContext";
 import { 
   ArrowLeft, Plus, Edit2, Trash2, Save, X, LogIn, LogOut, 
@@ -22,11 +24,31 @@ import {
   Users, Clock, ShieldCheck, HelpCircle, UserX, ChevronRight, User as UserIcon,
   Menu, Bell, Settings, Search, Upload, Image as ImageIcon,
   GripVertical, Eye, EyeOff, BarChart3, ExternalLink, TrendingUp, Globe,
-  Laptop, RefreshCw, Lock
+  Laptop, RefreshCw, Lock, BookOpen, Video
 } from "lucide-react";
 import { motion, AnimatePresence, Reorder } from "framer-motion";
+import { translateTextWithAI } from "../utils/translate";
+import { getEmbedUrl } from "../components/SecureVerticalPlayer";
+import VimeoPlayer from "@vimeo/player";
 
 const ADMIN_EMAIL = "rtytgb123@gmail.com";
+
+interface Milestone {
+  timeLabel: string;
+  seconds: number;
+  title: string;
+  desc: string;
+}
+
+interface Chapter {
+  id?: string;
+  chapterNo: string;
+  title: string;
+  duration: string;
+  videoUrl: string;
+  milestones: Milestone[];
+  recipe?: string;
+}
 
 interface Post {
   id: string;
@@ -55,7 +77,9 @@ interface Category {
 interface Notice {
   id: string;
   title: string;
+  titleEn?: string;
   content: string;
+  contentEn?: string;
   createdAt: any;
   isActive: boolean;
   url?: string;
@@ -77,6 +101,7 @@ interface UserProfile {
   gender?: string;
   phone?: string;
   password?: string;
+  enrolledClasses?: any[];
 }
 
 interface StudentReview {
@@ -91,15 +116,70 @@ interface StudentReview {
 type TabType = 
   | "manage" | "register" | "categories" | "notices" | "reviews"
   | "users" | "history" | "roles" | "inquiry" | "blacklist"
-  | "analytics";
+  | "analytics" | "lectures";
+
+const formatAdminTime = (seconds: number) => {
+  const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+  const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+};
+
+declare global {
+  interface Window {
+    YT?: any;
+    onYouTubeIframeAPIReady?: () => void;
+  }
+}
 
 export default function Admin() {
   const navigate = useNavigate();
   const { user, loading, isAdmin } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
+  const lectureFormRef = useRef<HTMLDivElement | null>(null);
+  const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
+
+
+  // Lecture & Chapters UI Management States
+  const [selectedPostIdForLectures, setSelectedPostIdForLectures] = useState<string | null>(null);
+  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [allChapters, setAllChapters] = useState<(Chapter & { postId: string })[]>([]);
+  const [editingChapterId, setEditingChapterId] = useState<string | null>(null);
+  const [isSavingChapter, setIsSavingChapter] = useState(false);
+  
+  const [newChapter, setNewChapter] = useState<Omit<Chapter, "id">>({
+    chapterNo: "",
+    title: "",
+    duration: "",
+    videoUrl: "",
+    milestones: [],
+    recipe: ""
+  });
+
+  const [editingChapterData, setEditingChapterData] = useState<Omit<Chapter, "id">>({
+    chapterNo: "",
+    title: "",
+    duration: "",
+    videoUrl: "",
+    milestones: [],
+    recipe: ""
+  });
+
+  // Intermediate Milestone Inputs
+  const [mStartTime, setMStartTime] = useState("");
+  const [mEndTime, setMEndTime] = useState("");
+  const [mTitle, setMTitle] = useState("");
+  const [mDesc, setMDesc] = useState("");
+
+  // Video Upload Simulation States
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+  const [videoUploadProgress, setVideoUploadProgress] = useState(0);
+  const [uploadProgressMsg, setUploadProgressMsg] = useState("");
+  const [uploadedVideoFileName, setUploadedVideoFileName] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
-  const [newNotice, setNewNotice] = useState({ title: "", content: "", url: "", isBanner: false, imageUrl: "" });
+  const [newNotice, setNewNotice] = useState({ title: "", titleEn: "", content: "", contentEn: "", url: "", isBanner: false, imageUrl: "" });
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryNameEn, setNewCategoryNameEn] = useState("");
   const [reviews, setReviews] = useState<StudentReview[]>([]);
@@ -107,6 +187,8 @@ export default function Admin() {
   const [newReview, setNewReview] = useState({ imageUrl: "", phrase: "", phraseEn: "" });
   const [reviewUploading, setReviewUploading] = useState(false);
   const [noticeImgUploading, setNoticeImgUploading] = useState(false);
+  const [translatingNewNotice, setTranslatingNewNotice] = useState(false);
+  const [translatingEditNotice, setTranslatingEditNotice] = useState(false);
   const [isSavingReview, setIsSavingReview] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<Post>>({});
@@ -136,6 +218,7 @@ export default function Admin() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [searchUserQuery, setSearchUserQuery] = useState("");
   const [searchProductQuery, setSearchProductQuery] = useState("");
+  const [searchLectureQuery, setSearchLectureQuery] = useState("");
   const [selectedPostIds, setSelectedPostIds] = useState<string[]>([]);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null);
@@ -156,6 +239,80 @@ export default function Admin() {
     password: ""
   });
 
+  // Enrolled Classes Management Modal States
+  const [selectedUserForClasses, setSelectedUserForClasses] = useState<UserProfile | null>(null);
+  const [tempEnrolledClassIds, setTempEnrolledClassIds] = useState<string[]>([]);
+  const [isSavingEnrolledClasses, setIsSavingEnrolledClasses] = useState(false);
+  const [searchClassInModal, setSearchClassInModal] = useState("");
+
+  const [currentAdminPlayTime, setCurrentAdminPlayTime] = useState<number>(0);
+  const vimeoPlayerInstanceRef = useRef<any>(null);
+  const ytPlayerInstanceRef = useRef<any>(null);
+
+  const getCurrentVideoTime = async (): Promise<number | null> => {
+    if (videoPreviewRef.current) {
+      return videoPreviewRef.current.currentTime;
+    }
+    if (iframeRef.current) {
+      const url = editingChapterId ? editingChapterData.videoUrl : newChapter.videoUrl;
+      if (!url) return null;
+
+      if (url.includes("vimeo.com")) {
+        try {
+          const PlayerModule = await import("@vimeo/player");
+          const PlayerClass = PlayerModule.default;
+          const player = new PlayerClass(iframeRef.current);
+          const t = await player.getCurrentTime();
+          return t;
+        } catch (err) {
+          console.error("Vimeo Player SDK getCurrentTime error:", err);
+        }
+      }
+
+      if (url.includes("youtube.com") || url.includes("youtu.be")) {
+        return new Promise<number | null>((resolve) => {
+          let resolved = false;
+
+          const handleYTMessage = (event: MessageEvent) => {
+            try {
+              if (typeof event.data === "string") {
+                const data = JSON.parse(event.data);
+                if (data.event === "infoDelivery" && data.info && typeof data.info.currentTime === "number") {
+                  window.removeEventListener("message", handleYTMessage);
+                  resolved = true;
+                  resolve(data.info.currentTime);
+                }
+              }
+            } catch (e) {
+              // Ignore invalid JSON or other objects
+            }
+          };
+
+          window.addEventListener("message", handleYTMessage);
+
+          if (iframeRef.current && iframeRef.current.contentWindow) {
+            iframeRef.current.contentWindow.postMessage(
+              JSON.stringify({
+                event: "command",
+                func: "getCurrentTime",
+                args: []
+              }),
+              "*"
+            );
+          }
+
+          setTimeout(() => {
+            if (!resolved) {
+              window.removeEventListener("message", handleYTMessage);
+              resolve(null);
+            }
+          }, 800);
+        });
+      }
+    }
+    return null;
+  };
+
   const filteredPosts = posts.filter(post => {
     const q = searchProductQuery.toLowerCase().trim();
     if (!q) return true;
@@ -164,6 +321,16 @@ export default function Admin() {
       (post.titleEn || "").toLowerCase().includes(q) ||
       (post.category || "").toLowerCase().includes(q) ||
       (post.description || "").toLowerCase().includes(q)
+    );
+  });
+
+  const filteredLecturePosts = posts.filter(post => {
+    const q = searchLectureQuery.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      (post.title || "").toLowerCase().includes(q) ||
+      (post.titleEn || "").toLowerCase().includes(q) ||
+      (post.category || "").toLowerCase().includes(q)
     );
   });
 
@@ -203,6 +370,443 @@ export default function Admin() {
     };
     fetchAnalyticsConfig();
   }, [activeTab]);
+
+  // Load Real-time chapters stream for currently selected PostId
+  useEffect(() => {
+    if (!selectedPostIdForLectures) {
+      setChapters([]);
+      return;
+    }
+    const chaptersRef = collection(db, "posts", selectedPostIdForLectures, "chapters");
+    const q = query(chaptersRef);
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Chapter[];
+      
+      // Client-side sort by chapterNo ascending (fallback sort)
+      docs.sort((a, b) => {
+        const numA = parseFloat(a.chapterNo || "0") || 0;
+        const numB = parseFloat(b.chapterNo || "0") || 0;
+        if (numA !== numB) return numA - numB;
+        return (a.chapterNo || "").localeCompare(b.chapterNo || "");
+      });
+
+      setChapters(docs);
+    }, (err) => {
+      console.error("Failed to subscribe to chapters stream:", err);
+    });
+
+    return () => unsubscribe();
+  }, [selectedPostIdForLectures]);
+
+  // Load Real-time all chapters stream across all posts for a unified overview
+  useEffect(() => {
+    if (activeTab !== "lectures") return;
+    // On tab entry, start in clean general overview mode
+    setSelectedPostIdForLectures(null);
+    handleCancelEditChapter();
+    
+    const q = query(collectionGroup(db, "chapters"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => {
+        const postId = doc.ref.parent.parent?.id || "";
+        return {
+          id: doc.id,
+          postId,
+          ...doc.data()
+        };
+      }) as (Chapter & { postId: string })[];
+      setAllChapters(docs);
+    }, (err) => {
+      console.error("Failed to subscribe to all chapters stream:", err);
+    });
+
+    return () => unsubscribe();
+  }, [activeTab]);
+
+  // Keep selectedPostIdForLectures null initially to show the comprehensive products & lectures list first.
+  useEffect(() => {
+    // Left empty intentionally to support clean general overview on load.
+  }, [posts, selectedPostIdForLectures]);
+
+  // 실시간 영상 재생 시간 싱크 효과 Effect
+  useEffect(() => {
+    const videoUrl = editingChapterId ? editingChapterData?.videoUrl : newChapter?.videoUrl;
+    if (!videoUrl) {
+      setCurrentAdminPlayTime(0);
+      return;
+    }
+
+    // 기존 타이머 및 인스턴스 초기화 / 해제
+    let intervalId: any = null;
+    if (vimeoPlayerInstanceRef.current) {
+      try { vimeoPlayerInstanceRef.current.destroy(); } catch (e) {}
+      vimeoPlayerInstanceRef.current = null;
+    }
+    if (ytPlayerInstanceRef.current) {
+      try { ytPlayerInstanceRef.current.destroy(); } catch (e) {}
+      ytPlayerInstanceRef.current = null;
+    }
+
+    // 1. Vimeo Player setup
+    if (videoUrl.includes("vimeo.com") && iframeRef.current) {
+      try {
+        const player = new VimeoPlayer(iframeRef.current);
+        vimeoPlayerInstanceRef.current = player;
+        player.on("timeupdate", (data: any) => {
+          if (data && typeof data.seconds === "number") {
+            setCurrentAdminPlayTime(data.seconds);
+          }
+        });
+      } catch (e) {
+        console.error("Vimeo setup error:", e);
+      }
+    }
+
+    // 2. YouTube API & postMessage sync control
+    if ((videoUrl.includes("youtube.com") || videoUrl.includes("youtu.be")) && iframeRef.current) {
+      const linkYt = () => {
+        if (window.YT && window.YT.Player && iframeRef.current) {
+          try {
+            ytPlayerInstanceRef.current = new window.YT.Player(iframeRef.current, {
+              events: {
+                onReady: () => {
+                  console.log("YouTube Player is synced and ready");
+                }
+              }
+            });
+          } catch(err) {
+            console.error(err);
+          }
+        }
+      };
+
+      if (!window.YT) {
+        const tag = document.createElement("script");
+        tag.src = "https://www.youtube.com/iframe_api";
+        const firstScriptTag = document.getElementsByTagName("script")[0];
+        firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+        
+        const prevInit = window.onYouTubeIframeAPIReady;
+        window.onYouTubeIframeAPIReady = () => {
+          if (prevInit) prevInit();
+          linkYt();
+        };
+      } else {
+        linkYt();
+      }
+
+      const handler = (e: MessageEvent) => {
+        try {
+          if (typeof e.data === "string") {
+            const parsed = JSON.parse(e.data);
+            if (parsed.event === "infoDelivery" && parsed.info && typeof parsed.info.currentTime === "number") {
+              setCurrentAdminPlayTime(parsed.info.currentTime);
+            }
+          }
+        } catch(err) {}
+      };
+
+      window.addEventListener("message", handler);
+
+      intervalId = setInterval(() => {
+        if (iframeRef.current && iframeRef.current.contentWindow) {
+          iframeRef.current.contentWindow.postMessage(
+            JSON.stringify({
+              event: "command",
+              func: "getCurrentTime",
+              args: []
+            }),
+            "*"
+          );
+        }
+      }, 500);
+
+      return () => {
+        window.removeEventListener("message", handler);
+        if (intervalId) clearInterval(intervalId);
+      };
+    }
+
+    // 3. Native Video tag listener
+    if (videoPreviewRef.current) {
+      const vid = videoPreviewRef.current;
+      const updateHtmlTime = () => {
+        setCurrentAdminPlayTime(vid.currentTime);
+      };
+      vid.addEventListener("timeupdate", updateHtmlTime);
+      return () => {
+        vid.removeEventListener("timeupdate", updateHtmlTime);
+      };
+    }
+
+  }, [editingChapterId, editingChapterData?.videoUrl, newChapter?.videoUrl, activeTab]);
+
+  // Handle addition of milestones
+  const handleAddMilestone = () => {
+    if (!mStartTime.trim() || !mTitle.trim()) {
+      alert("시작시간과 챕터 제목은 필수 입력 항목입니다.");
+      return;
+    }
+
+    const startStr = mStartTime.trim();
+    const parts = startStr.split(":");
+    let computedSeconds = 0;
+    if (parts.length === 3) {
+      computedSeconds = parseInt(parts[0], 10) * 3600 + parseInt(parts[1], 10) * 60 + parseInt(parts[2], 10);
+    } else if (parts.length === 2) {
+      computedSeconds = parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+    } else {
+      computedSeconds = parseInt(startStr, 10) || 0;
+    }
+
+    const timeLabelStr = mEndTime.trim()
+      ? `${mStartTime.trim()} ~ ${mEndTime.trim()}`
+      : mStartTime.trim();
+
+    const targetMilestone: Milestone = {
+      timeLabel: timeLabelStr,
+      seconds: computedSeconds,
+      title: mTitle.trim(),
+      desc: mDesc.trim()
+    };
+
+    if (editingChapterId) {
+      setEditingChapterData(prev => ({
+        ...prev,
+        milestones: [...(prev.milestones || []), targetMilestone]
+      }));
+    } else {
+      setNewChapter(prev => ({
+        ...prev,
+        milestones: [...(prev.milestones || []), targetMilestone]
+      }));
+    }
+
+    // Reset inputs
+    setMStartTime("");
+    setMEndTime("");
+    setMTitle("");
+    setMDesc("");
+  };
+
+  const handleRemoveMilestone = (index: number) => {
+    if (editingChapterId) {
+      setEditingChapterData(prev => ({
+        ...prev,
+        milestones: (prev.milestones || []).filter((_, idx) => idx !== index)
+      }));
+    } else {
+      setNewChapter(prev => ({
+        ...prev,
+        milestones: (prev.milestones || []).filter((_, idx) => idx !== index)
+      }));
+    }
+  };
+
+  const handleUploadVideoFile = (file: File) => {
+    if (!file) return;
+    if (!file.type.startsWith("video/")) {
+      alert("영상 파일(.mp4, .mov, .avi 등)만 업로드할 수 있습니다.");
+      return;
+    }
+
+    setIsUploadingVideo(true);
+    setVideoUploadProgress(5);
+    setUploadProgressMsg("보안 인코딩 시드 준비 중...");
+    setUploadedVideoFileName(file.name);
+
+    // Auto-detect duration and title!
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.src = URL.createObjectURL(file);
+    video.onloadedmetadata = () => {
+      const minutes = Math.floor(video.duration / 60);
+      const seconds = Math.floor(video.duration % 60);
+      const durationText = minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`;
+
+      if (editingChapterId) {
+        setEditingChapterData(prev => ({
+          ...prev,
+          duration: prev.duration || `${durationText} 분량`,
+          title: prev.title || file.name.replace(/\.[^/.]+$/, "") // strip extension
+        }));
+      } else {
+        setNewChapter(prev => ({
+          ...prev,
+          duration: prev.duration || `${durationText} 분량`,
+          title: prev.title || file.name.replace(/\.[^/.]+$/, "") // strip extension
+        }));
+      }
+    };
+
+    // Upload to Firebase Storage!
+    const storageRef = ref(storage, `videos/${Date.now()}_${file.name}`);
+    const uploadTask = uploadBytesResumable(storageRef, file);
+
+    uploadTask.on(
+      "state_changed",
+      (snapshot) => {
+        const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+        setVideoUploadProgress(progress);
+        
+        if (progress < 30) {
+          setUploadProgressMsg(`업로드 준비 중... (${progress}%)`);
+        } else if (progress < 60) {
+          setUploadProgressMsg(`보안 처리 및 압축 중... (${progress}%)`);
+        } else if (progress < 90) {
+          setUploadProgressMsg(`스토리지 전송 중... (${progress}%)`);
+        } else {
+          setUploadProgressMsg(`마무리 단계... (${progress}%)`);
+        }
+      },
+      (error) => {
+        console.error("Upload fail:", error);
+        alert("업로드에 실패했습니다.");
+        setIsUploadingVideo(false);
+        setVideoUploadProgress(0);
+      },
+      async () => {
+        try {
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+          
+          if (editingChapterId) {
+            setEditingChapterData(prev => ({
+              ...prev,
+              videoUrl: downloadURL
+            }));
+          } else {
+            setNewChapter(prev => ({
+              ...prev,
+              videoUrl: downloadURL
+            }));
+          }
+
+          setVideoUploadProgress(100);
+          setUploadProgressMsg("업로드 완료!");
+          setTimeout(() => {
+            setIsUploadingVideo(false);
+            setVideoUploadProgress(0);
+          }, 3000);
+        } catch (err) {
+          console.error("Failed to get download URL", err);
+          alert("업로드된 파일 URL을 가져오는데 실패했습니다.");
+          setIsUploadingVideo(false);
+          setVideoUploadProgress(0);
+        }
+      }
+    );
+  };
+
+  // Create/Update chapter
+  const handleSaveChapter = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!selectedPostIdForLectures) {
+      alert("강의를 업로드할 클래스를 먼저 선택해 주세요.");
+      return;
+    }
+
+    const currentData = editingChapterId ? editingChapterData : newChapter;
+
+    if (!currentData.videoUrl.trim()) {
+      alert("영상 소스 URL은 필수 입력 사항입니다.");
+      return;
+    }
+
+    setIsSavingChapter(true);
+    try {
+      const classRef = doc(db, "posts", selectedPostIdForLectures);
+      const chaptersCollection = collection(classRef, "chapters");
+      
+      const payload = {
+        chapterNo: currentData.chapterNo?.trim() || Date.now().toString(),
+        title: currentData.title?.trim() || `영상 강의`,
+        duration: currentData.duration?.trim() || "0분 분량",
+        videoUrl: currentData.videoUrl.trim(),
+        milestones: currentData.milestones || [],
+        recipe: currentData.recipe?.trim() || "",
+        updatedAt: serverTimestamp()
+      };
+
+      if (editingChapterId) {
+        await updateDoc(doc(chaptersCollection, editingChapterId), payload);
+        alert("영상 정보가 성공적으로 저장되었습니다.");
+      } else {
+        const docRef = await addDoc(chaptersCollection, {
+          ...payload,
+          createdAt: serverTimestamp()
+        });
+        setEditingChapterId(docRef.id);
+        setEditingChapterData(payload as any);
+        alert("영상 정보가 성공적으로 저장되었습니다.");
+      }
+    } catch (err) {
+      console.error("Failed to save chapter:", err);
+      alert("강의 저장 중 오류가 발생했습니다.");
+    } finally {
+      setIsSavingChapter(false);
+    }
+  };
+
+  const handleStartEditChapter = (chapter: Chapter) => {
+    setEditingChapterId(chapter.id || null);
+    setEditingChapterData({
+      chapterNo: chapter.chapterNo,
+      title: chapter.title,
+      duration: chapter.duration,
+      videoUrl: chapter.videoUrl,
+      recipe: chapter.recipe || "",
+      milestones: chapter.milestones || []
+    });
+  };
+
+  const handleStartEditChapterWithScroll = (chapter: Chapter, postId: string) => {
+    setSelectedPostIdForLectures(postId);
+    setEditingChapterId(chapter.id || null);
+    setEditingChapterData({
+      chapterNo: chapter.chapterNo,
+      title: chapter.title,
+      duration: chapter.duration,
+      videoUrl: chapter.videoUrl,
+      recipe: chapter.recipe || "",
+      milestones: chapter.milestones || []
+    });
+    setTimeout(() => {
+      lectureFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+  };
+
+  const handleCancelEditChapter = () => {
+    setEditingChapterId(null);
+    setEditingChapterData({
+      chapterNo: "",
+      title: "",
+      duration: "",
+      videoUrl: "",
+      recipe: "",
+      milestones: []
+    });
+  };
+
+  const handleDeleteChapter = async (chapterId: string, customPostId?: string) => {
+    const targetPostId = customPostId || selectedPostIdForLectures;
+    if (!targetPostId) return;
+    if (!confirm("정말 이 강의 영상을 영구히 삭제하시겠습니까? (삭제 후 복구가 불가합니다)")) return;
+
+    try {
+      const classRef = doc(db, "posts", targetPostId);
+      await deleteDoc(doc(classRef, "chapters", chapterId));
+      if (editingChapterId === chapterId) {
+        handleCancelEditChapter();
+      }
+      alert("강의 영상이 성공적으로 삭제되었습니다.");
+    } catch (err) {
+      console.error("Failed to delete chapter:", err);
+      alert("강의 삭제 도중 실패했습니다.");
+    }
+  };
 
   const handleSaveLookerUrl = async (e: FormEvent) => {
     e.preventDefault();
@@ -472,7 +1076,8 @@ export default function Admin() {
             realName: data.realName || (isGreenLee ? "이근일" : ""),
             gender: data.gender || "남",
             phone: data.phone || (isGreenLee ? "01093359620" : ""),
-            password: data.password || ""
+            password: data.password || "",
+            enrolledClasses: data.enrolledClasses || []
           };
         }) as UserProfile[];
         setUsers(docs);
@@ -571,6 +1176,51 @@ export default function Admin() {
     }
   };
 
+  const handleSaveUserClasses = async () => {
+    if (!selectedUserForClasses) return;
+    setIsSavingEnrolledClasses(true);
+    try {
+      const existingEnrollments = selectedUserForClasses.enrolledClasses || [];
+      const newEnrollments = tempEnrolledClassIds.map(id => {
+        const classItem = posts.find(p => p.id === id);
+        if (!classItem) return null;
+        
+        // Find if they were already enrolled to preserve purchaseNo, registeredAt, etc.
+        const existing = existingEnrollments.find(e => e.id === id);
+        if (existing) {
+          return existing;
+        }
+        
+        // If newly enrolled, generate default fields
+        const orderNo = `PM-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 100)}`;
+        return {
+          id: classItem.id,
+          title: classItem.title,
+          category: classItem.category || "Masterclass",
+          price: classItem.price || "₩49,900",
+          imageUrl: classItem.imageUrl || "",
+          image: classItem.image || "pastryImg",
+          registeredAt: new Date().toISOString().split("T")[0],
+          status: "수강 가능",
+          purchaseNo: orderNo
+        };
+      }).filter(Boolean);
+
+      const userRef = doc(db, "users", selectedUserForClasses.id);
+      await updateDoc(userRef, {
+        enrolledClasses: newEnrollments
+      });
+      
+      alert(`[${selectedUserForClasses.nickname || selectedUserForClasses.displayName || '선택회원'}] 님의 수강 클래스 설정이 완료되었습니다.`);
+      setSelectedUserForClasses(null);
+    } catch (err: any) {
+      console.error("Failed to update user enrolled classes:", err);
+      alert("수강 정보 업데이트 실패: " + err.message);
+    } finally {
+      setIsSavingEnrolledClasses(false);
+    }
+  };
+
   const handleReorder = async (newOrder: Post[]) => {
     setPosts(newOrder);
     
@@ -644,8 +1294,52 @@ export default function Admin() {
         isActive: true,
         order: notices.length
       });
-      setNewNotice({ title: "", content: "", url: "", isBanner: false, imageUrl: "" });
+      setNewNotice({ title: "", titleEn: "", content: "", contentEn: "", url: "", isBanner: false, imageUrl: "" });
     });
+  };
+
+  const handleAiTranslateNewNotice = async () => {
+    if (!newNotice.title.trim() && !newNotice.content.trim()) {
+      alert("먼저 한국어 제목 또는 내용을 채워주세요.");
+      return;
+    }
+    setTranslatingNewNotice(true);
+    try {
+      const titleEn = newNotice.title.trim() ? await translateTextWithAI(newNotice.title) : "";
+      const contentEn = newNotice.content.trim() ? await translateTextWithAI(newNotice.content) : "";
+      setNewNotice(prev => ({
+        ...prev,
+        titleEn,
+        contentEn
+      }));
+    } catch (err) {
+      console.error(err);
+      alert("번역 처리 중 오류가 발생했습니다.");
+    } finally {
+      setTranslatingNewNotice(false);
+    }
+  };
+
+  const handleAiTranslateEditNotice = async () => {
+    if (!noticeFormData.title?.trim() && !noticeFormData.content?.trim()) {
+      alert("먼저 한국어 제목 또는 내용을 채워주세요.");
+      return;
+    }
+    setTranslatingEditNotice(true);
+    try {
+      const titleEn = noticeFormData.title?.trim() ? await translateTextWithAI(noticeFormData.title) : "";
+      const contentEn = noticeFormData.content?.trim() ? await translateTextWithAI(noticeFormData.content) : "";
+      setNoticeFormData(prev => ({
+        ...prev,
+        titleEn,
+        contentEn
+      }));
+    } catch (err) {
+      console.error(err);
+      alert("번역 처리 중 오류가 발생했습니다.");
+    } finally {
+      setTranslatingEditNotice(false);
+    }
   };
 
   const handleNoticeReorder = async (newOrder: Notice[]) => {
@@ -1024,6 +1718,7 @@ export default function Admin() {
     { section: "게시물 관리", items: [
       { id: "notices", label: "공지사항 및 배너", icon: Megaphone },
       { id: "manage", label: "상품 관리", icon: LayoutDashboard },
+      { id: "lectures", label: "강의 관리", icon: Video },
       { id: "categories", label: "카테고리 관리", icon: Tag },
       { id: "reviews", label: "수강생 리뷰 관리", icon: MessageSquare },
     ]},
@@ -1339,26 +2034,27 @@ export default function Admin() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
-                  className="space-y-6"
+                  className="space-y-8"
                 >
-                  <div className="flex justify-between items-end mb-8">
-                    <div>
-                      <h3 className="text-3xl font-black tracking-tighter uppercase mb-2">현재 상품 관리</h3>
-                      <p className="text-zinc-500 font-medium">관리 가능한 총 {posts.length}개의 상품</p>
+                  <div className="bg-white p-10 rounded-[40px] border border-zinc-200 shadow-sm">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 pb-6 border-b border-zinc-100">
+                      <div>
+                        <h3 className="text-3xl font-black tracking-tighter uppercase mb-2">현재 상품 관리</h3>
+                        <p className="text-zinc-500 font-medium">관리 가능한 총 {posts.length}개의 상품</p>
+                      </div>
+                      <div className="flex gap-3">
+                        <button 
+                          onClick={() => setActiveTab("register")}
+                          className="bg-black text-white px-6 py-3 rounded-2xl font-bold text-sm hover:bg-zinc-800 transition-all active:scale-95 flex items-center gap-2"
+                        >
+                          <Plus size={18} />
+                          새 상품 추가
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex gap-3">
-                      <button 
-                        onClick={() => setActiveTab("register")}
-                        className="bg-black text-white px-6 py-3 rounded-2xl font-bold text-sm hover:bg-zinc-800 transition-all active:scale-95 flex items-center gap-2"
-                      >
-                        <Plus size={18} />
-                        새 상품 추가
-                      </button>
-                    </div>
-                  </div>
 
-                  {/* Unified Product List Container */}
-                  <div className="bg-white rounded-[28px] border border-zinc-200 shadow-sm overflow-hidden flex flex-col">
+                    {/* Unified Product List Container */}
+                    <div className="bg-white rounded-[28px] border border-zinc-200 shadow-sm overflow-hidden flex flex-col">
                     {/* Local Product Search Panel */}
                     <div className="p-6 flex flex-col lg:flex-row gap-4 items-center justify-between bg-zinc-50/10">
                       <div className="flex flex-col sm:flex-row gap-4 items-center w-full lg:w-auto">
@@ -1369,7 +2065,7 @@ export default function Admin() {
                             value={searchProductQuery}
                             onChange={e => setSearchProductQuery(e.target.value)}
                             placeholder="상품명, 영문명, 카테고리를 입력하여 검색..."
-                            className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl py-3 pl-11 pr-10 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-black/10 transition-all placeholder:text-zinc-400"
+                            className="w-full bg-zinc-50/60 border border-zinc-200 rounded-2xl py-3 pl-11 pr-10 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-black/10 transition-all placeholder:text-zinc-400"
                           />
                           {searchProductQuery && (
                             <button 
@@ -1677,7 +2373,8 @@ export default function Admin() {
                         </div>
                       </div>
                     )}
-                  </motion.div>
+                  </div>
+                </motion.div>
                 )}
 
               {/* Class Registration/Edit View */}
@@ -1722,7 +2419,7 @@ export default function Admin() {
                           value={formData.title || ""} 
                           onChange={e => setFormData({...formData, title: e.target.value})}
                           placeholder="클래스 제목을 입력하세요..."
-                          className="w-full p-4 bg-zinc-50 border border-zinc-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
+                          className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
                         />
                       </div>
 
@@ -1733,7 +2430,7 @@ export default function Admin() {
                           value={formData.titleEn || ""} 
                           onChange={e => setFormData({...formData, titleEn: e.target.value})}
                           placeholder="Enter English title..."
-                          className="w-full p-4 bg-zinc-50 border border-zinc-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
+                          className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
                         />
                         <p className="mt-2 text-[10px] text-zinc-400 font-medium">ENG 선택시 표시되는 이름입니다.</p>
                       </div>
@@ -1781,7 +2478,7 @@ export default function Admin() {
                           value={formData.naverUrl || ""} 
                           onChange={e => setFormData({...formData, naverUrl: e.target.value})}
                           placeholder="Naver Smart Store URL"
-                          className="w-full p-4 bg-zinc-50 border border-zinc-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
+                          className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
                         />
                       </div>
                     </div>
@@ -1795,7 +2492,7 @@ export default function Admin() {
                             value={formData.price || ""} 
                             onChange={e => setFormData({...formData, price: e.target.value})}
                             placeholder="₩49,900"
-                            className="w-full p-4 bg-zinc-50 border border-zinc-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
+                            className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
                           />
                         </div>
                         <div>
@@ -1805,7 +2502,7 @@ export default function Admin() {
                             value={formData.originalPrice || ""} 
                             onChange={e => setFormData({...formData, originalPrice: e.target.value})}
                             placeholder="₩69,900"
-                            className="w-full p-4 bg-zinc-50 border border-zinc-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
+                            className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
                           />
                         </div>
                       </div>
@@ -1831,6 +2528,508 @@ export default function Admin() {
                 </motion.div>
               )}
 
+              {/* Lecture Management View */}
+              {activeTab === "lectures" && (
+                <motion.div 
+                  key="lectures"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="space-y-8"
+                >
+                  <div className="bg-white p-10 rounded-[40px] border border-zinc-200 shadow-sm">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 pb-6 border-b border-zinc-100">
+                      <div>
+                        <h3 className="text-3xl font-black tracking-tighter uppercase mb-2">강의 영상 관리</h3>
+                        <p className="text-zinc-500 font-medium">
+                          {selectedPostIdForLectures ? "선택한 상품의 동영상 및 챕터를 관리하고 편집하세요." : "강의를 관리할 상품(클래스)을 선택하세요."}
+                        </p>
+                      </div>
+                      
+                      {/* Class selector / Back button */}
+                      <div className="w-full md:w-auto shrink-0 flex justify-end">
+                        {selectedPostIdForLectures && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedPostIdForLectures(null);
+                              handleCancelEditChapter();
+                            }}
+                            className="px-5 py-3 border border-zinc-200 hover:border-black rounded-xl text-xs font-black transition-all flex items-center gap-2 bg-white text-zinc-700 hover:text-black cursor-pointer shadow-sm hover:shadow"
+                          >
+                            ← 다른 상품 목록 보기
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Active Workspace Block */}
+                    <div ref={lectureFormRef} className="space-y-8 animate-fadeIn">
+                      {!selectedPostIdForLectures ? (
+                        <div className="bg-white rounded-[28px] border border-zinc-200 shadow-sm overflow-hidden flex flex-col">
+                          {/* Search Panel */}
+                          <div className="p-6 flex flex-col lg:flex-row gap-4 items-center justify-between bg-zinc-50/10 font-sans">
+                            <div className="flex flex-col sm:flex-row gap-4 items-center w-full lg:w-auto font-sans">
+                              <div className="relative w-full sm:w-80">
+                                <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" />
+                                <input 
+                                  type="text"
+                                  value={searchLectureQuery}
+                                  onChange={e => setSearchLectureQuery(e.target.value)}
+                                  placeholder="상품명, 카테고리를 입력하여 검색..."
+                                  className="w-full bg-zinc-50/60 border border-zinc-200 rounded-2xl py-3 pl-11 pr-10 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-black/10 transition-all placeholder:text-zinc-400"
+                                />
+                                {searchLectureQuery && (
+                                  <button 
+                                    onClick={() => setSearchLectureQuery("")}
+                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-black transition-colors"
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                )}
+                              </div>
+                              {searchLectureQuery && (
+                                <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider select-none shrink-0 font-sans">
+                                  검색 결과 • {filteredLecturePosts.length}개 발견
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="p-4 md:p-6 font-sans">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {filteredLecturePosts.map(post => {
+                                const classChapters = allChapters.filter(ch => ch.postId === post.id);
+                                return (
+                                  <div 
+                                    key={post.id} 
+                                    onClick={() => {
+                                      setSelectedPostIdForLectures(post.id);
+                                      if (classChapters.length > 0) {
+                                        const ch = classChapters[0];
+                                        setEditingChapterId(ch.id || null);
+                                        setEditingChapterData({
+                                          chapterNo: ch.chapterNo,
+                                          title: ch.title,
+                                          duration: ch.duration,
+                                          videoUrl: ch.videoUrl,
+                                          recipe: ch.recipe || "",
+                                          milestones: ch.milestones || []
+                                        });
+                                      } else {
+                                        handleCancelEditChapter();
+                                      }
+                                      setTimeout(() => {
+                                        lectureFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                                      }, 100);
+                                    }}
+                                    className="flex items-center gap-4 px-4 py-3 bg-white border border-zinc-200 rounded-2xl hover:border-black hover:shadow-sm transition-all cursor-pointer group"
+                                  >
+                                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-zinc-100 flex-shrink-0 flex items-center justify-center">
+                                      {post.imageUrl ? (
+                                        <img src={post.imageUrl} referrerPolicy="no-referrer" alt={post.title} className="w-full h-full object-cover" />
+                                      ) : (
+                                        <Video size={16} className="text-zinc-300" />
+                                      )}
+                                    </div>
+                                    <div className="flex-grow min-w-0 flex flex-col justify-center pl-2 font-sans overflow-hidden">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-[9px] font-bold bg-zinc-100 text-zinc-600 px-1.5 py-0.5 rounded leading-none">
+                                          {post.category || "기본 카테고리"}
+                                        </span>
+                                      </div>
+                                      <div className="text-sm font-black text-zinc-900 truncate">
+                                        {post.title}
+                                      </div>
+                                    </div>
+                                    <div className="w-[84px] flex-shrink-0 flex items-center justify-end pr-2">
+                                      <button className="px-3 py-1.5 bg-zinc-100 group-hover:bg-black group-hover:text-white rounded-lg text-xs font-bold transition-colors">
+                                        강의 관리
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            
+                            {posts.length === 0 && (
+                              <div className="py-20 text-center text-zinc-400 text-sm font-medium border border-dashed border-zinc-200 bg-zinc-50/50 rounded-3xl flex flex-col items-center justify-center gap-4">
+                                <Video size={36} className="text-zinc-300" />
+                                <span className="font-bold text-zinc-600">시스템에 등록된 클래스(상품) 정보가 없습니다.</span>
+                                <span className="text-[11px] text-zinc-400">상품관리 탭에서 먼저 상품을 생성해 주세요.</span>
+                              </div>
+                            )}
+
+                            {posts.length > 0 && filteredLecturePosts.length === 0 && (
+                              <div className="py-20 text-center text-zinc-400 text-sm font-medium border border-dashed border-zinc-200 bg-zinc-50/50 rounded-3xl flex flex-col items-center justify-center gap-4">
+                                <span className="font-bold text-zinc-600">검색 결과가 없습니다.</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-8 animate-fadeIn">
+                        {/* TOP: Horizontal Add or Edit Chapter Form */}
+                        <form onSubmit={handleSaveChapter} className="space-y-8 animate-fadeIn w-full">
+                          
+                          {/* Card 1: 영상 URL 자원 정보 */}
+                          <div className="border border-zinc-200 bg-white p-6 md:p-8 rounded-[32px] shadow-sm w-full">
+                            <div className="pb-4 border-b border-zinc-100 mb-6 font-sans">
+                              <h4 className="text-sm font-black text-zinc-950 flex items-center gap-2">
+                                <Video size={16} className="text-zinc-700" />
+                                영상 소스 설정
+                              </h4>
+                              <p className="text-zinc-500 text-[11px] mt-1 font-medium">챕터에 사용될 동영상의 경로 또는 웹 주소를 입력해 주세요.</p>
+                            </div>
+
+                            {/* Horizontal Inputs Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end font-sans">
+                              <div className="md:col-span-9">
+                                <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-1.5">영상 소스 URL *</label>
+                                <input 
+                                  type="text" 
+                                  value={editingChapterId ? editingChapterData.videoUrl : newChapter.videoUrl}
+                                  onChange={e => {
+                                    const val = e.target.value;
+                                    if (editingChapterId) {
+                                      setEditingChapterData(prev => ({ ...prev, videoUrl: val }));
+                                    } else {
+                                      setNewChapter(prev => ({ ...prev, videoUrl: val }));
+                                    }
+                                  }}
+                                  placeholder="https://example.com/video.mp4"
+                                  className="w-full p-3 bg-zinc-50/60 border border-zinc-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-4 focus:ring-black/5 text-zinc-500 font-sans"
+                                  required
+                                />
+                              </div>
+
+                              <div className="md:col-span-3 flex gap-2">
+                                <button
+                                  type="submit"
+                                  disabled={isSavingChapter}
+                                  className={`flex-grow flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs font-black text-white transition-all shadow-md cursor-pointer ${
+                                    editingChapterId 
+                                      ? "bg-amber-500 hover:bg-amber-600 shadow-amber-500/10" 
+                                      : "bg-black hover:bg-zinc-800 shadow-black/10"
+                                  }`}
+                                >
+                                  {isSavingChapter ? (
+                                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                  ) : (
+                                    <Save size={13} />
+                                  )}
+                                  저장하기
+                                </button>
+                                {editingChapterId && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteChapter(editingChapterId)}
+                                    className="p-3 border border-red-200 text-red-500 rounded-xl hover:bg-red-50 transition-all cursor-pointer flex items-center justify-center"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                            {/* Video Preview Section */}
+                            {(editingChapterId ? editingChapterData.videoUrl : newChapter.videoUrl) && (
+                              <div className="border border-zinc-200 bg-white p-6 md:p-8 rounded-[32px] shadow-sm w-full font-sans">
+                                <div className="pb-4 border-b border-zinc-100 mb-6 font-sans">
+                                  <h4 className="text-sm font-black text-zinc-950 flex items-center gap-2">
+                                    <Eye size={16} className="text-zinc-700" />
+                                    영상 미리보기
+                                  </h4>
+                                  <p className="text-zinc-500 text-[11px] mt-1 font-medium pb-0.5">현재 작동 중인 비디오 플레이어의 싱크 프리뷰 화면입니다.</p>
+                                </div>
+                                <div className="bg-zinc-50 border border-zinc-200 p-2 rounded-2xl overflow-hidden aspect-video relative">
+                                  {getEmbedUrl(editingChapterId ? editingChapterData.videoUrl : newChapter.videoUrl) ? (
+                                    <iframe
+                                      ref={iframeRef}
+                                      src={getEmbedUrl(editingChapterId ? editingChapterData.videoUrl : newChapter.videoUrl)!}
+                                      className="w-full h-full absolute inset-0"
+                                      allowFullScreen
+                                      title="Video Preview"
+                                    />
+                                  ) : (
+                                    <video 
+                                      ref={videoPreviewRef}
+                                      src={editingChapterId ? editingChapterData.videoUrl : newChapter.videoUrl} 
+                                      controls 
+                                      className="w-full h-full object-contain absolute inset-0 bg-black/5 rounded-xl"
+                                    >
+                                      브라우저가 비디오 태그를 지원하지 않습니다.
+                                    </video>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Sub-Milestones setup inside the horizontal form card */}
+                            <div className="border border-zinc-200 bg-white p-6 md:p-8 rounded-[32px] shadow-sm w-full font-sans animate-fadeIn">
+                              <div className="pb-4 border-b border-zinc-100 mb-6 font-sans">
+                                <h4 className="text-sm font-black text-zinc-950 flex items-center gap-2">
+                                  <Video size={16} className="text-zinc-700" />
+                                  챕터관리
+                                </h4>
+                                <p className="text-zinc-500 text-[11px] mt-1 font-medium">동영상 내의 핵심 타임라인 이정표 및 이동 인터랙션을 추가해 보세요.</p>
+                              </div>
+
+                              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                                 {/* Milestone Inputs Column */}
+                                <div className="lg:col-span-4 space-y-4 font-sans">
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <div className="flex items-center justify-between mb-1.5 min-h-[16px]">
+                                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">시작시간</label>
+                                        {(editingChapterId ? editingChapterData.videoUrl : newChapter.videoUrl) && (
+                                          <button 
+                                            type="button" 
+                                            onClick={() => {
+                                              const t = currentAdminPlayTime;
+                                              const m = Math.floor(t / 60).toString().padStart(2, '0');
+                                              const s = Math.floor(t % 60).toString().padStart(2, '0');
+                                              setMStartTime(`${m}:${s}`);
+                                            }} 
+                                            className="text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-0.5 rounded leading-none transition-all cursor-pointer font-bold shadow-sm"
+                                          >주입 ({formatAdminTime(currentAdminPlayTime)})</button>
+                                        )}
+                                      </div>
+                                      <input 
+                                        type="text" 
+                                        value={mStartTime}
+                                        onChange={e => setMStartTime(e.target.value)}
+                                        placeholder="05:14"
+                                        className="w-full p-2.5 bg-zinc-50/60 border border-zinc-200 rounded-lg text-xs font-semibold text-center focus:outline-none focus:ring-2 focus:ring-black/10 text-zinc-700 font-sans"
+                                      />
+                                    </div>
+                                    <div>
+                                      <div className="flex items-center justify-between mb-1.5 min-h-[16px]">
+                                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">종료시간</label>
+                                        {(editingChapterId ? editingChapterData.videoUrl : newChapter.videoUrl) && (
+                                          <button 
+                                            type="button" 
+                                            onClick={() => {
+                                              const t = currentAdminPlayTime;
+                                              const m = Math.floor(t / 60).toString().padStart(2, '0');
+                                              const s = Math.floor(t % 60).toString().padStart(2, '0');
+                                              setMEndTime(`${m}:${s}`);
+                                            }} 
+                                            className="text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-0.5 rounded leading-none transition-all cursor-pointer font-bold shadow-sm"
+                                          >주입 ({formatAdminTime(currentAdminPlayTime)})</button>
+                                        )}
+                                      </div>
+                                      <input 
+                                        type="text" 
+                                        value={mEndTime}
+                                        onChange={e => setMEndTime(e.target.value)}
+                                        placeholder="08:30"
+                                        className="w-full p-2.5 bg-zinc-50/60 border border-zinc-200 rounded-lg text-xs font-semibold text-center focus:outline-none focus:ring-2 focus:ring-black/10 text-zinc-700 font-sans"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-1.5 font-sans">챕터 제목</label>
+                                    <input 
+                                      type="text" 
+                                      value={mTitle}
+                                      onChange={e => setMTitle(e.target.value)}
+                                      placeholder="버터 및 배합 제조 시작"
+                                      className="w-full p-2.5 bg-zinc-50/60 border border-zinc-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-black/10 text-zinc-750 font-sans"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-1.5 font-sans">상세설명</label>
+                                    <input 
+                                      type="text" 
+                                      value={mDesc}
+                                      onChange={e => setMDesc(e.target.value)}
+                                      placeholder="풍미를 극대화하는 배합 방식 분석"
+                                      className="w-full p-2.5 bg-zinc-50/60 border border-zinc-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-black/10 text-zinc-755 font-sans"
+                                    />
+                                  </div>
+
+                                  <button 
+                                    type="button"
+                                    onClick={handleAddMilestone}
+                                    className="w-full py-3 bg-zinc-100 hover:bg-black hover:text-white rounded-lg text-xs font-black uppercase tracking-wider transition-colors cursor-pointer font-sans"
+                                  >
+                                    챕터 추가
+                                  </button>
+                                </div>
+
+                                {/* Milestone List Stream Column */}
+                                <div className="lg:col-span-8 flex flex-col font-sans">
+                                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-2">챕터 리스트</div>
+                                  <div className="border border-zinc-200 bg-zinc-50/50 rounded-[20px] p-5 flex-grow flex flex-col justify-start">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 overflow-y-auto max-h-[160px] pr-1">
+                                      {((editingChapterId ? editingChapterData.milestones : newChapter.milestones) || []).map((ms, msIndex) => (
+                                        <div key={msIndex} className="p-2.5 rounded-xl border border-zinc-100 flex items-center justify-between text-[11px] bg-zinc-50/50">
+                                          <div className="flex-1 min-w-0 pr-2">
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                              <span className="font-mono text-[9px] px-1.5 py-0.5 bg-black text-white rounded font-bold leading-none shrink-0">{ms.timeLabel} ({ms.seconds}초)</span>
+                                              <span className="font-bold text-zinc-800 truncate">{ms.title}</span>
+                                            </div>
+                                            {ms.desc && <p className="text-[10px] text-zinc-400 truncate mt-0.5">{ms.desc}</p>}
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleRemoveMilestone(msIndex)}
+                                            className="p-1 text-zinc-350 hover:text-red-500 rounded hover:bg-zinc-100 shrink-0 cursor-pointer"
+                                          >
+                                            <X size={12} />
+                                          </button>
+                                        </div>
+                                      ))}
+                                      {((editingChapterId ? editingChapterData.milestones : newChapter.milestones) || []).length === 0 && (
+                                        <div className="col-span-full py-12 text-center text-zinc-500 font-sans flex flex-col items-center justify-center gap-2">
+                                          <span className="font-black text-sm text-zinc-800">등록된 챕터 내부 이정표가 없습니다.</span>
+                                          <span className="text-xs text-zinc-500 font-medium leading-relaxed">동영상 타임라인 재생 시점 바로가기 항목을 추가해 보세요.</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Recipe/Ingredients Input Section */}
+                            <div className="border border-zinc-200 bg-white p-6 md:p-8 rounded-[32px] shadow-sm w-full font-sans">
+                              <div className="pb-4 border-b border-zinc-100 mb-6 font-sans">
+                                <h4 className="text-sm font-black text-zinc-950 flex items-center gap-2">
+                                  <BookOpen size={16} className="text-zinc-700" />
+                                  레시피 정보 <span className="text-[10px] text-zinc-400 font-bold ml-1">(선택 입력)</span>
+                                </h4>
+                                <p className="text-zinc-500 text-[11px] mt-1 font-medium pb-0.5">해당 강의/챕터의 상세 조리법 및 계량 단위를 기록할 수 있습니다.</p>
+                              </div>
+                              <textarea 
+                                value={editingChapterId ? (editingChapterData.recipe || "") : (newChapter.recipe || "")}
+                                onChange={e => {
+                                  const val = e.target.value;
+                                  if (editingChapterId) {
+                                    setEditingChapterData(prev => ({ ...prev, recipe: val }));
+                                  } else {
+                                    setNewChapter(prev => ({ ...prev, recipe: val }));
+                                  }
+                                }}
+                                placeholder="해당 강의/챕터의 재료 배합 및 제조 조리법(레시피)을 입력해 주세요. 예: 강력분 200g, 아몬드가루 50g, 오븐 170도 20분 가습..."
+                                className="w-full p-4 bg-zinc-50 border border-zinc-155 rounded-xl text-xs md:text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5 min-h-[300px] placeholder:text-zinc-400 outline-none resize-y text-zinc-850 font-sans"
+                              />
+                            </div>
+                          </form>
+
+                        {/* BOTTOM AREA: Video Upload Zone */}
+                        <div className="grid grid-cols-1 gap-8 items-stretch">
+                          {/* Bottom Left: Interactive Video File Drag-and-Drop Uploader */}
+                          <div className="flex flex-col justify-between">
+                            <div className="border border-zinc-200 bg-white p-6 md:p-8 rounded-[32px] shadow-sm flex-1 flex flex-col justify-between h-full">
+                              <div className="pb-4 border-b border-zinc-100 mb-6">
+                                <h4 className="text-sm font-black text-zinc-950 flex items-center gap-2">
+                                  <Upload size={16} className="text-zinc-700" />
+                                  영상 업로드
+                                </h4>
+                                <p className="text-zinc-500 text-[11px] mt-1 font-medium">동영상 파일을 선택하거나 마우스로 드래그하여 업로드해 주세요.</p>
+                              </div>
+
+                              {/* Interactive Drag & Drop Box */}
+                              <label 
+                                onDragOver={e => e.preventDefault()}
+                                onDrop={e => {
+                                  e.preventDefault();
+                                  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                                    handleUploadVideoFile(e.dataTransfer.files[0]);
+                                  }
+                                }}
+                                className="border-2 border-dashed border-zinc-200 hover:border-black transition-all rounded-[24px] bg-zinc-50/30 hover:bg-zinc-50 p-6 flex-1 flex flex-col items-center justify-center text-center cursor-pointer relative min-h-[220px]"
+                              >
+                                <input 
+                                  type="file" 
+                                  accept="video/*" 
+                                  onChange={e => {
+                                    if (e.target.files && e.target.files[0]) {
+                                      handleUploadVideoFile(e.target.files[0]);
+                                    }
+                                  }}
+                                  className="hidden" 
+                                />
+                                
+                                {isUploadingVideo ? (
+                                  <div className="space-y-4 w-full px-2 max-w-sm mx-auto">
+                                    <div className="relative mx-auto w-10 h-10 flex items-center justify-center bg-black/5 rounded-full text-black">
+                                      <Video className="animate-pulse" size={20} />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      <p className="font-black text-[11px] text-zinc-800 truncate max-w-xs mx-auto">{uploadedVideoFileName}</p>
+                                      <div className="w-full bg-zinc-150 h-1.5 rounded-full overflow-hidden">
+                                        <motion.div 
+                                          className="bg-black h-full rounded-full" 
+                                          initial={{ width: 0 }}
+                                          animate={{ width: `${videoUploadProgress}%` }}
+                                          transition={{ ease: "easeInOut" }}
+                                        />
+                                      </div>
+                                      <div className="flex justify-between text-[9px] font-black text-zinc-500">
+                                        <span>{uploadProgressMsg}</span>
+                                        <span className="font-mono">{videoUploadProgress}%</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-3">
+                                    <div className="mx-auto w-10 h-10 flex items-center justify-center bg-black text-white rounded-full shadow-md">
+                                      <Upload size={16} />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <p className="text-xs font-black text-zinc-800">로컬 동영상 파일 선택 또는 드래그</p>
+                                      <p className="text-[10px] text-zinc-400 font-medium leading-normal">MP4, MOV, FLV, AVI (자동 메타데이터 매칭 및 보안 연동)</p>
+                                    </div>
+                                  </div>
+                                )}
+                              </label>
+
+                              {/* Highly Contextual Cooking Masters Presets */}
+                              <div className="mt-6 pt-4 border-t border-zinc-100">
+                                <span className="text-[9px] font-black uppercase tracking-wider text-zinc-400 block mb-2">프리프리셋 연동 (즉시 테스트용 믹스킷 고도화 영상)</span>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                  {[
+                                    { label: "파티시에 크림 버터 배합", url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4", duration: "12분 30초 분량" },
+                                    { label: "스페셜 초콜릿 가나슈 중탕", url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4", duration: "8분 45초 분량" }
+                                  ].map((preset, pIdx) => (
+                                    <button
+                                      key={pIdx}
+                                      type="button"
+                                      onClick={() => {
+                                        if (editingChapterId) {
+                                          setEditingChapterData(prev => ({ ...prev, videoUrl: preset.url, duration: preset.duration }));
+                                        } else {
+                                          setNewChapter(prev => ({ ...prev, videoUrl: preset.url, duration: preset.duration }));
+                                        }
+                                        alert(`[${preset.label}] 프리셋 영상이 배정되었습니다!`);
+                                      }}
+                                      className="p-2.5 border border-zinc-150 rounded-xl hover:border-black bg-zinc-50/20 text-left text-[11px] font-bold hover:bg-zinc-50 transition-colors cursor-pointer"
+                                    >
+                                      <div className="truncate text-zinc-800">{preset.label}</div>
+                                      <div className="text-[9px] font-medium font-mono text-zinc-400 mt-1">{preset.duration}</div>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    </div> {/* CLOSE active workspace block */}
+
+
+
+                  </div>
+                </motion.div>
+              )}
+
               {/* Category Management View */}
               {activeTab === "categories" && (
                 <motion.div 
@@ -1848,7 +3047,7 @@ export default function Admin() {
 
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
                       {/* Left: Category Add / Edit Form */}
-                      <div className="lg:col-span-5 bg-zinc-50/50 p-8 rounded-[32px] border border-zinc-150 flex flex-col justify-between h-fit">
+                      <div className="lg:col-span-5 bg-white p-8 rounded-[32px] border border-zinc-200 flex flex-col justify-between h-fit">
                         <form onSubmit={handleSaveCategory} className="space-y-6">
                           <div>
                             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 block mb-2">상태</span>
@@ -1874,7 +3073,7 @@ export default function Admin() {
                               value={newCategoryName}
                               onChange={e => setNewCategoryName(e.target.value)}
                               placeholder="예: 원데이 클래스, 쿠킹 마스터리"
-                              className="w-full p-4 bg-white border border-zinc-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-black/5"
+                              className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-black/5"
                               required
                             />
                           </div>
@@ -1886,7 +3085,7 @@ export default function Admin() {
                               value={newCategoryNameEn}
                               onChange={e => setNewCategoryNameEn(e.target.value)}
                               placeholder="예: One-day Class, Cooking Mastery"
-                              className="w-full p-4 bg-white border border-zinc-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-black/5"
+                              className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-black/5"
                             />
                           </div>
 
@@ -1917,9 +3116,9 @@ export default function Admin() {
 
                       {/* Right: Categories List */}
                       <div className="lg:col-span-7 flex flex-col">
-                        <div className="border border-zinc-200 rounded-[32px] overflow-hidden bg-zinc-50/20 p-6 md:p-8">
+                        <div className="border border-zinc-200 rounded-[32px] overflow-hidden bg-white p-6 md:p-8">
                           <div className="flex items-center justify-between mb-6 pb-4 border-b border-zinc-150/60 font-medium">
-                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 font-sans">등록된 카테고리 목록 ({categories.length})</span>
+                            <span className="text-xs font-black uppercase tracking-[0.2em] text-zinc-400 font-sans">등록된 카테고리 목록 ({categories.length})</span>
                           </div>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[560px] overflow-y-auto pr-1">
@@ -1995,17 +3194,72 @@ export default function Admin() {
                   </div>
 
                   <form onSubmit={handleAddNotice} className="space-y-6 mb-16 bg-zinc-50 p-8 rounded-[32px] border border-zinc-100">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-6 rounded-2xl border border-zinc-200/60">
                       <div>
-                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-2">공지 제목</label>
+                        <div className="flex justify-between items-center mb-2">
+                          <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">공지 제목</label>
+                        </div>
                         <input 
                           type="text" 
                           value={newNotice.title}
                           onChange={e => setNewNotice({...newNotice, title: e.target.value})}
                           placeholder="공지 또는 배너 제목"
-                          className="w-full p-4 bg-white border border-zinc-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-black/5"
+                          className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-black/5"
                         />
                       </div>
+                      <div>
+                        <div className="flex justify-between items-center mb-2">
+                          <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">공지 영어 제목 (선택)</label>
+                          <button
+                            type="button"
+                            onClick={handleAiTranslateNewNotice}
+                            disabled={translatingNewNotice}
+                            className="text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-black hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                          >
+                            {translatingNewNotice ? (
+                              <span className="w-3 h-3 border border-zinc-300 border-t-black rounded-full animate-spin inline-block" />
+                            ) : (
+                              <>
+                                <Globe size={11} />
+                                AI 자동 번역
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <input 
+                          type="text" 
+                          value={newNotice.titleEn || ""}
+                          onChange={e => setNewNotice({...newNotice, titleEn: e.target.value})}
+                          placeholder="English Notice Title"
+                          className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-black/5"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-6 rounded-2xl border border-zinc-200/60">
+                      <div>
+                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-2">내용</label>
+                        <textarea 
+                          value={newNotice.content}
+                          onChange={e => setNewNotice({...newNotice, content: e.target.value})}
+                          placeholder="상세 내용을 입력하세요"
+                          rows={2}
+                          className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-2">영어 내용 (선택)</label>
+                        <textarea 
+                          value={newNotice.contentEn || ""}
+                          onChange={e => setNewNotice({...newNotice, contentEn: e.target.value})}
+                          placeholder="English Notice Details"
+                          rows={2}
+                          className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-6 rounded-2xl border border-zinc-200/60">
                       <div>
                         <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-2">이동 URL (선택)</label>
                         <input 
@@ -2013,24 +3267,11 @@ export default function Admin() {
                           value={newNotice.url}
                           onChange={e => setNewNotice({...newNotice, url: e.target.value})}
                           placeholder="https://smartstore.naver.com/..."
-                          className="w-full p-4 bg-white border border-zinc-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-black/5"
+                          className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-black/5"
                         />
                       </div>
-                    </div>
-
-                    <div className="flex items-center gap-6">
-                      <div className="flex-1">
-                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-2">내용</label>
-                        <textarea 
-                          value={newNotice.content}
-                          onChange={e => setNewNotice({...newNotice, content: e.target.value})}
-                          placeholder="상세 내용을 입력하세요"
-                          rows={2}
-                          className="w-full p-4 bg-white border border-zinc-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5"
-                        />
-                      </div>
-                      <div className="flex flex-col items-center justify-center p-6 bg-white rounded-2xl border border-zinc-100 min-w-[140px]">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-3 block text-center">배너 설정</label>
+                      <div className="flex flex-col items-center justify-center p-4 bg-zinc-50 rounded-2xl border border-zinc-200 min-h-[90px]">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2 block text-center">배너 설정</label>
                         <button 
                           type="button"
                           onClick={() => setNewNotice({...newNotice, isBanner: !newNotice.isBanner})}
@@ -2038,7 +3279,7 @@ export default function Admin() {
                         >
                           <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${newNotice.isBanner ? 'left-7' : 'left-1'}`} />
                         </button>
-                        <span className="text-[9px] font-bold mt-2 text-zinc-400">'배너'로 표시</span>
+                        <span className="text-[9px] font-bold mt-1.5 text-zinc-400">'배너'로 표시</span>
                       </div>
                     </div>
                     
@@ -2105,37 +3346,78 @@ export default function Admin() {
                         className="p-6 bg-white border border-zinc-200 rounded-[32px] flex flex-col gap-4 group hover:border-black/20 transition-all cursor-pointer select-none"
                       >
                         {editingNoticeId === notice.id ? (
-                          <div className="space-y-4" onClick={(e) => e.stopPropagation()}>
+                          <div className="space-y-4 w-full" onClick={(e) => e.stopPropagation()}>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div>
-                                <label className="block text-[8px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-1">Title</label>
+                                <label className="block text-[8px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-1">Title (한국어)</label>
                                 <input 
                                   type="text"
                                   value={noticeFormData.title || ""}
                                   onChange={e => setNoticeFormData({...noticeFormData, title: e.target.value})}
                                   placeholder="제목"
-                                  className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-black/10"
+                                  className="w-full p-3 bg-zinc-50/60 border border-zinc-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-black/10"
                                 />
                               </div>
                               <div>
-                                <label className="block text-[8px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-1">Redirect URL</label>
+                                <div className="flex justify-between items-center mb-1">
+                                  <label className="block text-[8px] font-black uppercase tracking-[0.2em] text-zinc-400">English Title</label>
+                                  <button
+                                    type="button"
+                                    onClick={handleAiTranslateEditNotice}
+                                    disabled={translatingEditNotice}
+                                    className="text-[8px] font-black uppercase tracking-widest text-zinc-400 hover:text-black hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                  >
+                                    {translatingEditNotice ? (
+                                      <span className="w-2.5 h-2.5 border border-zinc-300 border-t-black rounded-full animate-spin inline-block" />
+                                    ) : (
+                                      <>
+                                        <Globe size={9} />
+                                        AI 자동 번역
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
                                 <input 
                                   type="text"
-                                  value={noticeFormData.url || ""}
-                                  onChange={e => setNoticeFormData({...noticeFormData, url: e.target.value})}
-                                  placeholder="리다이렉트 URL"
-                                  className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-black/10"
+                                  value={noticeFormData.titleEn || ""}
+                                  onChange={e => setNoticeFormData({...noticeFormData, titleEn: e.target.value})}
+                                  placeholder="English Title"
+                                  className="w-full p-3 bg-zinc-50/60 border border-zinc-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-black/10"
                                 />
                               </div>
                             </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-[8px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-1">Content (한국어)</label>
+                                <textarea 
+                                  value={noticeFormData.content || ""}
+                                  onChange={e => setNoticeFormData({...noticeFormData, content: e.target.value})}
+                                  placeholder="상세 내용"
+                                  rows={2}
+                                  className="w-full p-3 bg-zinc-50/60 border border-zinc-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black/10"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[8px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-1">English Content</label>
+                                <textarea 
+                                  value={noticeFormData.contentEn || ""}
+                                  onChange={e => setNoticeFormData({...noticeFormData, contentEn: e.target.value})}
+                                  placeholder="English details description"
+                                  rows={2}
+                                  className="w-full p-3 bg-zinc-50/60 border border-zinc-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black/10"
+                                />
+                              </div>
+                            </div>
+
                             <div>
-                              <label className="block text-[8px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-1">Content</label>
-                              <textarea 
-                                value={noticeFormData.content || ""}
-                                onChange={e => setNoticeFormData({...noticeFormData, content: e.target.value})}
-                                placeholder="상세 내용"
-                                rows={2}
-                                className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black/10"
+                              <label className="block text-[8px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-1">Redirect URL</label>
+                              <input 
+                                type="text"
+                                value={noticeFormData.url || ""}
+                                onChange={e => setNoticeFormData({...noticeFormData, url: e.target.value})}
+                                placeholder="리다이렉트 URL"
+                                className="w-full p-3 bg-zinc-50/60 border border-zinc-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-black/10"
                               />
                             </div>
 
@@ -2340,7 +3622,7 @@ export default function Admin() {
                             value={newReview.phrase}
                             onChange={e => setNewReview({ ...newReview, phrase: e.target.value })}
                             placeholder="예: 초보자도 쉽게 따라하는 바게트 공정"
-                            className="w-full p-4 bg-white border border-zinc-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-black/5"
+                            className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-black/5"
                           />
                         </div>
 
@@ -2351,7 +3633,7 @@ export default function Admin() {
                             value={newReview.phraseEn}
                             onChange={e => setNewReview({ ...newReview, phraseEn: e.target.value })}
                             placeholder="e.g. Verified Student Review"
-                            className="w-full p-4 bg-white border border-zinc-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-black/5"
+                            className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-black/5"
                           />
                         </div>
 
@@ -2554,7 +3836,7 @@ export default function Admin() {
                           value={inputUrl}
                           onChange={e => setInputUrl(e.target.value)}
                           placeholder="Looker Studio embed URL을 복사하여 입력하세요 (예: https://lookerstudio.google.com/embed/reporting/...)"
-                          className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-black/10"
+                          className="w-full px-4 py-3 bg-zinc-50/60 border border-zinc-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-black/10"
                         />
                       </div>
                       <button 
@@ -2838,16 +4120,17 @@ export default function Admin() {
                   exit={{ opacity: 0, y: -15 }}
                   className="space-y-8"
                 >
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div>
-                      <h3 className="text-3xl font-black tracking-tighter mb-2 text-zinc-950">
-                        회원 관리
-                      </h3>
-                      <p className="text-zinc-500 font-medium">서비스에 가입된 모든 회원을 조회하고 어드민 접속 권한 등급을 지정합니다.</p>
+                  <div className="bg-white p-10 rounded-[40px] border border-zinc-200 shadow-sm space-y-8">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-zinc-100">
+                      <div>
+                        <h3 className="text-3xl font-black tracking-tighter mb-2 text-zinc-950">
+                          회원 관리
+                        </h3>
+                        <p className="text-zinc-500 font-medium">서비스에 가입된 모든 회원을 조회하고 어드민 접속 권한 등급을 지정합니다.</p>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Summary Metric Cards for Members */}
+                    {/* Summary Metric Cards for Members */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                     <div className="bg-white p-6 rounded-3xl border border-zinc-200 shadow-sm flex items-center justify-between">
                       <div>
@@ -2893,7 +4176,7 @@ export default function Admin() {
                             value={searchUserQuery}
                             onChange={e => setSearchUserQuery(e.target.value)}
                             placeholder="이름, 이메일, UID로 회원 검색..."
-                            className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl py-3 pl-11 pr-10 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-black/10 transition-all placeholder:text-zinc-400"
+                            className="w-full bg-zinc-50/60 border border-zinc-200 rounded-2xl py-3 pl-11 pr-10 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-black/10 transition-all placeholder:text-zinc-400"
                           />
                           {searchUserQuery && (
                             <button 
@@ -3010,10 +4293,10 @@ export default function Admin() {
 
                     {/* Integrated User List Area */}
                     <div className="p-4 md:p-6 font-sans overflow-x-auto">
-                      <div className="min-w-[1030px]">
+                      <div className="min-w-[700px]">
                         {/* User Table Header */}
                         {filteredUsers.length > 0 && (
-                          <div className="px-4 py-2.5 mb-2.5 flex items-center gap-4 text-xs font-black text-zinc-400 select-none pb-4 border-b border-zinc-100">
+                          <div className="px-2 py-2 text-xs font-black text-zinc-400 select-none pb-2.5 border-b border-zinc-100 flex items-center gap-1">
                             {/* Bulk Checkbox column */}
                             <div className="w-[3%] flex-shrink-0 flex items-center justify-center pl-1">
                               <input 
@@ -3034,35 +4317,35 @@ export default function Admin() {
                             </div>
 
                             {/* Headers */}
-                            <div className="w-[12%] text-[10px] uppercase tracking-wider font-bold pl-2">
+                            <div className="w-[11%] text-[10px] uppercase tracking-wider font-bold text-center">
                               닉네임
                             </div>
 
-                            <div className="w-[10%] text-[10px] uppercase tracking-wider font-bold">
+                            <div className="w-[9%] text-[10px] uppercase tracking-wider font-bold text-center">
                               이름
                             </div>
 
-                            <div className="w-[7%] text-[10px] uppercase tracking-wider font-bold">
+                            <div className="w-[5%] text-[10px] uppercase tracking-wider font-bold text-center">
                               성별
                             </div>
 
-                            <div className="w-[22%] text-[10px] uppercase tracking-wider font-bold">
+                            <div className="w-[20%] text-[10px] uppercase tracking-wider font-bold text-center">
                               이메일
                             </div>
 
-                            <div className="w-[15%] text-[10px] uppercase tracking-wider font-bold">
+                            <div className="w-[13%] text-[10px] uppercase tracking-wider font-bold text-center">
                               전화번호
                             </div>
 
-                            <div className="w-[12%] text-[10px] uppercase tracking-wider font-bold">
+                            <div className="w-[11%] text-[10px] uppercase tracking-wider font-bold text-center">
                               비밀번호
                             </div>
 
-                            <div className="w-[11%] text-right text-[10px] uppercase tracking-wider font-bold pr-2">
+                            <div className="w-[11%] text-[10px] uppercase tracking-wider font-bold text-center">
                               회원 등급
                             </div>
 
-                            <div className="w-[8%] text-right text-[10px] uppercase tracking-wider font-bold pr-2">
+                            <div className="w-[10%] text-[10px] uppercase tracking-wider font-bold text-center">
                               관리
                             </div>
                           </div>
@@ -3079,7 +4362,7 @@ export default function Admin() {
                               <div 
                                 key={u.id} 
                                 onClick={(e) => handleUserRowClick(e, u, idx)}
-                                className={`px-4 py-2.5 rounded-xl flex items-center gap-4 group transition-[background-color,border-color,box-shadow,color] duration-150 relative cursor-pointer select-none border border-transparent ${
+                                className={`px-2 py-2 rounded-xl flex items-center gap-1 group transition-[background-color,border-color,box-shadow,color] duration-150 relative cursor-pointer select-none border border-transparent ${
                                   isSelected 
                                     ? "bg-zinc-100 text-black shadow-sm" 
                                     : "hover:bg-zinc-50 bg-white text-zinc-900 border-zinc-100"
@@ -3096,46 +4379,46 @@ export default function Admin() {
                                 </div>
 
                                 {/* Nickname (닉네임) Column */}
-                                <div className="w-[12%] flex items-center min-w-0" onClick={(e) => e.stopPropagation()}>
+                                <div className="w-[11%] flex items-center justify-center text-center min-w-0" onClick={(e) => e.stopPropagation()}>
                                   {isEditing ? (
                                     <input
                                       type="text"
                                       value={editUserInputs.nickname}
                                       onChange={(e) => setEditUserInputs(prev => ({ ...prev, nickname: e.target.value }))}
                                       placeholder="닉네임"
-                                      className="bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 text-xs font-black focus:outline-none focus:ring-2 focus:ring-black/10 w-full"
+                                      className="bg-zinc-50/60 border border-zinc-200 rounded-lg px-2 py-1 text-xs text-center font-black focus:outline-none focus:ring-2 focus:ring-black/10 w-full"
                                     />
                                   ) : (
-                                    <span className="font-extrabold text-zinc-900 truncate" title={u.nickname || u.displayName || "미등록"}>
+                                    <span className="text-xs font-extrabold text-zinc-900 truncate w-full text-center" title={u.nickname || u.displayName || "미등록"}>
                                       {u.nickname || u.displayName || "미등록"}
                                     </span>
                                   )}
                                 </div>
 
                                 {/* Real Name (이름) Column */}
-                                <div className="w-[10%] flex items-center min-w-0" onClick={(e) => e.stopPropagation()}>
+                                <div className="w-[9%] flex items-center justify-center text-center min-w-0" onClick={(e) => e.stopPropagation()}>
                                   {isEditing ? (
                                     <input
                                       type="text"
                                       value={editUserInputs.realName}
                                       onChange={(e) => setEditUserInputs(prev => ({ ...prev, realName: e.target.value }))}
                                       placeholder="이름"
-                                      className="bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-black/10 w-full"
+                                      className="bg-zinc-50/60 border border-zinc-200 rounded-lg px-2 py-1 text-xs text-center font-bold focus:outline-none focus:ring-2 focus:ring-black/10 w-full"
                                     />
                                   ) : (
-                                    <span className="text-xs font-semibold text-zinc-650 truncate" title={u.realName || "-"}>
+                                    <span className="text-xs font-semibold text-zinc-650 truncate w-full text-center" title={u.realName || "-"}>
                                       {u.realName || "-"}
                                     </span>
                                   )}
                                 </div>
 
                                 {/* Gender (성별) Column */}
-                                <div className="w-[7%] flex items-center min-w-0" onClick={(e) => e.stopPropagation()}>
+                                <div className="w-[5%] flex items-center justify-center min-w-0" onClick={(e) => e.stopPropagation()}>
                                   {isEditing ? (
                                     <select
                                       value={editUserInputs.gender}
                                       onChange={(e) => setEditUserInputs(prev => ({ ...prev, gender: e.target.value }))}
-                                      className="bg-zinc-50 border border-zinc-200 rounded-lg px-1 py-1 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-black/10 cursor-pointer w-full"
+                                      className="bg-zinc-50 border border-zinc-200 rounded-lg px-1 py-1 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-black/10 cursor-pointer w-full text-center"
                                     >
                                       <option value="남">남</option>
                                       <option value="여">여</option>
@@ -3148,42 +4431,42 @@ export default function Admin() {
                                 </div>
 
                                 {/* Email (이메일) Column */}
-                                <div className="w-[22%] flex items-center min-w-0" onClick={(e) => e.stopPropagation()}>
-                                  <span className="text-xs text-zinc-550 font-bold select-all truncate w-full" title={u.email || "이메일 없음"}>
+                                <div className="w-[20%] flex items-center justify-center text-center min-w-0" onClick={(e) => e.stopPropagation()}>
+                                  <span className="text-xs text-zinc-550 font-bold select-all truncate w-full text-center" title={u.email || "이메일 없음"}>
                                     {u.email || "이메일 없음"}
                                   </span>
                                 </div>
 
                                 {/* Phone (전화번호) Column */}
-                                <div className="w-[15%] flex items-center min-w-0" onClick={(e) => e.stopPropagation()}>
+                                <div className="w-[13%] flex items-center justify-center text-center min-w-0" onClick={(e) => e.stopPropagation()}>
                                   {isEditing ? (
                                     <input
                                       type="text"
                                       value={editUserInputs.phone}
                                       onChange={(e) => setEditUserInputs(prev => ({ ...prev, phone: e.target.value.replace(/[^0-9]/g, '') }))}
                                       placeholder="전화번호"
-                                      className="bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-black/10 w-full"
+                                      className="bg-zinc-50/60 border border-zinc-200 rounded-lg px-2 py-1 text-xs font-mono font-bold text-center focus:outline-none focus:ring-2 focus:ring-black/10 w-full"
                                     />
                                   ) : (
-                                    <span className="font-mono text-zinc-400 text-[11px] font-semibold">
+                                    <span className="font-mono text-zinc-400 text-[11px] font-semibold w-full text-center">
                                       {u.phone || "-"}
                                     </span>
                                   )}
                                 </div>
 
                                 {/* Credentials (비밀번호) Column */}
-                                <div className="w-[12%] flex items-center gap-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+                                <div className="w-[11%] flex items-center justify-center gap-1 min-w-0 text-center" onClick={(e) => e.stopPropagation()}>
                                   {isEditing ? (
                                     <input
                                       type="text"
                                       value={editUserInputs.password || ""}
                                       onChange={(e) => setEditUserInputs(prev => ({ ...prev, password: e.target.value }))}
                                       placeholder="비밀번호 설정"
-                                      className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 text-xs font-bold font-mono focus:outline-none focus:ring-2 focus:ring-black/10"
+                                      className="w-full bg-zinc-50/60 border border-zinc-200 rounded-lg px-2 py-1 text-xs font-bold font-mono text-center focus:outline-none focus:ring-2 focus:ring-black/10"
                                     />
                                   ) : u.password ? (
-                                    <>
-                                      <span className="font-mono text-xs text-zinc-500 font-bold select-all bg-zinc-50 px-1.5 py-0.5 rounded border border-zinc-100/55 truncate">
+                                    <div className="flex items-center justify-center gap-1 w-full min-w-0">
+                                      <span className="font-mono text-xs text-zinc-550 font-bold select-all bg-zinc-50 px-1.5 py-0.5 rounded border border-zinc-100/55 truncate">
                                         {revealedPasswords[u.id] ? u.password : "••••••••"}
                                       </span>
                                       <button
@@ -3196,16 +4479,16 @@ export default function Admin() {
                                       >
                                         {revealedPasswords[u.id] ? <EyeOff size={11} /> : <Eye size={11} />}
                                       </button>
-                                    </>
+                                    </div>
                                   ) : (
-                                    <span className="text-[10px] text-zinc-400 font-semibold italic bg-zinc-50/30 px-1.5 py-0.5 rounded border border-zinc-100/30 truncate">
+                                    <span className="text-[10px] text-zinc-400 font-semibold italic bg-zinc-50/30 px-1.5 py-0.5 rounded border border-zinc-100/30 truncate w-full text-center">
                                       {u.email && !u.email.includes("@") ? "소셜인증" : "구글/미등록"}
                                     </span>
                                   )}
                                 </div>
 
                                 {/* Role Grade ("회원 권한 등급" with Combo Box in editing) */}
-                                <div className="w-[11%] flex justify-end items-center pr-2" onClick={(e) => e.stopPropagation()}>
+                                <div className="w-[11%] flex justify-center items-center" onClick={(e) => e.stopPropagation()}>
                                   {isEditing ? (
                                     <select
                                       value={editUserInputs.isAdmin ? "admin" : (editUserInputs.isBanned ? "banned" : "customer")}
@@ -3217,7 +4500,7 @@ export default function Admin() {
                                           isBanned: role === "banned"
                                         }));
                                       }}
-                                      className="bg-zinc-50 border border-zinc-200 rounded-lg px-1.5 py-1 text-xs font-black text-zinc-900 focus:outline-none focus:ring-2 focus:ring-black/10 cursor-pointer w-full"
+                                      className="bg-zinc-50 border border-zinc-200 rounded-lg px-1.5 py-1 text-xs font-black text-zinc-900 focus:outline-none focus:ring-2 focus:ring-black/10 cursor-pointer w-full text-center"
                                     >
                                       <option value="customer">일반</option>
                                       <option value="admin">관리자</option>
@@ -3242,7 +4525,7 @@ export default function Admin() {
                                 </div>
 
                                 {/* Control/Manage Area */}
-                                <div className="w-[8%] flex justify-end gap-1 flex-shrink-0 items-center" onClick={(e) => e.stopPropagation()}>
+                                <div className="w-[10%] flex justify-center gap-1 flex-shrink-0 items-center" onClick={(e) => e.stopPropagation()}>
                                   {isEditing ? (
                                     <div className="flex items-center gap-1">
                                       <button
@@ -3265,6 +4548,17 @@ export default function Admin() {
                                     </div>
                                   ) : (
                                     <>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedUserForClasses(u);
+                                          setTempEnrolledClassIds((u.enrolledClasses || []).map((e: any) => e.id));
+                                        }}
+                                        className="p-1.5 text-zinc-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all cursor-pointer flex items-center justify-center shrink-0 animate-fade-in"
+                                        title="수강 클래스 관리"
+                                      >
+                                        <BookOpen size={14} />
+                                      </button>
                                       <button
                                         type="button"
                                         onClick={() => handleStartEditUser(u)}
@@ -3320,8 +4614,9 @@ export default function Admin() {
                       </div>
                     </div>
                   </div>
-                </motion.div>
-              )}
+                </div>
+              </motion.div>
+            )}
 
               {/* Role matrix & Grade settings view */}
               {activeTab === "roles" && (
@@ -3477,16 +4772,17 @@ export default function Admin() {
                   exit={{ opacity: 0, y: -15 }}
                   className="space-y-8 text-left font-sans"
                 >
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div>
-                      <h2 className="text-3xl font-black tracking-tight text-zinc-950 uppercase font-sans">Inquiries & Questions</h2>
-                      <p className="text-sm font-semibold text-zinc-400 mt-1">
-                        수강생들이 등록한 질문을 실시간으로 확인하고 마스터 피드백을 전달합니다.
-                      </p>
+                  <div className="bg-white p-10 rounded-[40px] border border-zinc-200 shadow-sm space-y-8">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-zinc-100">
+                      <div>
+                        <h2 className="text-3xl font-black tracking-tight text-zinc-950 uppercase font-sans">1:1 문의 및 상담</h2>
+                        <p className="text-sm font-semibold text-zinc-400 mt-1">
+                          수강생들이 등록한 질문을 실시간으로 확인하고 마스터 피드백을 전달합니다.
+                        </p>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                     {/* Left Column: List of Questions */}
                     <div className="lg:col-span-5 space-y-4">
                       {/* Search and Filters */}
@@ -3498,7 +4794,7 @@ export default function Admin() {
                             placeholder="제목, 작성자 이름, 이메일 검색..."
                             value={adminQSearch}
                             onChange={(e) => setAdminQSearch(e.target.value)}
-                            className="w-full bg-zinc-50 border border-zinc-200 focus:border-zinc-350 focus:ring-1 focus:ring-zinc-100 py-3 pl-11 pr-4 rounded-xl text-xs font-bold outline-none transition-all"
+                            className="w-full bg-zinc-50/60 border border-zinc-200 focus:border-zinc-350 focus:ring-1 focus:ring-zinc-100 py-3 pl-11 pr-4 rounded-xl text-xs font-bold outline-none transition-all"
                           />
                         </div>
 
@@ -3759,8 +5055,9 @@ export default function Admin() {
                       })()}
                     </div>
                   </div>
-                </motion.div>
-              )}
+                </div>
+              </motion.div>
+            )}
 
               {/* Blacklist Management Tab */}
               {activeTab === "blacklist" && (
@@ -3771,14 +5068,17 @@ export default function Admin() {
                   exit={{ opacity: 0, y: -15 }}
                   className="space-y-8"
                 >
-                  <div>
-                    <h3 className="text-3xl font-black tracking-tighter mb-2 text-red-650">
-                      이용 제한 관리
-                    </h3>
-                    <p className="text-zinc-500 font-medium text-sm">서비스 이용 규정을 위반하여 제한된 회원의 목록을 관리하고, 제한 상태를 해제할 수 있습니다.</p>
-                  </div>
+                  <div className="bg-white p-10 rounded-[40px] border border-zinc-200 shadow-sm space-y-8">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-zinc-100">
+                      <div>
+                        <h3 className="text-3xl font-black tracking-tighter mb-2 text-red-650">
+                          이용 제한 관리
+                        </h3>
+                        <p className="text-zinc-500 font-medium text-sm">서비스 이용 규정을 위반하여 제한된 회원의 목록을 관리하고, 제한 상태를 해제할 수 있습니다.</p>
+                      </div>
+                    </div>
 
-                  {/* Summary Metric Cards for Blacklist */}
+                    {/* Summary Metric Cards for Blacklist */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl">
                     <div className="bg-white p-6 rounded-3xl border border-zinc-200 shadow-sm flex items-center justify-between">
                       <div>
@@ -3895,12 +5195,205 @@ export default function Admin() {
                       </table>
                     </div>
                   </div>
-                </motion.div>
-              )}
+                </div>
+              </motion.div>
+            )}
             </AnimatePresence>
           </div>
         </div>
       </main>
+
+      {/* Enrolled Classes Management Modal (수강권한 팝업 모달) */}
+      <AnimatePresence>
+        {selectedUserForClasses && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+            {/* Dark Overlay with elegant backdrop blur */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedUserForClasses(null)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            
+            {/* Modal Card */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-[32px] shadow-2xl border border-zinc-150 w-full max-w-[1000px] relative z-10 flex flex-col max-h-[85vh] overflow-hidden font-sans text-black"
+            >
+              {/* Header */}
+              <div className="p-6 md:p-8 border-b border-zinc-100 flex items-start justify-between bg-zinc-50/50 shrink-0 text-left">
+                <div className="space-y-2 max-w-3xl">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black tracking-widest uppercase">
+                      수강 권한 설정
+                    </span>
+                  </div>
+                  <h3 className="text-xl md:text-2xl font-extrabold text-zinc-900 tracking-tight leading-normal">
+                    <span className="text-indigo-600">[{selectedUserForClasses.nickname || selectedUserForClasses.realName || selectedUserForClasses.displayName || selectedUserForClasses.email || '회원'}]</span> 님 수강 권한 관리
+                  </h3>
+                  <p className="text-xs md:text-sm text-zinc-500 font-medium leading-relaxed">
+                    선택한 회원이 수강할 수 있는 강의 클래스 목록을 직접 일괄 부여하거나 회수할 수 있습니다.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedUserForClasses(null)}
+                  className="p-2.5 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-full transition-all cursor-pointer shrink-0 ml-4 border border-transparent hover:border-zinc-200"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Search Bar & Stats */}
+              <div className="px-6 md:px-8 py-4 border-b border-zinc-100 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
+                <div className="relative flex-1">
+                  <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" />
+                  <input
+                    type="text"
+                    value={searchClassInModal}
+                    onChange={(e) => setSearchClassInModal(e.target.value)}
+                    placeholder="클래스 제목 또는 카테고리 검색..."
+                    className="w-full bg-zinc-50/60 border border-zinc-200 rounded-xl py-2 pl-10 pr-4 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-150 transition-all placeholder:text-zinc-400"
+                  />
+                </div>
+                <div className="flex gap-2 items-center text-xs font-black self-end sm:self-auto">
+                  <span className="text-zinc-400">선택 됨:</span>
+                   <span className="text-indigo-600 font-mono text-sm">{tempEnrolledClassIds.length}개</span>
+                   <span className="text-zinc-200">/</span>
+                   <span className="text-zinc-500 font-mono font-bold">총 {posts.length}개</span>
+                </div>
+              </div>
+
+              {/* Class posts checklist */}
+              <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-zinc-50/20">
+                {posts.filter(p => !p.isBanner).filter(p => {
+                  const queryClean = searchClassInModal.toLowerCase().trim();
+                  if (!queryClean) return true;
+                  return p.title.toLowerCase().includes(queryClean) || (p.category || "").toLowerCase().includes(queryClean);
+                }).length === 0 ? (
+                  <div className="py-12 border border-dashed border-zinc-200 rounded-2xl text-center bg-white">
+                    <BookOpen className="mx-auto text-zinc-300 mb-2.5" size={28} />
+                    <p className="text-xs font-bold text-zinc-400">검색 결과에 맞는 클래스가 존재하지 않습니다.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {posts.filter(p => !p.isBanner).filter(p => {
+                      const queryClean = searchClassInModal.toLowerCase().trim();
+                      if (!queryClean) return true;
+                      return p.title.toLowerCase().includes(queryClean) || (p.category || "").toLowerCase().includes(queryClean);
+                    }).map((classItem) => {
+                      const isChecked = tempEnrolledClassIds.includes(classItem.id);
+                      return (
+                        <div
+                          key={classItem.id}
+                          onClick={() => {
+                            if (isChecked) {
+                              setTempEnrolledClassIds(prev => prev.filter(id => id !== classItem.id));
+                            } else {
+                              setTempEnrolledClassIds(prev => [...prev, classItem.id]);
+                            }
+                          }}
+                          className={`p-4 rounded-2xl border transition-all duration-150 flex items-center justify-between gap-4 cursor-pointer select-none bg-white text-left ${
+                            isChecked
+                              ? "border-indigo-500 bg-indigo-50/10 shadow-sm"
+                              : "border-zinc-200 hover:border-zinc-300"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                            <div className="w-12 h-12 rounded-xl bg-zinc-100 overflow-hidden border border-zinc-150 shrink-0">
+                              {classItem.imageUrl ? (
+                                <img src={classItem.imageUrl} className="w-full h-full object-cover" alt="" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-[9px] font-black bg-zinc-550 text-white">CLASS</div>
+                              )}
+                            </div>
+                            <div className="text-left min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="px-1.5 py-0.5 bg-zinc-100 text-zinc-650 rounded-md text-[8px] font-black uppercase tracking-wider">
+                                  {classItem.category || "Masterclass"}
+                                </span>
+                                <span className="text-[10px] text-zinc-400 font-mono font-bold">
+                                  {classItem.price || "₩49,900"}
+                                </span>
+                              </div>
+                              <h4 className="text-xs font-extrabold text-zinc-900 mt-1 truncate" title={classItem.title}>
+                                {classItem.title}
+                              </h4>
+                            </div>
+                          </div>
+                          
+                          {/* Premium Styled Checkbox */}
+                          <div className="flex-shrink-0">
+                            <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
+                              isChecked
+                                ? "bg-indigo-600 border-indigo-600 text-white shadow-sm"
+                                : "border-zinc-300 bg-white"
+                            }`}>
+                              {isChecked && (
+                                <svg className="w-3.5 h-3.5 stroke-current stroke-2" fill="none" viewBox="0 0 24 24">
+                                  <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-6 md:p-8 border-t border-zinc-100 bg-zinc-50/50 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0 text-left">
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const activeIds = posts.filter(p => !p.isBanner).map(p => p.id);
+                      setTempEnrolledClassIds(activeIds);
+                    }}
+                    className="px-3 py-1.5 bg-zinc-200/60 hover:bg-zinc-200 text-zinc-800 text-[10px] font-black uppercase rounded-lg transition-all cursor-pointer"
+                  >
+                    전체 선택 (All)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTempEnrolledClassIds([])}
+                    className="px-3 py-1.5 bg-white border border-zinc-300 hover:bg-zinc-100 text-zinc-650 text-[10px] font-black uppercase rounded-lg transition-all cursor-pointer"
+                  >
+                    임시 해제 (Clear)
+                  </button>
+                </div>
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedUserForClasses(null)}
+                    className="px-4 py-2.5 bg-white border border-zinc-250 hover:bg-zinc-50 rounded-xl text-xs font-black transition-all cursor-pointer w-full sm:w-auto text-zinc-700"
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveUserClasses}
+                    disabled={isSavingEnrolledClasses}
+                    className="px-5 py-2.5 bg-zinc-950 text-white hover:bg-black rounded-xl text-xs font-black uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5 w-full sm:w-auto shadow"
+                  >
+                    {isSavingEnrolledClasses ? (
+                      <RefreshCw size={13} className="animate-spin" />
+                    ) : (
+                      <Save size={13} />
+                    )}
+                    <span>변경 권한 저장</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

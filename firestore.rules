@@ -44,10 +44,31 @@ service cloud.firestore {
              data.naverUrl is string;
     }
 
+    match /{path=**}/chapters/{chapterId} {
+      allow read, write: if true;
+    }
+
     match /posts/{postId} {
       allow read: if true;
       allow create, update, delete: if true; // Permissive for preview/admin management
+
+      match /chapters/{chapterId} {
+        allow read, write: if true;
+      }
     }
+
+    match /{path=**}/chapters/{chapterId} {
+      allow read, write: if true;
+    }
+
+    match /settings/{docId} {
+      allow read, write: if true;
+    }
+
+    match /analytics/{docId} {
+      allow read, write: if true;
+    }
+
 
     match /categories/{catId} {
       allow read: if true;

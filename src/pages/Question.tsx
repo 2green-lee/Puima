@@ -6,6 +6,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { X, Lock, ArrowRight, Plus, ChevronDown, ChevronUp, AlertCircle, MessageSquare } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { FixedHeader } from "../components/FixedHeader";
+import { translate } from "../utils/translate";
 
 interface QuestionItem {
   id: string;
@@ -23,7 +24,7 @@ interface QuestionItem {
 
 export default function Question() {
   const navigate = useNavigate();
-  const { user, userId } = useAuth();
+  const { user, userId, lang } = useAuth();
   
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,7 +64,7 @@ export default function Question() {
 
   const handleOpenModal = () => {
     if (!user) {
-      if (window.confirm("질문을 등록하기 위해서는 로그인이 필요합니다. 로그인 페이지로 이동하시겠습니까?")) {
+      if (window.confirm(translate("질문 등록하기 위해서는 로그인이 필요합니다. 로그인 페이지로 이동하시겠습니까?", lang))) {
         navigate("/login", { state: { from: "/question" } });
       }
       return;
@@ -80,7 +81,7 @@ export default function Question() {
     e.preventDefault();
     if (!user) return;
     if (!newTitle.trim() || !newContent.trim()) {
-      setErrorMessage("제목과 내용을 입력해 주세요.");
+      setErrorMessage(translate("제목과 내용을 입력해 주세요.", lang));
       return;
     }
 
@@ -101,7 +102,7 @@ export default function Question() {
       setIsModalOpen(false);
     } catch (err: any) {
       console.error("Error adding question:", err);
-      setErrorMessage("질문 등록 중 오류가 발생했습니다. 다시 시도해 주세요.");
+      setErrorMessage(translate("질문 등록 중 오류가 발생했습니다. 다시 시도해 주세요.", lang));
     } finally {
       setIsSubmitting(false);
     }
@@ -109,26 +110,26 @@ export default function Question() {
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (!window.confirm("정말로 이 질문을 삭제하시겠습니까?")) return;
+    if (!window.confirm(translate("정말로 이 질문을 삭제하시겠습니까?", lang))) return;
     try {
       await deleteDoc(doc(db, "questions", id));
       if (expandedId === id) setExpandedId(null);
     } catch (err) {
       console.error("Error deleting question:", err);
-      alert("질문 삭제 중 문제가 발생했습니다.");
+      alert(translate("질문 삭제 중 문제가 발생했습니다.", lang));
     }
   };
 
   const handleToggleAccordion = (q: QuestionItem) => {
     if (q.isPrivate && q.authorId !== user?.uid && !isAdminUser) {
-      alert("비밀글입니다. 작성자 본인과 관리자만 확인할 수 있습니다.");
+      alert(translate("비밀글입니다. 작성자 본인과 관리자만 확인할 수 있습니다.", lang));
       return;
     }
     setExpandedId(expandedId === q.id ? null : q.id);
   };
 
   const maskName = (name: string) => {
-    if (!name) return "익명";
+    if (!name) return translate("익명", lang);
     return name[0] + "**";
   };
 
@@ -156,21 +157,21 @@ export default function Question() {
               onClick={() => navigate("/")}
               className="text-zinc-400 hover:text-black transition-colors text-xs font-bold tracking-tight inline-flex items-center gap-1.5 cursor-pointer"
             >
-              ← 돌아가기
+              ← {translate("돌아가기", lang)}
             </button>
           </div>
 
           <div className="mb-12 flex flex-col md:flex-row md:items-center justify-between gap-6 text-left border-b border-zinc-100 pb-8">
             <div>
               <h2 className="text-xl font-bold tracking-tight text-zinc-900 mb-1">Q&A</h2>
-              <p className="text-zinc-450 text-xs md:text-sm font-medium tracking-tight">푸이마에게 궁금한 점을 편하게 질문해보세요.</p>
+              <p className="text-zinc-450 text-xs md:text-sm font-medium tracking-tight">{translate("푸이마에게 궁금한 점을 편하게 질문해보세요.", lang)}</p>
             </div>
             <button
               onClick={handleOpenModal}
               className="bg-black text-white px-8 py-4.5 rounded-2xl font-black text-xs hover:bg-zinc-800 transition-all flex items-center gap-2 tracking-widest uppercase cursor-pointer shrink-0"
             >
               <Plus size={16} />
-              질문 등록하기
+              {translate("질문 등록하기", lang)}
             </button>
           </div>
 
@@ -183,8 +184,8 @@ export default function Question() {
             ) : questions.length === 0 ? (
               <div className="py-24 text-center border-2 border-dashed border-zinc-100 rounded-[32px] bg-zinc-50/20">
                 <MessageSquare size={36} className="text-zinc-300 mx-auto mb-4" />
-                <p className="text-zinc-400 text-sm font-bold">등록된 질문이 없습니다.</p>
-                <p className="text-zinc-400 text-xs font-semibold mt-1">첫 번째 질문을 등록해보세요!</p>
+                <p className="text-zinc-400 text-sm font-bold">{translate("등록된 질문이 없습니다.", lang)}</p>
+                <p className="text-zinc-400 text-xs font-semibold mt-1">{translate("첫 번째 질문을 등록해보세요!", lang)}</p>
               </div>
             ) : (
               <div className="border border-zinc-200 rounded-[32px] overflow-hidden divide-y divide-zinc-200 bg-zinc-50/10">
@@ -207,23 +208,23 @@ export default function Question() {
                             {/* Answer status status indicator */}
                             {q.answer ? (
                               <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-700 uppercase tracking-wider">
-                                답변 완료
+                                {translate("답변 완료", lang)}
                               </span>
                             ) : (
                               <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-zinc-100 border border-zinc-200 text-zinc-500 uppercase tracking-wider">
-                                답변 대기
+                                {translate("답변 대기", lang)}
                               </span>
                             )}
                             {q.isPrivate && (
                               <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-zinc-400 bg-zinc-50 border border-zinc-150 px-1.5 py-0.5 rounded-md">
                                 <Lock size={10} />
-                                비밀글
+                                {translate("비밀글", lang)}
                               </span>
                             )}
                           </div>
                           
                           <h3 className="text-sm md:text-base font-bold text-zinc-900 truncate leading-snug">
-                            {q.isPrivate && !isPrivateReadable ? "비밀글입니다." : q.title}
+                            {q.isPrivate && !isPrivateReadable ? translate("비밀글입니다.", lang) : q.title}
                           </h3>
 
                           <div className="flex items-center gap-2.5 text-[10px] text-zinc-400 font-medium font-mono mt-1">
@@ -238,7 +239,7 @@ export default function Question() {
                                   onClick={(e) => handleDelete(e, q.id)}
                                   className="text-red-400 hover:text-red-600 transition-colors uppercase font-sans font-bold cursor-pointer"
                                 >
-                                  삭제
+                                  {translate("삭제", lang)}
                                 </button>
                               </>
                             )}
@@ -264,14 +265,14 @@ export default function Question() {
                               <div className="bg-white border border-zinc-300 rounded-2xl p-5 md:p-6 mb-3">
                                 {q.reference && (
                                   <div className="mb-3 pb-3 border-b border-zinc-100">
-                                    <span className="text-[11px] font-extrabold uppercase text-zinc-400 tracking-wider block mb-1 font-mono">강좌명 또는 유튜브 영상 제목</span>
+                                    <span className="text-[11px] font-extrabold uppercase text-zinc-400 tracking-wider block mb-1 font-mono">{translate("강좌명 또는 유튜브 영상 제목", lang)}</span>
                                     <div className="text-xs md:text-sm font-medium text-zinc-800 mt-1">
                                       🎬 {q.reference}
                                     </div>
                                   </div>
                                 )}
-                                <span className="text-[11px] font-extrabold uppercase text-zinc-400 tracking-wider block mb-1 font-mono">질문 내용</span>
-                                <div className="text-xs md:text-sm text-zinc-850 font-medium leading-relaxed whitespace-pre-wrap">
+                                <span className="text-[11px] font-extrabold uppercase text-zinc-400 tracking-wider block mb-1 font-mono">{translate("질문 내용", lang)}</span>
+                                <div className="text-xs md:text-sm text-zinc-855 font-medium leading-relaxed whitespace-pre-wrap">
                                   {q.content}
                                 </div>
                               </div>
@@ -288,14 +289,14 @@ export default function Question() {
                                   </div>
                                   {q.answeredAt && (
                                     <div className="text-[9px] text-zinc-400 font-mono font-medium mt-3">
-                                      답변일: {formatDate(q.answeredAt)}
+                                      {translate("답변일", lang)}: {formatDate(q.answeredAt)}
                                     </div>
                                   )}
                                 </div>
                               ) : (
                                 <div className="bg-zinc-50/40 border border-zinc-300 rounded-2xl p-4 text-center text-zinc-440 flex items-center justify-center gap-2 text-xs font-semibold">
                                   <AlertCircle size={14} className="text-zinc-400" />
-                                  <span>푸이마 마스터가 질문을 확인하고 있습니다. 조금만 기다려주세요!</span>
+                                  <span>{translate("푸이마 마스터가 질문을 확인하고 있습니다. 조금만 기다려주세요!", lang)}</span>
                                 </div>
                               )}
                             </div>
@@ -329,7 +330,7 @@ export default function Question() {
               className="fixed inset-x-4 bottom-4 md:bottom-auto md:top-1/2 md:-translate-y-1/2 md:max-w-xl md:mx-auto bg-white rounded-[32px] overflow-hidden shadow-2xl z-[1001] border border-zinc-100 flex flex-col font-sans"
             >
               <div className="px-6 md:px-8 py-6 border-b border-zinc-100 flex items-center justify-between">
-                <h3 className="text-lg font-black text-zinc-950">새 질문 등록</h3>
+                <h3 className="text-lg font-black text-zinc-950">{translate("새 질문 등록", lang)}</h3>
                 <button 
                   onClick={() => setIsModalOpen(false)}
                   className="p-1.5 hover:bg-zinc-50 rounded-full transition-colors cursor-pointer"
@@ -347,11 +348,11 @@ export default function Question() {
                 )}
 
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-[0.1em] text-zinc-400 mb-2">질문 제목</label>
+                  <label className="block text-[10px] font-black uppercase tracking-[0.1em] text-zinc-400 mb-2">{translate("질문 제목", lang)}</label>
                   <input
                     type="text"
                     required
-                    placeholder="예: 에그타르트 온도가 안 맞는데 어떻게 해야 하나요?"
+                    placeholder={translate("예: 에그타르트 온도가 안 맞는데 어떻게 해야 하나요?", lang)}
                     value={newTitle}
                     onChange={(e) => setNewTitle(e.target.value)}
                     className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-3.5 px-4 text-xs font-medium outline-none focus:bg-white focus:border-zinc-350 transition-all font-sans"
@@ -359,10 +360,10 @@ export default function Question() {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-[0.1em] text-zinc-400 mb-2">대상 강좌명 또는 유튜브 영상 정보</label>
+                  <label className="block text-[10px] font-black uppercase tracking-[0.1em] text-zinc-400 mb-2">{translate("대상 강좌명 또는 유튜브 영상 정보", lang)}</label>
                   <input
                     type="text"
-                    placeholder="예: 에그타르트 클래스 3강 / 유튜브 바삭한 타르트 쉘 굽기 영상"
+                    placeholder={translate("예: 에그타르트 클래스 3강 / 유튜브 바삭한 타르트 쉘 굽기 영상", lang)}
                     value={newReference}
                     onChange={(e) => setNewReference(e.target.value)}
                     className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-3.5 px-4 text-xs font-medium outline-none focus:bg-white focus:border-zinc-350 transition-all font-sans"
@@ -370,11 +371,11 @@ export default function Question() {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-[0.1em] text-zinc-400 mb-2">질문 내용 (질문란)</label>
+                  <label className="block text-[10px] font-black uppercase tracking-[0.1em] text-zinc-400 mb-2">{translate("질문 내용 (질문란)", lang)}</label>
                   <textarea
                     required
                     rows={6}
-                    placeholder="조리 도구, 온도 세팅 등 구체적인 과정 정보를 함께 기입해주시면 더욱 정확한 마스터 피드백을 전달드릴 수 있습니다."
+                    placeholder={translate("조리 도구, 온도 세팅 등 구체적인 과정 정보를 함께 기입해주시면 더욱 정확한 마스터 피드백을 전달드릴 수 있습니다.", lang)}
                     value={newContent}
                     onChange={(e) => setNewContent(e.target.value)}
                     className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-3.5 px-4 text-xs font-medium outline-none focus:bg-white focus:border-zinc-350 transition-all font-sans resize-none"
@@ -383,8 +384,8 @@ export default function Question() {
 
                 <div className="flex items-center justify-between p-4 bg-zinc-50 border border-zinc-150 rounded-2xl">
                   <div className="text-left">
-                    <h5 className="text-[11px] font-bold text-zinc-900">비밀글로 설정</h5>
-                    <p className="text-[10px] text-zinc-405 font-medium mt-0.5">작성자와 관리자만 볼 수 있도록 글을 보호합니다.</p>
+                    <h5 className="text-[11px] font-bold text-zinc-900">{translate("비밀글로 설정", lang)}</h5>
+                    <p className="text-[10px] text-zinc-405 font-medium mt-0.5">{translate("작성자와 관리자만 볼 수 있도록 글을 보호합니다.", lang)}</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input 
@@ -403,14 +404,14 @@ export default function Question() {
                     onClick={() => setIsModalOpen(false)}
                     className="flex-1 py-4 border border-zinc-200 rounded-2xl text-xs font-bold text-zinc-650 hover:bg-zinc-50 transition-all cursor-pointer"
                   >
-                    취소
+                    {translate("취소", lang)}
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmitting}
                     className="flex-1 py-4 bg-black text-white hover:bg-zinc-800 rounded-2xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
                   >
-                    {isSubmitting ? "등록 중..." : "등록하기"}
+                    {isSubmitting ? translate("등록 중...", lang) : translate("등록하기", lang)}
                   </button>
                 </div>
               </form>

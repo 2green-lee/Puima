@@ -48,12 +48,43 @@
         "answeredAt": { "type": "string", "format": "date-time" }
       },
       "required": ["title", "content", "authorId", "isPrivate", "createdAt"]
+    },
+    "Chapter": {
+      "title": "Course Chapter",
+      "description": "A video lecture belonging to a specific class.",
+      "type": "object",
+      "properties": {
+        "chapterNo": { "type": "string", "description": "Chapter number sequence (01, 02)" },
+        "title": { "type": "string", "description": "Title of the chapter" },
+        "duration": { "type": "string", "description": "Chapter lecture time duration like '45분 분량'" },
+        "videoUrl": { "type": "string", "description": "URL of the lecture video stream" },
+        "milestones": {
+          "type": "array",
+          "description": "Internal keypoints of the video with durations",
+          "items": {
+            "type": "object",
+            "properties": {
+              "timeLabel": { "type": "string" },
+              "seconds": { "type": "integer" },
+              "title": { "type": "string" },
+              "desc": { "type": "string" }
+            }
+          }
+        },
+        "order": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["chapterNo", "title", "videoUrl"]
     }
   },
   "firestore": {
     "/posts/{postId}": {
       "schema": "Post",
       "description": "Collection of all class posts"
+    },
+    "/posts/{postId}/chapters/{chapterId}": {
+      "schema": "Chapter",
+      "description": "Subcollection of chapters under each class post"
     },
     "/users/{userId}": {
       "schema": "User",
