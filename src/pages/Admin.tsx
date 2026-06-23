@@ -61,6 +61,7 @@ interface Post {
   titleEn?: string;
   image: string;
   naverUrl: string;
+  naver_product_id?: string;
   price: string;
   imageUrl?: string;
   visuals?: string;
@@ -2624,15 +2625,27 @@ export default function Admin() {
                         </div>
                       </div>
 
-                      <div>
-                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-3">링크</label>
-                        <input 
-                          type="text" 
-                          value={formData.naverUrl || ""} 
-                          onChange={e => setFormData({...formData, naverUrl: e.target.value})}
-                          placeholder="Naver Smart Store URL"
-                          className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
-                        />
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-3">스토어 링크</label>
+                          <input 
+                            type="text" 
+                            value={formData.naverUrl || ""} 
+                            onChange={e => setFormData({...formData, naverUrl: e.target.value})}
+                            placeholder="Naver Smart Store URL"
+                            className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-3">네이버 상품 번호</label>
+                          <input 
+                            type="text" 
+                            value={formData.naver_product_id || ""} 
+                            onChange={e => setFormData({...formData, naver_product_id: e.target.value})}
+                            placeholder="예: 123456789"
+                            className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
+                          />
+                        </div>
                       </div>
                     </div>
                     
@@ -3054,7 +3067,7 @@ export default function Admin() {
                               <div className="pb-4 border-b border-zinc-100 mb-6 font-sans">
                                 <h4 className="text-sm font-black text-zinc-950 flex items-center gap-2">
                                   <BookOpen size={16} className="text-zinc-700" />
-                                  레시피 정보 <span className="text-[10px] text-zinc-400 font-bold ml-1">(선택 입력)</span>
+                                  레시피 정보
                                 </h4>
                                 <p className="text-zinc-500 text-[11px] mt-1 font-medium pb-0.5">해당 강의/챕터의 상세 조리법 및 계량 단위를 기록할 수 있습니다.</p>
                               </div>
@@ -3069,7 +3082,7 @@ export default function Admin() {
                                   }
                                 }}
                                 placeholder="해당 강의/챕터의 재료 배합 및 제조 조리법(레시피)을 입력해 주세요. 예: 강력분 200g, 아몬드가루 50g, 오븐 170도 20분 가습..."
-                                className="w-full p-4 bg-zinc-50 border border-zinc-155 rounded-xl text-xs md:text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5 min-h-[300px] placeholder:text-zinc-400 outline-none resize-y text-zinc-850 font-sans"
+                                className="w-full p-4 bg-zinc-50 border border-zinc-200 rounded-xl text-xs md:text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5 min-h-[300px] placeholder:text-zinc-400 outline-none resize-y text-zinc-850 font-sans"
                               />
                             </div>
                           </form>
@@ -3346,7 +3359,7 @@ export default function Admin() {
                     <p className="text-zinc-500 font-medium">배포 페이지 상단에 노출될 소식을 기록하세요.</p>
                   </div>
 
-                  <form onSubmit={handleAddNotice} className="space-y-6 mb-16 bg-zinc-50 p-8 rounded-[32px] border border-zinc-100">
+                  <form onSubmit={handleAddNotice} className="space-y-6 mb-16">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-6 rounded-2xl border border-zinc-200/60">
                       <div>
                         <div className="flex justify-between items-center mb-2">
@@ -3436,7 +3449,7 @@ export default function Admin() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-zinc-50/60 p-6 rounded-[32px] border border-zinc-200/60 animate-fadeIn">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-6 rounded-2xl border border-zinc-200/60 animate-fadeIn">
                       <div>
                         <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-2">카테고리 (KOR)</label>
                         <input 
@@ -3444,7 +3457,7 @@ export default function Admin() {
                           value={newNotice.bannerLabel || ""}
                           onChange={e => setNewNotice({...newNotice, bannerLabel: e.target.value})}
                           placeholder="예: 공지사항, 온라인 클래스, 주문하기"
-                          className="w-full p-4 bg-white border border-zinc-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-black/5"
+                          className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-black/5"
                         />
                       </div>
                       <div>
@@ -3454,50 +3467,70 @@ export default function Admin() {
                           value={newNotice.bannerLabelEn || ""}
                           onChange={e => setNewNotice({...newNotice, bannerLabelEn: e.target.value})}
                           placeholder="예: NOTICE, ONLINE CLASS, ORDER & SHOP"
-                          className="w-full p-4 bg-white border border-zinc-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-black/5"
+                          className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-black/5"
                         />
                       </div>
                     </div>
                     
                     {/* Notice/Banner Image Uploader (Optional) */}
                     <div className="p-6 bg-white border border-zinc-100 rounded-2xl">
-                      <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-3">공지 및 배너 이미지 등록 (선택)</label>
-                      <div className="flex flex-col md:flex-row gap-6 items-center">
-                        <input 
-                          type="file" 
-                          accept="image/*"
-                          onChange={handleNoticeImageUpload} 
-                          className="hidden" 
-                          id="notice-file-upload" 
-                        />
-                        <label 
-                          htmlFor="notice-file-upload" 
-                          className="px-6 py-3 bg-zinc-50 border border-zinc-200 hover:border-black rounded-xl text-xs font-semibold tracking-wider cursor-pointer transition-all active:scale-95 text-center min-w-[200px]"
-                        >
-                          {noticeImgUploading ? "업로드 중..." : "이미지 파일 선택"}
-                        </label>
-                        {newNotice.imageUrl && (
-                          <div className="relative w-40 h-20 rounded-xl overflow-hidden border border-zinc-200">
+                      <label className="block text-center text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-3">공지 및 배너 이미지 등록 (선택)</label>
+                      <div 
+                        onDragOver={e => e.preventDefault()}
+                        onDrop={e => {
+                          e.preventDefault();
+                          if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                            handleNoticeImageUpload({ target: { files: e.dataTransfer.files } } as unknown as React.ChangeEvent<HTMLInputElement>);
+                          }
+                        }}
+                        className="relative border-2 border-dashed border-zinc-200 hover:border-black/30 transition-all rounded-[24px] p-6 flex flex-col items-center justify-center bg-white min-h-[160px]"
+                      >
+                        {newNotice.imageUrl ? (
+                          <div className="relative w-full max-w-[300px] h-32 rounded-xl overflow-hidden border border-zinc-200 group">
                             <img src={newNotice.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                             <button 
                               type="button" 
                               onClick={() => setNewNotice(prev => ({ ...prev, imageUrl: "" }))}
-                              className="absolute top-1 right-1 p-1 bg-black/60 hover:bg-black rounded-full text-white"
+                              className="absolute top-2 right-2 bg-black/60 hover:bg-black text-white p-1.5 rounded-full transition-colors"
                             >
-                              <X size={12} />
+                              <X size={14} />
                             </button>
+                          </div>
+                        ) : (
+                          <div className="text-center space-y-3">
+                            <div className="flex justify-center">
+                              {noticeImgUploading ? (
+                                <span className="w-8 h-8 border-2 border-zinc-200 border-t-black rounded-full animate-spin inline-block" />
+                              ) : (
+                                <ImageIcon size={32} className="text-zinc-300" />
+                              )}
+                            </div>
+                            <div>
+                              <span className="font-bold text-xs text-zinc-500">이미지를 이곳으로 드래그하거나 클릭하여 선택</span>
+                            </div>
+                            <label className="inline-block mt-2 cursor-pointer bg-black hover:bg-zinc-800 text-white font-bold text-[11px] px-4 py-2 rounded-xl transition-all">
+                              이미지 파일 선택
+                              <input 
+                                type="file" 
+                                accept="image/*"
+                                onChange={handleNoticeImageUpload} 
+                                className="hidden" 
+                              />
+                            </label>
                           </div>
                         )}
                       </div>
                     </div>
                     
-                    <button 
-                      type="submit"
-                      className="bg-black text-white px-10 py-4 rounded-2xl font-black text-sm hover:bg-zinc-800 transition-all active:scale-95 flex items-center gap-2"
-                    >
-                      <Plus size={18} />
-                      게시하기
-                    </button>
+                    <div className="flex justify-end">
+                      <button 
+                        type="submit"
+                        className="bg-black text-white px-10 py-4 rounded-2xl font-black text-sm hover:bg-zinc-800 transition-all active:scale-95 flex items-center gap-2"
+                      >
+                        <Plus size={18} />
+                        게시하기
+                      </button>
+                    </div>
                   </form>
 
                   <Reorder.Group 
@@ -3597,7 +3630,7 @@ export default function Admin() {
                               />
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-zinc-50/60 p-4 rounded-xl border border-zinc-200">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white p-4 rounded-xl border border-zinc-200">
                               <div>
                                 <label className="block text-[8px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-1">카테고리 (KOR)</label>
                                 <input 
@@ -3605,7 +3638,7 @@ export default function Admin() {
                                   value={noticeFormData.bannerLabel || ""}
                                   onChange={e => setNoticeFormData({...noticeFormData, bannerLabel: e.target.value})}
                                   placeholder="예: 공지사항, 온라인 클래스, 주문하기"
-                                  className="w-full p-3 bg-white border border-zinc-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-black/10"
+                                  className="w-full p-3 bg-zinc-50/60 border border-zinc-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-black/10"
                                 />
                               </div>
                               <div>
@@ -3615,38 +3648,56 @@ export default function Admin() {
                                   value={noticeFormData.bannerLabelEn || ""}
                                   onChange={e => setNoticeFormData({...noticeFormData, bannerLabelEn: e.target.value})}
                                   placeholder="예: NOTICE, ONLINE CLASS, ORDER & SHOP"
-                                  className="w-full p-3 bg-white border border-zinc-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-black/10"
+                                  className="w-full p-3 bg-zinc-50/60 border border-zinc-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-black/10"
                                 />
                               </div>
                             </div>
 
                             {/* Notice Image Editor (Optional) */}
                             <div className="p-4 bg-zinc-50 border border-zinc-200 rounded-xl">
-                              <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-2">공지 및 배너 이미지 수정 (선택)</label>
-                              <div className="flex flex-col sm:flex-row gap-4 items-center">
-                                <input 
-                                  type="file" 
-                                  accept="image/*"
-                                  onChange={handleEditNoticeImageUpload} 
-                                  className="hidden" 
-                                  id={`edit-notice-file-upload-${notice.id}`} 
-                                />
-                                <label 
-                                  htmlFor={`edit-notice-file-upload-${notice.id}`} 
-                                  className="px-4 py-2 bg-white border border-zinc-200 hover:border-black rounded-lg text-xs font-semibold cursor-pointer transition-all active:scale-95 text-center min-w-[150px]"
-                                >
-                                  {noticeImgUploading ? "업로드 중..." : "이미지 파일 선택"}
-                                </label>
-                                {noticeFormData.imageUrl && (
-                                  <div className="relative w-32 h-16 rounded-lg overflow-hidden border border-zinc-200">
+                              <label className="block text-center text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-2">공지 및 배너 이미지 수정 (선택)</label>
+                              <div 
+                                onDragOver={e => e.preventDefault()}
+                                onDrop={e => {
+                                  e.preventDefault();
+                                  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                                    handleEditNoticeImageUpload({ target: { files: e.dataTransfer.files } } as unknown as React.ChangeEvent<HTMLInputElement>);
+                                  }
+                                }}
+                                className="relative border-2 border-dashed border-zinc-200 hover:border-black/30 transition-all rounded-[20px] p-6 flex flex-col items-center justify-center bg-white min-h-[140px]"
+                              >
+                                {noticeFormData.imageUrl ? (
+                                  <div className="relative w-full max-w-[250px] h-24 rounded-lg overflow-hidden border border-zinc-200 group">
                                     <img src={noticeFormData.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                                     <button 
                                       type="button" 
                                       onClick={() => setNoticeFormData(prev => ({ ...prev, imageUrl: "" }))}
-                                      className="absolute top-1 right-1 p-0.5 bg-black/60 hover:bg-black rounded-full text-white"
+                                      className="absolute top-1 right-1 bg-black/60 hover:bg-black text-white p-1 rounded-full transition-colors"
                                     >
-                                      <X size={10} />
+                                      <X size={12} />
                                     </button>
+                                  </div>
+                                ) : (
+                                  <div className="text-center space-y-2">
+                                    <div className="flex justify-center">
+                                      {noticeImgUploading ? (
+                                        <span className="w-6 h-6 border-2 border-zinc-200 border-t-black rounded-full animate-spin inline-block" />
+                                      ) : (
+                                        <ImageIcon size={24} className="text-zinc-300" />
+                                      )}
+                                    </div>
+                                    <div>
+                                      <span className="font-bold text-[11px] text-zinc-500">이미지를 드래그하거나 클릭</span>
+                                    </div>
+                                    <label className="inline-block mt-1 cursor-pointer bg-black hover:bg-zinc-800 text-white font-bold text-[10px] px-3 py-1.5 rounded-lg transition-all">
+                                      파일 선택
+                                      <input 
+                                        type="file" 
+                                        accept="image/*"
+                                        onChange={handleEditNoticeImageUpload} 
+                                        className="hidden" 
+                                      />
+                                    </label>
                                   </div>
                                 )}
                               </div>
@@ -3797,7 +3848,7 @@ export default function Admin() {
                     <p className="text-zinc-500 font-medium">메인화면에 수평 롤링 루프로 노출될 수강생 리뷰 사진과 한글/영어 문구를 등록하세요.</p>
                   </div>
 
-                  <form onSubmit={handleAddReview} className="space-y-6 mb-16 bg-zinc-50 p-8 rounded-[32px] border border-zinc-100">
+                  <form onSubmit={handleAddReview} className="space-y-6 mb-16">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       {/* Image Upload Area */}
                       <div className="space-y-3">

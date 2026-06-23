@@ -40,6 +40,7 @@ create table public.posts (
   "imageUrl" text,
   image text,
   "naverUrl" text,
+  "naver_product_id" text,
   visuals text,
   status text default 'public',
   "isSoldOut" boolean default false,
@@ -100,3 +101,17 @@ create table public.questions (
 -- For a quick migration, you can initially allow public read access:
 -- alter table public.posts enable row level security;
 -- create policy "Allow public read access" on public.posts for select using ( true );
+
+-- 8. magic_links table (For Naver Smart Store Automated Course Delivery)
+create table public.magic_links (
+  id uuid default gen_random_uuid() primary key,
+  order_id text not null,
+  post_id uuid references public.posts(id) on delete cascade not null,
+  expires_at timestamp with time zone not null,
+  is_claimed boolean default false,
+  claimed_by uuid references auth.users(id),
+  buyer_contact text,
+  "createdAt" timestamp with time zone default now(),
+  unique(order_id, post_id)
+);
+

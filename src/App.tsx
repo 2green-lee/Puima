@@ -17,6 +17,7 @@ import Question from "./pages/Question";
 import MyClasses from "./pages/MyClasses";
 import AdLanding from "./pages/AdLanding";
 import Profile from "./pages/Profile";
+import ClaimCourse from "./pages/ClaimCourse";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { initGA, trackPageView } from "./utils/analytics";
 import { FixedHeader } from "./components/FixedHeader";
@@ -690,7 +691,7 @@ function HomePage() {
                 {bannersLoading ? (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-0 bg-white rounded-none md:rounded-xl border-t border-b md:border border-zinc-200 overflow-hidden h-auto md:h-[450px]">
                     {/* Left Column Skeleton */}
-                    <div className="md:col-span-2 relative aspect-[16/9] md:aspect-auto md:h-full overflow-hidden bg-zinc-100 flex items-stretch rounded-none animate-pulse md:border-r md:border-zinc-200"></div>
+                    <div className="md:col-span-2 relative aspect-[16/9] md:aspect-auto md:h-full overflow-hidden bg-white md:bg-zinc-50 flex items-stretch rounded-none animate-pulse md:border-r md:border-zinc-200"></div>
                     {/* Right Column Skeleton */}
                     <div className="hidden md:flex md:col-span-1 flex-col justify-stretch bg-white overflow-hidden h-full divide-y divide-zinc-200 animate-pulse">
                       {[1, 2, 3].map((val) => (
@@ -1763,6 +1764,7 @@ function AppContent() {
         <Route path="/notice" element={<NoticePage />} />
         <Route path="/question" element={<Question />} />
         <Route path="/ad" element={<AdLanding />} />
+        <Route path="/claim-course" element={<ClaimCourse />} />
         <Route 
           path="/my-classes" 
           element={

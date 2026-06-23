@@ -140,7 +140,7 @@ const Login: React.FC = () => {
       <motion.div 
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-[440px] -mt-4"
+        className="w-full max-w-[440px] mt-4"
       >
         <div className="text-center mb-8">
           <h1 
@@ -151,7 +151,7 @@ const Login: React.FC = () => {
           </h1>
         </div>
 
-        <div className="bg-white shadow-2xl shadow-black/5 rounded-[40px] p-8 md:p-10">
+        <div className="bg-white p-8 md:p-10">
           <AnimatePresence mode="wait">
             {error && (
               <motion.div 
