@@ -838,12 +838,12 @@ function HomePage() {
                                     {banner.isComingSoon 
                                       ? (lang === "KOR" ? "준비중" : "Soon")
                                       : (lang === "KOR" 
-                                          ? (banner.bannerLabel || (banner.title.includes("주문") 
+                                          ? (banner.bannerLabel || ((banner.title || "").includes("주문") 
                                               ? "주문하기" 
-                                              : banner.title.includes("클래스") 
+                                              : (banner.title || "").includes("클래스") 
                                                 ? "온라인 클래스" 
                                                 : "네이버 스토어")) 
-                                          : (banner.bannerLabelEn || banner.bannerLabel || banner.titleEn || banner.title).slice(0, 15))}
+                                          : (banner.bannerLabelEn || banner.bannerLabel || banner.titleEn || banner.title || "").slice(0, 15))}
                                   </span>
                                 </button>
                               );
@@ -1698,10 +1698,10 @@ function NoticePage() {
                       <span className="text-[10px] font-mono text-zinc-300 uppercase tracking-widest">{lang === "ENG" ? "Announcement" : "공지사항"}</span>
                     </div>
                     <h3 className="text-[20px] font-bold leading-tight group-hover:underline underline-offset-8 decoration-zinc-200">
-                      {lang === "ENG" && notice.titleEn ? notice.titleEn : <TranslatedText text={notice.title} lang={lang} />}
+                      {lang === "ENG" && notice.titleEn ? notice.titleEn : <TranslatedText text={notice.title || ""} lang={lang} />}
                     </h3>
                     <p className="mt-3 text-zinc-400 text-[14px] leading-relaxed break-all whitespace-pre-wrap">
-                      {lang === "ENG" && notice.contentEn ? notice.contentEn : <TranslatedText text={notice.content} lang={lang} />}
+                      {lang === "ENG" && notice.contentEn ? notice.contentEn : <TranslatedText text={notice.content || ""} lang={lang} />}
                     </p>
                   </div>
                 </div>

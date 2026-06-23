@@ -9,6 +9,16 @@ const gaId = import.meta.env.VITE_GA_MEASUREMENT_ID;
 
 export const initGA = () => {
   if (typeof window === "undefined" || !gaId) return;
+  if (window.self !== window.top) return;
+
+  // Disable analytics in development or staging/Cloud Run preview URLs to prevent Script Error issues
+  if (
+    import.meta.env.DEV || 
+    window.location.hostname.includes("localhost") || 
+    window.location.hostname.includes(".run.app")
+  ) {
+    return;
+  }
 
   // Prevent duplicate insertion
   if (document.getElementById("google-tag-manager")) return;
@@ -49,6 +59,7 @@ export const initGA = () => {
 
 export const trackPageView = (path: string) => {
   if (typeof window === "undefined" || !gaId) return;
+  if (window.self !== window.top) return;
 
   if (gaId.startsWith("GTM-")) {
     window.dataLayer = window.dataLayer || [];
@@ -65,6 +76,7 @@ export const trackPageView = (path: string) => {
 
 export const trackEvent = (action: string, category: string, label?: string, value?: number) => {
   if (typeof window === "undefined") return;
+  if (window.self !== window.top) return;
 
   if (gaId && gaId.startsWith("GTM-")) {
     window.dataLayer = window.dataLayer || [];
