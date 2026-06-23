@@ -12,11 +12,13 @@ import {
   serverTimestamp,
   getDoc,
   setDoc,
-  collectionGroup
-} from "firebase/firestore";
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { onAuthStateChanged, User } from "firebase/auth";
-import { db, auth, storage, loginWithGoogle, logout, handleFirestoreError, OperationType } from "../lib/firebase";
+  collectionGroup,
+  where
+} from "../lib/firebase-mock";
+import { ref, uploadBytesResumable, getDownloadURL } from "../lib/firebase-mock";
+import { onAuthStateChanged, User } from "../lib/firebase-mock";
+import { db, auth, storage, loginWithGoogle, logout, handleFirestoreError, OperationType } from "../lib/firebase-mock";
+import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { 
   ArrowLeft, Plus, Edit2, Trash2, Save, X, LogIn, LogOut, 
@@ -30,8 +32,11 @@ import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { translateTextWithAI } from "../utils/translate";
 import { getEmbedUrl } from "../components/SecureVerticalPlayer";
 import VimeoPlayer from "@vimeo/player";
+import heroImg from "../assets/images/puima_hero_dessert_1779090061139.png";
+import pastryImg from "../assets/images/puima_class_pastry_1779090076747.png";
+import macaronsImg from "../assets/images/puima_class_macarons_1779090094299.png";
 
-const ADMIN_EMAIL = "rtytgb123@gmail.com";
+const ADMIN_EMAILS = ["rtytgb123@gmail.com", "lgi12@naver.com"];
 
 interface Milestone {
   timeLabel: string;
@@ -86,6 +91,8 @@ interface Notice {
   isBanner?: boolean;
   imageUrl?: string;
   order?: number;
+  bannerLabel?: string;
+  bannerLabelEn?: string;
 }
 
 interface UserProfile {
@@ -130,6 +137,12 @@ declare global {
     onYouTubeIframeAPIReady?: () => void;
   }
 }
+
+
+const safeConfirm = (msg: string) => {
+  if (window.self !== window.top) return true;
+  try { return window.confirm(msg); } catch(e) { return true; }
+};
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -179,7 +192,7 @@ export default function Admin() {
   const [uploadedVideoFileName, setUploadedVideoFileName] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
-  const [newNotice, setNewNotice] = useState({ title: "", titleEn: "", content: "", contentEn: "", url: "", isBanner: false, imageUrl: "" });
+  const [newNotice, setNewNotice] = useState({ title: "", titleEn: "", content: "", contentEn: "", url: "", isBanner: false, imageUrl: "", bannerLabel: "", bannerLabelEn: "" });
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryNameEn, setNewCategoryNameEn] = useState("");
   const [reviews, setReviews] = useState<StudentReview[]>([]);
@@ -377,8 +390,7 @@ export default function Admin() {
       setChapters([]);
       return;
     }
-    const chaptersRef = collection(db, "posts", selectedPostIdForLectures, "chapters");
-    const q = query(chaptersRef);
+    const q = query(collection(db, "chapters"), where("post_id", "==", selectedPostIdForLectures));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const docs = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -721,6 +733,7 @@ export default function Admin() {
       const chaptersCollection = collection(classRef, "chapters");
       
       const payload = {
+        post_id: selectedPostIdForLectures,
         chapterNo: currentData.chapterNo?.trim() || Date.now().toString(),
         title: currentData.title?.trim() || `영상 강의`,
         duration: currentData.duration?.trim() || "0분 분량",
@@ -793,7 +806,7 @@ export default function Admin() {
   const handleDeleteChapter = async (chapterId: string, customPostId?: string) => {
     const targetPostId = customPostId || selectedPostIdForLectures;
     if (!targetPostId) return;
-    if (!confirm("정말 이 강의 영상을 영구히 삭제하시겠습니까? (삭제 후 복구가 불가합니다)")) return;
+    if (!safeConfirm("정말 이 강의 영상을 영구히 삭제하시겠습니까? (삭제 후 복구가 불가합니다)")) return;
 
     try {
       const classRef = doc(db, "posts", targetPostId);
@@ -843,7 +856,6 @@ export default function Admin() {
           const { id, ...updateData } = formData;
           await updateDoc(doc(db, "posts", editingId), {
             ...updateData,
-            updatedAt: serverTimestamp(),
           });
         });
       }, 800); // 800ms debounce
@@ -864,7 +876,6 @@ export default function Admin() {
           const { id, createdAt, ...updateData } = noticeFormData;
           await updateDoc(doc(db, "notices", editingNoticeId), {
             ...updateData,
-            updatedAt: serverTimestamp(),
           });
         });
       }, 800);
@@ -985,7 +996,7 @@ export default function Admin() {
 
   useEffect(() => {
     const isBypassed = localStorage.getItem('admin_bypass') === 'true';
-    if (user?.email === ADMIN_EMAIL || isAdmin || designMode || isBypassed) {
+    if (ADMIN_EMAILS.includes(user?.email || "") || isAdmin || designMode || isBypassed) {
       // Fetch posts without compound sorting to avoid missing composite index crashes
       const q = query(collection(db, "posts"));
       const unsubscribePosts = onSnapshot(q, (snapshot) => {
@@ -1058,33 +1069,57 @@ export default function Admin() {
         setDataLoading(false);
       });
 
-      const usersQ = query(collection(db, "users"));
-      const unsubscribeUsers = onSnapshot(usersQ, (snapshot) => {
-        const docs = snapshot.docs.map(doc => {
-          const data = doc.data();
-          const dispName = data.displayName || null;
-          const isGreenLee = dispName === "Green Lee" || data.nickname === "Green Lee";
-          return {
-            id: doc.id,
-            email: data.email || null,
-            displayName: dispName,
-            photoURL: data.photoURL || null,
-            isAdmin: !!data.isAdmin,
-            isBanned: !!data.isBanned,
-            createdAt: data.createdAt,
-            nickname: data.nickname || dispName || "",
-            realName: data.realName || (isGreenLee ? "이근일" : ""),
-            gender: data.gender || "남",
-            phone: data.phone || (isGreenLee ? "01093359620" : ""),
-            password: data.password || "",
-            enrolledClasses: data.enrolledClasses || []
-          };
-        }) as UserProfile[];
-        setUsers(docs);
-      }, (err) => {
-        console.error("Firestore onSnapshot error on users sub:", err);
-        setDataLoading(false);
-      });
+      const fetchSupabaseUsers = async () => {
+        try {
+          const { data, error } = await supabase.from('users').select('*').order('createdAt', { ascending: false });
+          if (error) {
+            console.error("Supabase fetch users error:", error);
+            return;
+          }
+          if (data) {
+            const mappedUsers = data.map(doc => {
+              const dispName = doc.displayName || null;
+              const isGreenLee = dispName === "Green Lee" || doc.nickname === "Green Lee";
+              return {
+                id: doc.id,
+                email: doc.email || null,
+                displayName: dispName,
+                photoURL: doc.photoURL || null,
+                isAdmin: !!doc.isAdmin,
+                isBanned: !!doc.isBanned,
+                createdAt: doc.createdAt ? new Date(doc.createdAt) : null,
+                nickname: doc.nickname || dispName || "",
+                realName: doc.realName || (isGreenLee ? "이근일" : ""),
+                gender: doc.gender || "남",
+                phone: doc.phone || (isGreenLee ? "01093359620" : ""),
+                password: doc.password || "",
+                enrolledClasses: doc.enrolledClasses || []
+              };
+            }) as UserProfile[];
+            setUsers(mappedUsers);
+          }
+        } catch (err) {
+          console.error("Supabase try/catch users error:", err);
+        }
+      };
+      
+      fetchSupabaseUsers();
+
+      // Realtime subscription for users
+      const usersSubscription = supabase.channel(`users-changes-${Date.now()}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'users'
+          },
+          (payload) => {
+            fetchSupabaseUsers();
+          }
+        )
+        .subscribe();
+
 
       const questionsQ = query(collection(db, "questions"), orderBy("createdAt", "desc"));
       const unsubscribeQuestions = onSnapshot(questionsQ, (snapshot) => {
@@ -1103,7 +1138,7 @@ export default function Admin() {
         unsubscribeCats();
         unsubscribeNotices();
         unsubscribeReviews();
-        unsubscribeUsers();
+        supabase.removeChannel(usersSubscription);
         unsubscribeQuestions();
       };
     } else {
@@ -1113,12 +1148,12 @@ export default function Admin() {
   }, [user, designMode]);
 
   const handleChangeUserRole = async (userId: string, targetEmail: string | null, newRole: "admin" | "customer" | "banned") => {
-    if (targetEmail === ADMIN_EMAIL) {
-      alert("최고 관리자 계정('rtytgb123@gmail.com')의 권한은 변경할 수 없습니다.");
+    if (ADMIN_EMAILS.includes(targetEmail)) {
+      alert("최고 관리자 계정의 권한은 변경할 수 없습니다.");
       return;
     }
     if (userId === user?.uid && newRole !== "admin") {
-      const confirmSelfDemote = window.confirm(
+      const confirmSelfDemote = safeConfirm(
         "본인의 관리자 권한을 해제하면 설정 적용 이후 더이상 관리자 페이지에 접근할 수 없게 됩니다. 정말 계속하시겠습니까?"
       );
       if (!confirmSelfDemote) return;
@@ -1126,10 +1161,18 @@ export default function Admin() {
 
     setIsUpdatingUser(userId);
     try {
-      await updateDoc(doc(db, "users", userId), {
-        isAdmin: newRole === "admin",
-        isBanned: newRole === "banned"
-      });
+      const { error } = await supabase.from('users').update({
+        "isAdmin": newRole === "admin",
+        "isBanned": newRole === "banned"
+      }).eq('id', userId);
+      
+      if (error) throw error;
+      
+      setUsers(prevUsers => prevUsers.map(u => 
+        u.id === userId 
+          ? { ...u, isAdmin: newRole === "admin", isBanned: newRole === "banned" } 
+          : u
+      ));
     } catch (err: any) {
       console.error("Failed to update user role:", err);
       alert("등급 변경 실패: " + err.message);
@@ -1158,18 +1201,39 @@ export default function Admin() {
   const handleSaveUserInfo = async (userId: string) => {
     setIsUpdatingUser(userId);
     try {
-      await updateDoc(doc(db, "users", userId), {
+      const updatePayload = {
         nickname: editUserInputs.nickname,
-        realName: editUserInputs.realName,
+        "realName": editUserInputs.realName,
         gender: editUserInputs.gender,
         phone: editUserInputs.phone,
-        isAdmin: editUserInputs.isAdmin,
-        isBanned: editUserInputs.isBanned,
-        password: editUserInputs.password || ""
-      });
+        "isAdmin": editUserInputs.isAdmin,
+        "isBanned": editUserInputs.isBanned,
+        ...(editUserInputs.password ? { password: editUserInputs.password } : {})
+      };
+      
+      const { error } = await supabase.from('users').update(updatePayload).eq('id', userId);
+      
+      if (error) throw error;
+      
+      // Update local state without waiting for realtime
+      setUsers(prevUsers => prevUsers.map(u => 
+        u.id === userId 
+          ? { 
+              ...u, 
+              nickname: editUserInputs.nickname, 
+              realName: editUserInputs.realName, 
+              gender: editUserInputs.gender, 
+              phone: editUserInputs.phone, 
+              isAdmin: editUserInputs.isAdmin, 
+              isBanned: editUserInputs.isBanned,
+              ...(editUserInputs.password ? { password: editUserInputs.password } : {})
+            } 
+          : u
+      ));
+      
       setEditingUserId(null);
     } catch (err: any) {
-      console.error("Failed to update user details in Firestore:", err);
+      console.error("Failed to update user details in Supabase:", err);
       alert("회원 상세정보 수정 실패: " + err.message);
     } finally {
       setIsUpdatingUser(null);
@@ -1206,10 +1270,17 @@ export default function Admin() {
         };
       }).filter(Boolean);
 
-      const userRef = doc(db, "users", selectedUserForClasses.id);
-      await updateDoc(userRef, {
-        enrolledClasses: newEnrollments
-      });
+      const { error } = await supabase.from('users').update({
+        "enrolledClasses": newEnrollments
+      }).eq('id', selectedUserForClasses.id);
+      
+      if (error) throw error;
+      
+      setUsers(prevUsers => prevUsers.map(u => 
+        u.id === selectedUserForClasses.id 
+          ? { ...u, enrolledClasses: newEnrollments as any } 
+          : u
+      ));
       
       alert(`[${selectedUserForClasses.nickname || selectedUserForClasses.displayName || '선택회원'}] 님의 수강 클래스 설정이 완료되었습니다.`);
       setSelectedUserForClasses(null);
@@ -1278,7 +1349,7 @@ export default function Admin() {
   };
 
   const handleDeleteReview = async (id: string) => {
-    if (!confirm("이 수강생 리뷰를 정말 삭제하시겠습니까?")) return;
+    if (!safeConfirm("이 수강생 리뷰를 정말 삭제하시겠습니까?")) return;
     handleAutoSaveAction(async () => {
       await deleteDoc(doc(db, "reviews", id));
     });
@@ -1294,23 +1365,80 @@ export default function Admin() {
         isActive: true,
         order: notices.length
       });
-      setNewNotice({ title: "", titleEn: "", content: "", contentEn: "", url: "", isBanner: false, imageUrl: "" });
+      setNewNotice({ title: "", titleEn: "", content: "", contentEn: "", url: "", isBanner: false, imageUrl: "", bannerLabel: "", bannerLabelEn: "" });
+    });
+  };
+
+  const handleSeedDefaultBanners = async () => {
+    if (!safeConfirm("홈페이지용 기본 3개 배너 목록(ORDER & SHOP, ONLINE CLASS, ONLINE STORE)을 현재 목록에 자동 생성하시겠습니까?")) return;
+    handleAutoSaveAction(async () => {
+      const bannerSeeds = [
+        {
+          title: "푸이마 명품 스위트 & 구움과자",
+          titleEn: "Puima Premium Sweet & Pastry",
+          content: "최상의 유기농 원료와 정성이 깃든 최고급 수제 디저트를 지금 온라인으로 주문하세요.",
+          contentEn: "Order premium handmade desserts baked with the finest organic ingredients and heart online now.",
+          imageUrl: pastryImg,
+          url: "https://smartstore.naver.com/putitinyourmouth",
+          isActive: true,
+          bannerLabel: "주문하기",
+          bannerLabelEn: "ORDER & SHOP",
+          isBanner: true,
+          order: 0
+        },
+        {
+          title: "1:1 프라이빗 제과 홈베이킹 마스터클래스",
+          titleEn: "1:1 Private Baking Masterclass",
+          content: "기초부터 다지는 전문가 수준의 제과 마스터클래스로 베이킹의 격을 높여보세요.",
+          contentEn: "Take your baking skills to the next level with a professional-grade confectionery masterclass from scratch.",
+          imageUrl: heroImg,
+          url: "/?category=Masterclass",
+          isActive: true,
+          bannerLabel: "온라인 클래스",
+          bannerLabelEn: "ONLINE CLASS",
+          isBanner: true,
+          order: 1
+        },
+        {
+          title: "네이버 스토어 전국 택배 서비스",
+          titleEn: "Naver Smart Store Nationwide Delivery",
+          content: "전국 어디서나 갓 구운듯한 신선한 푸이마 시그니처 마카롱과 케이크를 만나보세요.",
+          contentEn: "Experience the freshly baked signature macarons and cakes of Puima delivered straight to your door, nationwide.",
+          imageUrl: macaronsImg,
+          url: "https://smartstore.naver.com/putitinyourmouth",
+          isActive: true,
+          bannerLabel: "네이버 스토어",
+          bannerLabelEn: "ONLINE STORE",
+          isBanner: true,
+          order: 2
+        }
+      ];
+
+      for (let i = 0; i < bannerSeeds.length; i++) {
+        await addDoc(collection(db, "notices"), {
+          ...bannerSeeds[i],
+          createdAt: serverTimestamp(),
+          order: notices.length + i
+        });
+      }
     });
   };
 
   const handleAiTranslateNewNotice = async () => {
-    if (!newNotice.title.trim() && !newNotice.content.trim()) {
-      alert("먼저 한국어 제목 또는 내용을 채워주세요.");
+    if (!newNotice.title.trim() && !newNotice.content.trim() && !newNotice.bannerLabel.trim()) {
+      alert("먼저 한국어 제목, 내용, 또는 카테고리를 채워주세요.");
       return;
     }
     setTranslatingNewNotice(true);
     try {
       const titleEn = newNotice.title.trim() ? await translateTextWithAI(newNotice.title) : "";
       const contentEn = newNotice.content.trim() ? await translateTextWithAI(newNotice.content) : "";
+      const bannerLabelEn = newNotice.bannerLabel.trim() ? await translateTextWithAI(newNotice.bannerLabel) : "";
       setNewNotice(prev => ({
         ...prev,
         titleEn,
-        contentEn
+        contentEn,
+        bannerLabelEn
       }));
     } catch (err) {
       console.error(err);
@@ -1321,18 +1449,20 @@ export default function Admin() {
   };
 
   const handleAiTranslateEditNotice = async () => {
-    if (!noticeFormData.title?.trim() && !noticeFormData.content?.trim()) {
-      alert("먼저 한국어 제목 또는 내용을 채워주세요.");
+    if (!noticeFormData.title?.trim() && !noticeFormData.content?.trim() && !noticeFormData.bannerLabel?.trim()) {
+      alert("먼저 한국어 제목, 내용, 또는 카테고리를 채워주세요.");
       return;
     }
     setTranslatingEditNotice(true);
     try {
       const titleEn = noticeFormData.title?.trim() ? await translateTextWithAI(noticeFormData.title) : "";
       const contentEn = noticeFormData.content?.trim() ? await translateTextWithAI(noticeFormData.content) : "";
+      const bannerLabelEn = noticeFormData.bannerLabel?.trim() ? await translateTextWithAI(noticeFormData.bannerLabel) : "";
       setNoticeFormData(prev => ({
         ...prev,
         titleEn,
-        contentEn
+        contentEn,
+        bannerLabelEn
       }));
     } catch (err) {
       console.error(err);
@@ -1360,7 +1490,7 @@ export default function Admin() {
   };
 
   const handleDeleteNotice = async (id: string) => {
-    if (!confirm("이 공지사항을 삭제하시겠습니까?")) return;
+    if (!safeConfirm("이 공지사항을 삭제하시겠습니까?")) return;
     handleAutoSaveAction(async () => {
       await deleteDoc(doc(db, "notices", id));
     });
@@ -1369,6 +1499,21 @@ export default function Admin() {
   const handleToggleNotice = async (id: string, current: boolean) => {
     handleAutoSaveAction(async () => {
       await updateDoc(doc(db, "notices", id), { isActive: !current });
+    });
+  };
+
+  const handleEditNotice = async (id: string) => {
+    if (!noticeFormData.title?.trim()) {
+      alert("제목을 입력해주세요.");
+      return;
+    }
+    handleAutoSaveAction(async () => {
+      const { id: _, createdAt, ...updateData } = noticeFormData;
+      await updateDoc(doc(db, "notices", id), {
+        ...updateData,
+      });
+      setEditingNoticeId(null);
+      setNoticeFormData({});
     });
   };
 
@@ -1406,7 +1551,7 @@ export default function Admin() {
   };
 
   const handleDeleteCategory = async (id: string) => {
-    if (!confirm("이 카테고리를 삭제하시겠습니까?")) return;
+    if (!safeConfirm("이 카테고리를 삭제하시겠습니까?")) return;
     handleAutoSaveAction(async () => {
       await deleteDoc(doc(db, "categories", id));
       if (editingCategory === id) {
@@ -1420,7 +1565,6 @@ export default function Admin() {
 
     const data = {
       ...formData,
-      updatedAt: serverTimestamp(),
     };
 
     handleAutoSaveAction(async () => {
@@ -1456,7 +1600,7 @@ export default function Admin() {
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm("정말 삭제하시겠습니까?")) {
+    if (safeConfirm("정말 삭제하시겠습니까?")) {
       handleAutoSaveAction(async () => {
         try {
           await deleteDoc(doc(db, "posts", id));
@@ -1556,7 +1700,7 @@ export default function Admin() {
     }
     const count = selectedPostIds.length;
     const actionLabel = status === "public" ? "공개" : "숨김";
-    if (window.confirm(`선택한 ${count}개 상품의 상태를 [${actionLabel}]으로 변경하시겠습니까?`)) {
+    if (safeConfirm(`선택한 ${count}개 상품의 상태를 [${actionLabel}]으로 변경하시겠습니까?`)) {
       handleAutoSaveAction(async () => {
         try {
           const promises = selectedPostIds.map(id => 
@@ -1581,7 +1725,7 @@ export default function Admin() {
     }
     const count = selectedPostIds.length;
     const actionLabel = isSoldOut ? "품절" : "판매중";
-    if (window.confirm(`선택한 ${count}개 상품을 [${actionLabel}] 상태로 지정하시겠습니까?`)) {
+    if (safeConfirm(`선택한 ${count}개 상품을 [${actionLabel}] 상태로 지정하시겠습니까?`)) {
       handleAutoSaveAction(async () => {
         try {
           const promises = selectedPostIds.map(id => 
@@ -1605,7 +1749,7 @@ export default function Admin() {
       return;
     }
     const count = selectedPostIds.length;
-    if (window.confirm(`정말로 선택한 ${count}개 상품을 일괄 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
+    if (safeConfirm(`정말로 선택한 ${count}개 상품을 일괄 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
       handleAutoSaveAction(async () => {
         try {
           const promises = selectedPostIds.map(id => 
@@ -1630,30 +1774,39 @@ export default function Admin() {
     }
     const count = selectedUserIds.length;
     let roleLabel = "";
-    let updateFields: { isAdmin: boolean; isBanned: boolean } = { isAdmin: false, isBanned: false };
+    let updateFields: { "isAdmin": boolean; "isBanned": boolean } = { "isAdmin": false, "isBanned": false };
     
     if (targetRole === "admin") {
       roleLabel = "관리자";
-      updateFields = { isAdmin: true, isBanned: false };
+      updateFields = { "isAdmin": true, "isBanned": false };
     } else if (targetRole === "customer") {
       roleLabel = "일반 회원";
-      updateFields = { isAdmin: false, isBanned: false };
+      updateFields = { "isAdmin": false, "isBanned": false };
     } else if (targetRole === "banned") {
       roleLabel = "금지 회원";
-      updateFields = { isAdmin: false, isBanned: true };
+      updateFields = { "isAdmin": false, "isBanned": true };
     }
     
-    if (window.confirm(`선택한 ${count}명 회원의 권한등급을 [${roleLabel}]으로 변경하시겠습니까?`)) {
+    if (safeConfirm(`선택한 ${count}명 회원의 권한등급을 [${roleLabel}]으로 변경하시겠습니까?`)) {
       handleAutoSaveAction(async () => {
         try {
           const promises = selectedUserIds.map(userId => {
             const userObj = users.find(u => u.id === userId);
-            if (userObj?.email === ADMIN_EMAIL) {
+            if (ADMIN_EMAILS.includes(userObj?.email || "")) {
               return Promise.resolve(); // Skip master admin demotion
             }
-            return updateDoc(doc(db, "users", userId), updateFields);
+            return supabase.from('users').update(updateFields).eq('id', userId);
           });
           await Promise.all(promises);
+          
+          setUsers(prevUsers => prevUsers.map(u => {
+            if (selectedUserIds.includes(u.id)) {
+              if (ADMIN_EMAILS.includes(u.email || "")) return u; // skip master admin details
+              return { ...u, isAdmin: updateFields["isAdmin"], isBanned: updateFields["isBanned"] };
+            }
+            return u;
+          }));
+          
           setSelectedUserIds([]);
           alert(`${count}명 회원의 권한 등급이 변경되었습니다.`);
         } catch (error: any) {
@@ -1671,15 +1824,15 @@ export default function Admin() {
       return;
     }
     const count = selectedUserIds.length;
-    if (window.confirm(`정말로 선택한 ${count}명 회원을 일괄 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
+    if (safeConfirm(`정말로 선택한 ${count}명 회원을 일괄 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
       handleAutoSaveAction(async () => {
         try {
           const promises = selectedUserIds.map(userId => {
             const userObj = users.find(u => u.id === userId);
-            if (userObj?.email === ADMIN_EMAIL) {
+            if (ADMIN_EMAILS.includes(userObj?.email || "")) {
               return Promise.resolve(); // Skip master admin deletion
             }
-            return deleteDoc(doc(db, "users", userId));
+            return supabase.from('users').delete().eq('id', userId);
           });
           await Promise.all(promises);
           setSelectedUserIds([]);
@@ -1746,7 +1899,7 @@ export default function Admin() {
 
   const isBypassed = localStorage.getItem('admin_bypass') === 'true';
 
-  if (!designMode && !isBypassed && (!user || (!isAdmin && user.email?.toLowerCase() !== ADMIN_EMAIL.toLowerCase()))) {
+  if (!designMode && !isBypassed && (!user || (!isAdmin && !ADMIN_EMAILS.map(e => e.toLowerCase()).includes(user.email?.toLowerCase() || "")))) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-white p-6">
         {/* Branding */}
@@ -3282,6 +3435,29 @@ export default function Admin() {
                         <span className="text-[9px] font-bold mt-1.5 text-zinc-400">'배너'로 표시</span>
                       </div>
                     </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-zinc-50/60 p-6 rounded-[32px] border border-zinc-200/60 animate-fadeIn">
+                      <div>
+                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-2">카테고리 (KOR)</label>
+                        <input 
+                          type="text" 
+                          value={newNotice.bannerLabel || ""}
+                          onChange={e => setNewNotice({...newNotice, bannerLabel: e.target.value})}
+                          placeholder="예: 공지사항, 온라인 클래스, 주문하기"
+                          className="w-full p-4 bg-white border border-zinc-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-black/5"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-2">카테고리 (ENG)</label>
+                        <input 
+                          type="text" 
+                          value={newNotice.bannerLabelEn || ""}
+                          onChange={e => setNewNotice({...newNotice, bannerLabelEn: e.target.value})}
+                          placeholder="예: NOTICE, ONLINE CLASS, ORDER & SHOP"
+                          className="w-full p-4 bg-white border border-zinc-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-black/5"
+                        />
+                      </div>
+                    </div>
                     
                     {/* Notice/Banner Image Uploader (Optional) */}
                     <div className="p-6 bg-white border border-zinc-100 rounded-2xl">
@@ -3421,6 +3597,29 @@ export default function Admin() {
                               />
                             </div>
 
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-zinc-50/60 p-4 rounded-xl border border-zinc-200">
+                              <div>
+                                <label className="block text-[8px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-1">카테고리 (KOR)</label>
+                                <input 
+                                  type="text" 
+                                  value={noticeFormData.bannerLabel || ""}
+                                  onChange={e => setNoticeFormData({...noticeFormData, bannerLabel: e.target.value})}
+                                  placeholder="예: 공지사항, 온라인 클래스, 주문하기"
+                                  className="w-full p-3 bg-white border border-zinc-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-black/10"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[8px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-1">카테고리 (ENG)</label>
+                                <input 
+                                  type="text" 
+                                  value={noticeFormData.bannerLabelEn || ""}
+                                  onChange={e => setNoticeFormData({...noticeFormData, bannerLabelEn: e.target.value})}
+                                  placeholder="예: NOTICE, ONLINE CLASS, ORDER & SHOP"
+                                  className="w-full p-3 bg-white border border-zinc-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-black/10"
+                                />
+                              </div>
+                            </div>
+
                             {/* Notice Image Editor (Optional) */}
                             <div className="p-4 bg-zinc-50 border border-zinc-200 rounded-xl">
                               <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-2">공지 및 배너 이미지 수정 (선택)</label>
@@ -3465,6 +3664,7 @@ export default function Admin() {
                                 <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Mark as 'Banner'</span>
                               </div>
                               <button 
+                                type="button"
                                 onClick={() => {
                                   setEditingNoticeId(null);
                                   setNoticeFormData({});
@@ -3473,6 +3673,26 @@ export default function Admin() {
                               >
                                 <X size={12} />
                                 Close Edit
+                              </button>
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-2">
+                              <button 
+                                type="button"
+                                onClick={() => {
+                                  setEditingNoticeId(null);
+                                  setNoticeFormData({});
+                                }}
+                                className="px-5 py-2.5 bg-zinc-100 text-zinc-600 hover:bg-zinc-200 text-xs font-black uppercase tracking-widest rounded-xl transition-all"
+                              >
+                                Cancel
+                              </button>
+                              <button 
+                                type="button"
+                                onClick={() => handleEditNotice(notice.id)}
+                                className="px-5 py-2.5 bg-black text-white hover:bg-zinc-800 text-xs font-black uppercase tracking-widest rounded-xl transition-all"
+                              >
+                                Save Changes
                               </button>
                             </div>
                           </div>
@@ -3508,15 +3728,23 @@ export default function Admin() {
                               </div>
                             </div>
                             <div className="flex items-center gap-4" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex flex-col items-center gap-1">
+                                <button 
+                                  type="button"
+                                  onClick={() => handleToggleNotice(notice.id, notice.isActive)}
+                                  className={`w-10 h-5 rounded-full relative transition-colors cursor-pointer ${
+                                    notice.isActive ? 'bg-zinc-950' : 'bg-zinc-200'
+                                  }`}
+                                  title={notice.isActive ? "노출 중 (Active) - 클릭 시 숨김" : "숨김 (Hidden) - 클릭 시 노출"}
+                                >
+                                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${notice.isActive ? 'left-5.5' : 'left-0.5'}`} />
+                                </button>
+                                <span className="text-[8px] font-black uppercase tracking-wider text-zinc-400">
+                                  {notice.isActive ? "On" : "Off"}
+                                </span>
+                              </div>
                               <button 
-                                onClick={() => handleToggleNotice(notice.id, notice.isActive)}
-                                className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
-                                  notice.isActive ? "bg-green-100 text-green-700" : "bg-zinc-100 text-zinc-400"
-                                }`}
-                              >
-                                {notice.isActive ? "Active" : "Hidden"}
-                              </button>
-                              <button 
+                                type="button"
                                 onClick={() => {
                                   setEditingNoticeId(notice.id);
                                   setNoticeFormData(notice);
@@ -3527,6 +3755,7 @@ export default function Admin() {
                                 <Edit2 size={18} />
                               </button>
                               <button 
+                                type="button"
                                 onClick={() => handleDeleteNotice(notice.id)}
                                 className="p-3 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"
                                 title="Delete Notice"
@@ -3540,8 +3769,15 @@ export default function Admin() {
                     ))}
                   </Reorder.Group>
                   {notices.length === 0 && (
-                    <div className="py-20 text-center text-zinc-400 font-medium">
-                      첫 공지사항을 작성해 보세요.
+                    <div className="py-16 text-center border-2 border-dashed border-zinc-200 rounded-[32px] bg-zinc-50/50 flex flex-col items-center justify-center p-6">
+                      <p className="text-zinc-600 font-bold mb-4">현재 등록된 공지사항 및 배너가 없습니다.</p>
+                      <button
+                        type="button"
+                        onClick={handleSeedDefaultBanners}
+                        className="px-6 py-3 bg-zinc-950 text-white text-[11px] font-black uppercase tracking-widest rounded-2xl cursor-pointer hover:bg-neutral-800 active:scale-95 transition-all inline-flex items-center gap-2"
+                      >
+                        홈페이지 기본 슬라이드 배너 3개 자동 생성하기
+                      </button>
                     </div>
                   )}
                 </motion.div>
@@ -4354,7 +4590,7 @@ export default function Admin() {
                         {/* Users Flex List */}
                         <div className="grid grid-cols-1 gap-1.5">
                           {filteredUsers.map((u, idx) => {
-                            const isMasterAdmin = u.email === ADMIN_EMAIL;
+                            const isMasterAdmin = ADMIN_EMAILS.includes(u.email || "");
                             const isEditing = editingUserId === u.id;
                             const isSelected = selectedUserIds.includes(u.id);
 
@@ -4570,19 +4806,20 @@ export default function Admin() {
                                       <button 
                                         type="button"
                                         onClick={async () => {
-                                          const isMaster = u.email === ADMIN_EMAIL;
+                                          const isMaster = ADMIN_EMAILS.includes(u.email || "");
                                           if (isMaster) {
-                                            alert("최고 관리자 계정('rtytgb123@gmail.com')은 삭제할 수 없습니다.");
+                                            alert("최고 관리자 계정은 삭제할 수 없습니다.");
                                             return;
                                           }
                                           if (u.id === user?.uid) {
                                             alert("현재 로그인되어 있는 관리자 본인 계정은 삭제할 수 없습니다.");
                                             return;
                                           }
-                                          if (window.confirm(`[${u.nickname || u.email || '선택한 회원'}]님을 정말 회원 목록에서 영구 삭제하시겠습니까?`)) {
+                                          if (safeConfirm(`[${u.nickname || u.email || '선택한 회원'}]님을 정말 회원 목록에서 영구 삭제하시겠습니까?`)) {
                                             setIsUpdatingUser(u.id);
                                             try {
-                                              await deleteDoc(doc(db, "users", u.id));
+                                              const { error } = await supabase.from('users').delete().eq('id', u.id);
+                                              if (error) throw error;
                                               alert("성공적으로 삭제되었습니다.");
                                             } catch (err) {
                                               console.error("Failed to delete user:", err);
@@ -4985,7 +5222,7 @@ export default function Admin() {
                               <button
                                 type="button"
                                 onClick={async () => {
-                                  if (!window.confirm("정말로 이 질문 글을 완전히 삭제하시겠습니까?")) return;
+                                  if (!safeConfirm("정말로 이 질문 글을 완전히 삭제하시겠습니까?")) return;
                                   try {
                                     await deleteDoc(doc(db, "questions", targetQ.id));
                                     setReplyingQId(null);
@@ -5005,7 +5242,7 @@ export default function Admin() {
                                   <button
                                     type="button"
                                     onClick={async () => {
-                                      if (!window.confirm("답변을 기각하여 다시 대기 상태로 되돌리시겠습니까?")) return;
+                                      if (!safeConfirm("답변을 기각하여 다시 대기 상태로 되돌리시겠습니까?")) return;
                                       setIsSavingReply(true);
                                       try {
                                         await updateDoc(doc(db, "questions", targetQ.id), {
@@ -5170,10 +5407,16 @@ export default function Admin() {
                                     onClick={async () => {
                                       setIsUpdatingUser(u.id);
                                       try {
-                                        await updateDoc(doc(db, "users", u.id), {
-                                          isBanned: false,
-                                          isAdmin: false
-                                        });
+                                         const { error } = await supabase.from('users').update({
+                                          "isBanned": false,
+                                          "isAdmin": false
+                                        }).eq('id', u.id);
+                                        if (error) throw error;
+                                        
+                                        setUsers(prevUsers => prevUsers.map(usr => 
+                                          usr.id === u.id ? { ...usr, isBanned: false, isAdmin: false } : usr
+                                        ));
+                                        
                                         alert(`[${u.nickname || u.email || '선택회원'}]님의 이용 제한이 해제되어 일반 회원으로 변경되었습니다.`);
                                       } catch (err) {
                                         console.error("Failed to unban user:", err);

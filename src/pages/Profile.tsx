@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { User, Lock, Mail, Phone, RefreshCw, AlertCircle, CheckCircle2, ChevronLeft, ShieldCheck } from "lucide-react";
-import { doc, updateDoc } from "firebase/firestore";
-import { updateProfile, updatePassword, updateEmail, sendPasswordResetEmail, signInWithEmailAndPassword, signOut } from "firebase/auth";
-import { db, auth } from "../lib/firebase";
+import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { FixedHeader } from "../components/FixedHeader";
 import { translate } from "../utils/translate";
@@ -41,14 +39,14 @@ export default function Profile() {
   // Populate data when loaded
   useEffect(() => {
     if (userProfile) {
-      setProfileNickname(userProfile.nickname || user?.displayName || "");
+      setProfileNickname(userProfile.nickname || user?.user_metadata?.full_name || "");
       setProfileRealName(userProfile.realName || "");
       setProfilePhone(userProfile.phone || "");
       setProfileGender(userProfile.gender || "남");
       setProfileEmail(userProfile.email || user?.email || "");
     } else if (user) {
       setProfileEmail(user.email || "");
-      setProfileNickname(user.displayName || "");
+      setProfileNickname(user.user_metadata?.full_name || "");
     }
   }, [userProfile, user]);
 
@@ -87,7 +85,9 @@ export default function Profile() {
       if (!user || !user.email) {
         throw new Error(translate("사용자 정보를 찾을 수 없습니다. 다시 로그인해 주세요.", lang));
       }
-      await signInWithEmailAndPassword(auth, user.email, confirmStatePassword);
+      const { error } = await supabase.auth.signInWithPassword({ email: user.email, password: confirmStatePassword });
+      if (error) throw error;
+      
       setIsPasswordVerified(true);
       setConfirmStatePassword("");
       setProfileSuccessMsg(translate("인증에 성공했습니다. 프로필 수정이 활성화되었습니다.", lang));
@@ -95,12 +95,8 @@ export default function Profile() {
     } catch (err: any) {
       console.error("Password verification failed:", err);
       let msg = translate("비밀번호가 일치하지 않거나 오류가 발생했습니다.", lang);
-      if (err.code === "auth/wrong-password") {
-        msg = translate("비밀번호가 올바르지 않습니다.", lang);
-      } else if (err.code === "auth/invalid-credential") {
+      if (err.message.includes("Invalid login credentials")) {
         msg = translate("비밀번호가 올바르지 않거나 인증에 실패했습니다.", lang);
-      } else if (err.code === "auth/too-many-requests") {
-        msg = translate("로그인 시도 횟수가 초과되었습니다. 잠시 후 다시 시도해 주세요.", lang);
       }
       setProfileErrorMsg(msg);
     } finally {
@@ -117,38 +113,30 @@ export default function Profile() {
     try {
       if (!user) throw new Error(translate("로그인이 필요합니다.", lang));
 
-      // 1. Update Firestore User profile document
-      const userRef = doc(db, "users", user.uid);
-      await updateDoc(userRef, {
+      // 1. Update Supabase User profile document
+      const { error: dbError } = await supabase.from("users").update({
         nickname: profileNickname.trim(),
         displayName: profileNickname.trim(),
         realName: profileRealName.trim(),
         phone: profilePhone.trim(),
         gender: profileGender,
         email: profileEmail.trim(),
-      });
+      }).eq("id", user.id);
 
-      // 2. Update FirebaseAuth profile display name
+      if (dbError) throw dbError;
+
+      // 2. Update Supabase Auth profile
+      const updates: any = {};
       if (profileNickname.trim()) {
-        await updateProfile(auth.currentUser!, {
-          displayName: profileNickname.trim()
-        });
+        updates.data = { full_name: profileNickname.trim() };
+      }
+      if (profileEmail.trim() && profileEmail.trim() !== user.email) {
+        updates.email = profileEmail.trim();
       }
 
-      // 3. Update Email in FirebaseAuth if changed
-      if (profileEmail.trim() && profileEmail.trim() !== user.email) {
-        try {
-          await updateEmail(auth.currentUser!, profileEmail.trim());
-        } catch (emailErr: any) {
-          console.warn("Auth email update triggered error (likely requires re-auth):", emailErr);
-          if (emailErr.code === "auth/requires-recent-login") {
-            setProfileSuccessMsg(translate("프로필 일반 정보는 저장되었으나, 이메일 주소를 변경하기 위해서는 이메일 수정 직전에 다시 로그인을 하셔야 합니다.", lang));
-            setProfileSaving(false);
-            return;
-          }
-          throw emailErr;
-        }
-      }
+      const { error: authError } = await supabase.auth.updateUser(updates);
+      
+      if (authError) throw authError;
 
       setProfileSuccessMsg(translate("프로필 정보가 안전하게 저장되었습니다.", lang));
       setTimeout(() => setProfileSuccessMsg(""), 5000);
@@ -180,26 +168,17 @@ export default function Profile() {
     setProfileErrorMsg("");
 
     try {
-      if (!auth.currentUser) throw new Error(translate("로그인이 필요합니다.", lang));
-      await updatePassword(auth.currentUser, newPassword);
-      try {
-        await updateDoc(doc(db, "users", auth.currentUser.uid), {
-          password: newPassword
-        });
-      } catch (fErr) {
-        console.error("Failed to update password in Firestore doc:", fErr);
-      }
+      if (!user) throw new Error(translate("로그인이 필요합니다.", lang));
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      
       setProfileSuccessMsg(translate("비밀번호가 안전하게 변경되었습니다.", lang));
       setNewPassword("");
       setConfirmPassword("");
       setTimeout(() => setProfileSuccessMsg(""), 5000);
     } catch (err: any) {
       console.error("Error changing password:", err);
-      if (err.code === "auth/requires-recent-login") {
-        setProfileErrorMsg(translate("보안을 위해 비밀번호 변경은 최근 로그인한 경우에만 적용됩니다. 로그아웃 후 다시 로그인하여 시도해 주세요.", lang));
-      } else {
-        setProfileErrorMsg(err.message || translate("비밀번호 변경 중 오류가 발생했습니다.", lang));
-      }
+      setProfileErrorMsg(err.message || translate("비밀번호 변경 중 오류가 발생했습니다.", lang));
     } finally {
       setProfileSaving(false);
     }
@@ -211,7 +190,8 @@ export default function Profile() {
     setProfileSuccessMsg("");
     setProfileErrorMsg("");
     try {
-      await sendPasswordResetEmail(auth, user.email);
+      const { error } = await supabase.auth.resetPasswordForEmail(user.email);
+      if (error) throw error;
       setProfileSuccessMsg(translate("비밀번호 초기화 메일이 발송되었습니다. 메일함을 확인해 주세요.", lang));
     } catch (err: any) {
       console.error("Error sending reset email:", err);

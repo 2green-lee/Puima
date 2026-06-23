@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User } from 'firebase/auth';
-import { auth, onAuthStateChanged, db } from '../lib/firebase';
-import { doc, getDoc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { User } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
 
 interface AuthContextType {
   user: User | null;
@@ -43,65 +42,85 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [activeLearningClass, setActiveLearningClass] = useState<any>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      try {
-        setUser(firebaseUser);
-        
-        if (firebaseUser) {
-          console.log("AuthContext: User logged in:", firebaseUser.email);
-          // Sync user profile to Firestore
-          const userRef = doc(db, 'users', firebaseUser.uid);
-          
-          let adminStatus = false;
-          try {
-            const userDoc = await getDoc(userRef);
-            
-            if (!userDoc.exists()) {
-              adminStatus = firebaseUser.email === 'rtytgb123@gmail.com';
-              console.log("AuthContext: Creating new user doc, adminStatus:", adminStatus);
-              await setDoc(userRef, {
-                email: firebaseUser.email,
-                displayName: firebaseUser.displayName,
-                photoURL: firebaseUser.photoURL,
-                isAdmin: adminStatus,
-                createdAt: serverTimestamp(),
-              });
-            } else {
-              adminStatus = userDoc.data()?.isAdmin || firebaseUser.email === 'rtytgb123@gmail.com';
-              console.log("AuthContext: Existing user doc, isAdmin from doc:", userDoc.data()?.isAdmin, "hardcoded check:", firebaseUser.email === 'rtytgb123@gmail.com');
-            }
-          } catch (docErr) {
-            console.error("AuthContext: Error fetching/setting user doc:", docErr);
-            // Fallback to email check even if doc fetch fails
-            adminStatus = firebaseUser.email === 'rtytgb123@gmail.com';
-          }
-          setIsAdmin(adminStatus);
-        } else {
-          console.log("AuthContext: No firebase user");
-          setIsAdmin(false);
-        }
-      } catch (err) {
-        console.error("AuthContext: Global error in onAuthStateChanged:", err);
-      } finally {
-        setLoading(false);
-      }
+    // Initial fetch
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
     });
 
-    return unsubscribe;
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
     if (user) {
-      const userRef = doc(db, "users", user.uid);
-      const unsubscribeProfile = onSnapshot(userRef, (snapshot) => {
-        if (snapshot.exists()) {
-          setUserProfile(snapshot.data());
+      // Sync user profile to Supabase
+      const fetchOrUpdateUser = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+
+          let adminStatus = false;
+          if (error && error.code === 'PGRST116') {
+            // Document doesn't exist
+            adminStatus = user.email === 'rtytgb123@gmail.com' || user.email === 'lgi12@naver.com';
+            console.log("AuthContext: Creating new user doc, adminStatus:", adminStatus);
+            
+            const newUser = {
+              id: user.id,
+              email: user.email,
+              displayName: user.user_metadata?.full_name || user.email?.split('@')[0],
+              photoURL: user.user_metadata?.avatar_url,
+              isAdmin: adminStatus,
+            };
+
+            const { error: insertError } = await supabase.from('users').insert(newUser);
+            if (!insertError) {
+              setUserProfile(newUser);
+            } else {
+               console.error("AuthContext: Error creating user doc:", insertError);
+            }
+          } else if (data) {
+            adminStatus = data.isAdmin || user.email === 'rtytgb123@gmail.com' || user.email === 'lgi12@naver.com';
+            setUserProfile(data);
+          } else if (error) {
+            console.error("AuthContext: Error fetching user doc:", error);
+            adminStatus = user.email === 'rtytgb123@gmail.com' || user.email === 'lgi12@naver.com';
+          }
+          setIsAdmin(adminStatus);
+        } catch (err) {
+          console.error("AuthContext: Global error in user fetching:", err);
+          setIsAdmin(user.email === 'rtytgb123@gmail.com' || user.email === 'lgi12@naver.com');
         }
-      }, (error) => {
-        console.error("Error fetching user profile:", error);
-      });
-      return () => unsubscribeProfile();
+      };
+
+      fetchOrUpdateUser();
+
+      // Listen for profile changes
+      const channel = supabase
+        .channel('schema-db-changes')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'users', filter: `id=eq.${user.id}` },
+          (payload) => {
+            if (payload.new) setUserProfile(payload.new);
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     } else {
+      setIsAdmin(false);
       setUserProfile(null);
     }
   }, [user]);

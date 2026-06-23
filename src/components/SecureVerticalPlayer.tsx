@@ -11,8 +11,7 @@ import {
   Video
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { collection, query, onSnapshot } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { supabase } from "../lib/supabase";
 
 interface Milestone {
   timeLabel: string;
@@ -178,30 +177,56 @@ export const SecureVerticalPlayer: React.FC<SecureVerticalPlayerProps> = ({
       setLoadingDb(false);
       return;
     }
-    const chaptersRef = collection(db, "posts", classData.id, "chapters");
-    const q = query(chaptersRef);
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Chapter[];
 
-      // Sort chapter list ascending
-      docs.sort((a, b) => {
-        const numA = parseFloat(a.chapterNo || "0") || 0;
-        const numB = parseFloat(b.chapterNo || "0") || 0;
-        if (numA !== numB) return numA - numB;
-        return (a.chapterNo || "").localeCompare(b.chapterNo || "");
-      });
+    const fetchChapters = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("chapters")
+          .select("*")
+          .eq("post_id", classData.id)
+          .order("orderIndex", { ascending: true }); // Assume we sort by orderIndex for now or chapterNo if we change schema
+          
+        if (error) throw error;
+        
+        let docs = (data as any[]).map(d => {
+          let res = { ...d };
+          if (res.vimeoId && res.vimeoId.startsWith('{')) {
+            try { Object.assign(res, JSON.parse(res.vimeoId)); } catch(e) {}
+          }
+          return res;
+        }) as Chapter[];
 
-      setDbChapters(docs);
-      setLoadingDb(false);
-    }, (err) => {
-      console.error("Failed to load class chapters:", err);
-      setLoadingDb(false);
-    });
+        docs.sort((a, b) => {
+          const numA = parseFloat(a.chapterNo || "0") || 0;
+          const numB = parseFloat(b.chapterNo || "0") || 0;
+          if (numA !== numB) return numA - numB;
+          return (a.chapterNo || "").localeCompare(b.chapterNo || "");
+        });
+        
+        setDbChapters(docs);
+      } catch (err) {
+        console.error("Failed to load class chapters:", err);
+      } finally {
+        setLoadingDb(false);
+      }
+    };
+    
+    fetchChapters();
 
-    return () => unsubscribe();
+    const channel = supabase
+      .channel('chapters-channel')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'chapters', filter: `post_id=eq.${classData.id}` },
+        () => {
+          fetchChapters();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [classData.id]);
 
   const activeChaptersList = (classData.id && dbChapters.length === 0 && !loadingDb) 

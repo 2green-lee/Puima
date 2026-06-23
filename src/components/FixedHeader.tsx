@@ -2,8 +2,7 @@ import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { Youtube, Instagram, User, BookOpen, Settings, LogOut, ChevronDown } from "lucide-react";
-import { auth } from "../lib/firebase";
-import { signOut } from "firebase/auth";
+import { supabase } from "../lib/supabase";
 import { translate } from "../utils/translate";
 
 export function FixedHeader({ handleBackToHome }: { handleBackToHome?: () => void }) {
@@ -35,9 +34,9 @@ export function FixedHeader({ handleBackToHome }: { handleBackToHome?: () => voi
     navigate("/profile");
   };
 
-  const handleLogoutAction = () => {
+  const handleLogoutAction = async () => {
     setDropdownOpen(false);
-    signOut(auth);
+    await supabase.auth.signOut();
     localStorage.removeItem("admin_bypass");
     window.location.reload();
   };

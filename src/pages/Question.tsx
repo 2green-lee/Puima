@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { X, Lock, ArrowRight, Plus, ChevronDown, ChevronUp, AlertCircle, MessageSquare } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -22,9 +21,15 @@ interface QuestionItem {
   answeredAt?: string;
 }
 
+
+const safeConfirm = (msg: string) => {
+  if (window.self !== window.top) return true;
+  try { return window.confirm(msg); } catch(e) { return true; }
+};
+
 export default function Question() {
   const navigate = useNavigate();
-  const { user, userId, lang } = useAuth();
+  const { user, lang } = useAuth();
   
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,29 +47,46 @@ export default function Question() {
   const [errorMessage, setErrorMessage] = useState("");
 
   const isBypassed = localStorage.getItem('admin_bypass') === 'true';
-  const isAdminUser = isBypassed || (user && user.email === "rtytgb123@gmail.com");
+  const isAdminUser = isBypassed || (user && (user.email === "rtytgb123@gmail.com" || user.email === "lgi12@naver.com"));
 
   useEffect(() => {
     window.scrollTo(0, 0);
-    const q = query(collection(db, "questions"), orderBy("createdAt", "desc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as QuestionItem[];
-      setQuestions(docs);
-      setLoading(false);
-    }, (error) => {
-      console.error("Error fetching questions:", error);
-      setLoading(false);
-    });
+    
+    const fetchQuestions = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("questions")
+          .select("*")
+          .order("createdAt", { ascending: false });
+          
+        if (error) throw error;
+        setQuestions(data || []);
+      } catch (err) {
+        console.error("Error fetching questions:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchQuestions();
 
-    return () => unsubscribe();
+    const channel = supabase
+      .channel('questions-channel')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'questions' },
+        () => fetchQuestions()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleOpenModal = () => {
     if (!user) {
-      if (window.confirm(translate("질문 등록하기 위해서는 로그인이 필요합니다. 로그인 페이지로 이동하시겠습니까?", lang))) {
+      if (safeConfirm(translate("질문 등록하기 위해서는 로그인이 필요합니다. 로그인 페이지로 이동하시겠습니까?", lang))) {
         navigate("/login", { state: { from: "/question" } });
       }
       return;
@@ -88,17 +110,18 @@ export default function Question() {
     setIsSubmitting(true);
     setErrorMessage("");
     try {
-      await addDoc(collection(db, "questions"), {
+      const { error } = await supabase.from("questions").insert({
         title: newTitle.trim(),
         reference: newReference.trim(),
         content: newContent.trim(),
-        authorId: user.uid,
+        authorId: user.id,
         authorEmail: user.email || "",
-        authorName: user.displayName || user.email?.split("@")[0] || "수강생",
+        authorName: user.user_metadata?.full_name || user.email?.split("@")[0] || "수강생",
         isPrivate: newIsPrivate,
         createdAt: new Date().toISOString(),
         answer: ""
       });
+      if (error) throw error;
       setIsModalOpen(false);
     } catch (err: any) {
       console.error("Error adding question:", err);
@@ -110,9 +133,10 @@ export default function Question() {
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (!window.confirm(translate("정말로 이 질문을 삭제하시겠습니까?", lang))) return;
+    if (!safeConfirm(translate("정말로 이 질문을 삭제하시겠습니까?", lang))) return;
     try {
-      await deleteDoc(doc(db, "questions", id));
+      const { error } = await supabase.from("questions").delete().eq("id", id);
+      if (error) throw error;
       if (expandedId === id) setExpandedId(null);
     } catch (err) {
       console.error("Error deleting question:", err);
@@ -121,7 +145,7 @@ export default function Question() {
   };
 
   const handleToggleAccordion = (q: QuestionItem) => {
-    if (q.isPrivate && q.authorId !== user?.uid && !isAdminUser) {
+    if (q.isPrivate && q.authorId !== user?.id && !isAdminUser) {
       alert(translate("비밀글입니다. 작성자 본인과 관리자만 확인할 수 있습니다.", lang));
       return;
     }

@@ -7,9 +7,9 @@ import { Youtube, Instagram, MessageCircle, ChevronDown, Settings, ArrowRight, X
 import { motion, AnimatePresence } from "motion/react";
 import React, { useState, useEffect } from "react";
 import { Routes, Route, useNavigate, useLocation, useSearchParams } from "react-router-dom";
-import { collection, onSnapshot, query, orderBy, where, doc, updateDoc } from "firebase/firestore";
-import { db, auth } from "./lib/firebase";
-import { signOut, updateProfile, updatePassword, updateEmail, sendPasswordResetEmail, signInWithEmailAndPassword } from "firebase/auth";
+import { collection, onSnapshot, query, orderBy, where, doc, updateDoc } from "./lib/firebase-mock";
+import { db, auth } from "./lib/firebase-mock";
+import { signOut, updateProfile, updatePassword, updateEmail, sendPasswordResetEmail, signInWithEmailAndPassword } from "./lib/firebase-mock";
 import GridItem from "./components/GridItem";
 import Admin from "./pages/Admin";
 import Login from "./pages/Login";
@@ -154,7 +154,9 @@ const DEFAULT_BANNERS = [
     imageUrl: pastryImg,
     url: "https://smartstore.naver.com/putitinyourmouth",
     isActive: true,
-    isDefault: true
+    isDefault: true,
+    bannerLabel: "주문하기",
+    bannerLabelEn: "ORDER & SHOP"
   },
   {
     id: "default-2",
@@ -164,7 +166,9 @@ const DEFAULT_BANNERS = [
     imageUrl: heroImg,
     url: "/?category=Masterclass",
     isActive: true,
-    isDefault: true
+    isDefault: true,
+    bannerLabel: "온라인 클래스",
+    bannerLabelEn: "ONLINE CLASS"
   },
   {
     id: "default-3",
@@ -174,7 +178,9 @@ const DEFAULT_BANNERS = [
     imageUrl: macaronsImg,
     url: "https://smartstore.naver.com/putitinyourmouth",
     isActive: true,
-    isDefault: true
+    isDefault: true,
+    bannerLabel: "네이버 스토어",
+    bannerLabelEn: "ONLINE STORE"
   }
 ];
 
@@ -232,24 +238,18 @@ function HomePage() {
   const [currentSlide, setCurrentSlide] = useState(0);
 
   // Active Banners: custom active banners from Firestore OR default banners
-  const dbOrDefaultForThree = banners.length > 0
-    ? banners.map((b, idx) => ({
+  const baseBanners = banners.length > 0
+    ? banners.slice(0, 4).map((b, idx) => ({
         ...b,
         imageUrl: b.imageUrl || [pastryImg, heroImg, macaronsImg, cakeImg][idx % 4],
         isDefault: false
       }))
     : DEFAULT_BANNERS;
 
-  const padBanners = [...dbOrDefaultForThree];
-  while (padBanners.length < 3) {
-    const nextDefault = DEFAULT_BANNERS[padBanners.length] || DEFAULT_BANNERS[0];
-    padBanners.push({ ...nextDefault, id: `pad-${padBanners.length}` });
-  }
-
-  const activeBanners = [
-    ...padBanners.slice(0, 3),
-    {
-      id: "coming-soon",
+  const activeBanners = [...baseBanners];
+  while (activeBanners.length < 4) {
+    activeBanners.push({
+      id: `coming-soon-${activeBanners.length}`,
       title: "새로운 클래스 준비중",
       titleEn: "New Class Coming Soon",
       content: "더 풍성하고 다채로운 레시피가 곧 공개됩니다.",
@@ -258,8 +258,8 @@ function HomePage() {
       isActive: true,
       isDefault: true,
       isComingSoon: true
-    }
-  ];
+    });
+  }
 
   // Slideshow auto-play
   useEffect(() => {
@@ -413,10 +413,10 @@ function HomePage() {
     setProfileErrorMsg("");
 
     try {
-      if (!auth.currentUser) throw new Error("로그인이 필요합니다.");
-      await updatePassword(auth.currentUser, newPassword);
+      if (!user) throw new Error("로그인이 필요합니다.");
+      await updatePassword(user, newPassword);
       try {
-        await updateDoc(doc(db, "users", auth.currentUser.uid), {
+        await updateDoc(doc(db, "users", user.id), {
           password: newPassword
         });
       } catch (fErr) {
@@ -586,7 +586,7 @@ function HomePage() {
     window.scrollTo(0, 0);
   };
 
-  const displayPosts = (isQuotaExceeded && posts.length === 0) ? INITIAL_POSTS : posts;
+  const displayPosts = posts.length === 0 ? INITIAL_POSTS : posts;
 
   const rawCategories = Array.from(new Set(displayPosts.map(p => p.category?.trim().toUpperCase()).filter(Boolean) as string[]));
   rawCategories.sort((a, b) => {
@@ -838,12 +838,12 @@ function HomePage() {
                                     {banner.isComingSoon 
                                       ? (lang === "KOR" ? "준비중" : "Soon")
                                       : (lang === "KOR" 
-                                          ? (banner.title.includes("주문") 
+                                          ? (banner.bannerLabel || (banner.title.includes("주문") 
                                               ? "주문하기" 
                                               : banner.title.includes("클래스") 
                                                 ? "온라인 클래스" 
-                                                : "네이버 스토어") 
-                                          : (banner.titleEn || banner.title).slice(0, 15))}
+                                                : "네이버 스토어")) 
+                                          : (banner.bannerLabelEn || banner.bannerLabel || banner.titleEn || banner.title).slice(0, 15))}
                                   </span>
                                 </button>
                               );
@@ -883,7 +883,7 @@ function HomePage() {
                             ) : (
                               <div className="flex flex-col justify-center items-start gap-1 w-full relative z-10">
                                 <span className={`text-[10px] font-bold uppercase tracking-widest ${isSelected ? "text-zinc-400" : "text-zinc-500"}`}>
-                                  {idx === 0 ? "01 / ORDER & SHOP" : idx === 1 ? "02 / ONLINE CLASS" : "03 / ONLINE STORE"}
+                                  {`0${idx + 1} / `}{lang === "KOR" ? (banner.bannerLabel || "공지사항") : (banner.bannerLabelEn || banner.bannerLabel || "NOTICE")}
                                 </span>
                                 <h3 className={`text-[14px] lg:text-[15px] tracking-tight truncate w-full mt-1.5 ${isSelected ? "font-bold text-white" : "font-semibold text-zinc-900"}`}>
                                   {lang === "KOR" ? banner.title : (banner.titleEn || banner.title)}

@@ -2,16 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Mail, Lock, User, ArrowRight, Chrome, AlertCircle, Loader2, Phone, Smile, ShieldCheck } from 'lucide-react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { 
-  loginWithGoogle, 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
-  updateProfile,
-  auth,
-  db,
-  serverTimestamp
-} from '../lib/firebase';
+import { supabase } from '../lib/supabase';
 
 const Login: React.FC = () => {
   const location = useLocation();
@@ -46,12 +37,17 @@ const Login: React.FC = () => {
 
     try {
       if (isLogin) {
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        const userDoc = await getDoc(doc(db, "users", userCredential.user.uid));
-        if (userDoc.exists() && userDoc.data()?.isAdmin) {
-          navigate('/admin');
-        } else {
-          navigate('/');
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        
+        if (data.user) {
+          const { data: userData } = await supabase.from('users').select('isAdmin').eq('id', data.user.id).maybeSingle();
+          const isAdminEnv = data.user.email === 'rtytgb123@gmail.com' || data.user.email === 'lgi12@naver.com';
+          if (userData?.isAdmin || isAdminEnv) {
+            navigate('/admin');
+          } else {
+            navigate('/');
+          }
         }
       } else {
         // Enforce validations for Sign Up
@@ -74,37 +70,45 @@ const Login: React.FC = () => {
           return;
         }
 
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const displayName = nickname || name || email.split('@')[0];
-        await updateProfile(userCredential.user, { displayName });
-        
-        await setDoc(doc(db, "users", userCredential.user.uid), {
-          email: email,
-          displayName: displayName,
-          nickname: nickname,
-          realName: name,
-          gender: gender,
-          phone: phone,
-          isAdmin: false,
-          password: password,
-          createdAt: serverTimestamp()
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: displayName,
+            }
+          }
         });
+        
+        if (error) throw error;
+
+        if (data.user) {
+          await supabase.from('users').upsert({
+            id: data.user.id,
+            email: email,
+            displayName: displayName,
+            nickname: nickname,
+            realName: name,
+            gender: gender,
+            phone: phone,
+            isAdmin: false,
+          });
+        }
         
         navigate('/');
       }
     } catch (err: any) {
       console.error(err);
       let errMsg = err.message || 'Authentication failed';
-      if (err.code === 'auth/email-already-in-use') {
+      if (err.message?.includes('already registered')) {
         errMsg = '이미 가입된 이메일 주소입니다.';
-      } else if (err.code === 'auth/weak-password') {
+      } else if (err.message?.includes('weak_password')) {
         errMsg = '비밀번호는 6자 이상이어야 합니다.';
-      } else if (err.code === 'auth/invalid-email') {
-        errMsg = '올바르지 않은 이메일 형식입니다.';
-      } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-        errMsg = '이메일 또는 비밀번호가 올바르지 않습니다.';
-      } else if (err.code === 'auth/operation-not-allowed') {
-        errMsg = '이메일/비밀번호 가입이 현재 비활성화되어 있습니다. Firebase 콘솔 -> Build -> Authentication -> Sign-in method 탭에서 "이메일/비밀번호(Email/Password)" 로그인 제공업체를 활성화(Enable)해 주세요.';
+      } else if (err.message?.includes('Invalid login credentials') || err.message?.includes('invalid login credentials')) {
+        errMsg = '이메일 또는 비밀번호가 올바르지 않거나, 이메일 인증이 완료되지 않았습니다.';
+      } else if (err.status === 429 || err.message?.includes('rate limit')) {
+        errMsg = '짧은 시간 동안 너무 많은 요청이 발생했습니다. (Supabase 대시보드 - Authentication - Providers 에서 "Confirm email"을 꺼주시면 즉시 가입/로그인이 가능합니다.)';
       }
       setError(errMsg);
     } finally {
@@ -116,36 +120,17 @@ const Login: React.FC = () => {
     setError(null);
     setLoading(true);
     try {
-      const result = await loginWithGoogle();
-      const user = result.user;
-      
-      const userDocRef = doc(db, "users", user.uid);
-      const userDocSnapshot = await getDoc(userDocRef);
-      let isAdmin = false;
-      if (!userDocSnapshot.exists()) {
-        await setDoc(userDocRef, {
-          email: user.email,
-          displayName: user.displayName,
-          nickname: user.displayName || "",
-          realName: "",
-          gender: "남",
-          phone: "",
-          isAdmin: false,
-          createdAt: serverTimestamp()
-        });
-      } else {
-        isAdmin = !!userDocSnapshot.data()?.isAdmin;
-      }
-      
-      if (isAdmin) {
-        navigate('/admin');
-      } else {
-        navigate('/');
-      }
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin
+        }
+      });
+      if (error) throw error;
+      // Note: Google sign-in redirect will reload the page.
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Google login failed');
-    } finally {
       setLoading(false);
     }
   };

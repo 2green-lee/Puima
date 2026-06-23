@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { collection, onSnapshot, query, orderBy, doc, updateDoc } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { FixedHeader } from "../components/FixedHeader";
 import { BookOpen, ShoppingBag, ArrowLeft, ArrowRight, Play, Calendar, Clipboard, ShieldCheck, CheckCircle2, AlertCircle } from "lucide-react";
@@ -29,25 +28,37 @@ export default function MyClasses() {
   useEffect(() => {
     window.scrollTo(0, 0);
 
-    // Fetch class posts for simulation
-    const q = query(
-      collection(db, "posts"), 
-      orderBy("order", "asc"),
-      orderBy("createdAt", "desc")
-    );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as ClassPost[];
-      setPosts(docs);
-      setLoading(false);
-    }, (error) => {
-      console.error("Error fetching posts for MyClasses:", error);
-      setLoading(false);
-    });
+    const fetchPosts = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("posts")
+          .select("*")
+          .order("order", { ascending: true })
+          .order("createdAt", { ascending: false });
+          
+        if (error) throw error;
+        if (data) setPosts(data);
+      } catch (err) {
+        console.error("Error fetching posts for MyClasses:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    return () => unsubscribe();
+    fetchPosts();
+
+    const channel = supabase
+      .channel('posts-channel')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'posts' },
+        () => fetchPosts()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleRegisterTestClass = async (classItem: ClassPost) => {
@@ -78,10 +89,15 @@ export default function MyClasses() {
     };
 
     try {
-      const userRef = doc(db, "users", user.uid);
-      await updateDoc(userRef, {
-        enrolledClasses: [...currentEnrollments, newEnrollment]
-      });
+      const { error } = await supabase
+        .from("users")
+        .update({
+          enrolledClasses: [...currentEnrollments, newEnrollment]
+        })
+        .eq('id', user.id);
+        
+      if (error) throw error;
+      
       setSuccessMsg(`'${classItem.title}' 클래스 수강 신청이 완료되었습니다!`);
       setTimeout(() => setSuccessMsg(""), 4000);
     } catch (err: any) {
