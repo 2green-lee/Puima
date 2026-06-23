@@ -84,11 +84,11 @@ export default function AdLanding() {
       {/* Hero Section */}
       <section className="pt-24 pb-16 px-4 text-center max-w-4xl mx-auto flex flex-col items-center">
         <div className="text-[#FF4A32] font-extrabold text-xs tracking-wider mb-6 bg-[#FF4A32]/10 px-3 py-1.5 rounded-full flex items-center gap-2">
-          {translate("누적 수강 카페 1,240곳 돌파", lang)}
+          {translate("누적 수강생 300명 돌파", lang)}
         </div>
         
         <h1 className="text-4xl md:text-[56px] font-black leading-[1.15] text-stone-900 tracking-tight whitespace-pre-line mb-6">
-          {lang === "KOR" ? "사장님들 디저트로\n같이 돈 법시다." : "Let's increase your café revenue\nwith premium signature desserts."}
+          {lang === "KOR" ? "사장님들!\n디저트로 같이 돈 법시다" : "Let's increase your café revenue\nwith premium signature desserts."}
         </h1>
         
         <p className="text-stone-500 font-medium text-base md:text-lg mb-10 max-w-lg leading-relaxed">
