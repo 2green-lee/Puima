@@ -2824,9 +2824,21 @@ export default function Admin() {
                                     alt="Preview" 
                                     className="w-full h-full object-cover rounded-2xl"
                                   />
-                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all rounded-2xl flex items-center justify-center text-white text-xs font-bold">
-                                    이미지 변경
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all rounded-2xl flex items-center justify-center text-white text-[13px] font-bold">
+                                    클릭하여 이미지 변경
                                   </div>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setFormData(prev => ({ ...prev, imageUrl: "" }));
+                                    }}
+                                    className="absolute top-4 right-4 z-20 w-10 h-10 bg-white/90 hover:bg-red-500 hover:text-white text-zinc-900 rounded-full shadow-lg flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
+                                    title="이미지 삭제"
+                                  >
+                                    <X size={18} strokeWidth={2.5} />
+                                  </button>
                                 </div>
                               ) : (
                                 <>
