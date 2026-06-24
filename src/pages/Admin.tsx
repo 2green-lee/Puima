@@ -975,14 +975,22 @@ export default function Admin() {
 
     setIsUploading(true);
     
-    // In a real production app, we would upload to Firebase Storage here.
-    // For now, we'll create a local preview URL.
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setFormData(prev => ({ ...prev, imageUrl: reader.result as string }));
-      setIsUploading(false);
-    };
-    reader.readAsDataURL(file);
+    const storageRef = ref(storage, `images/posts/${Date.now()}_${file.name}`);
+    const uploadTask = uploadBytesResumable(storageRef, file);
+    
+    uploadTask.on('state_changed', 
+      null,
+      (error: any) => {
+        console.error("Upload failed", error);
+        alert("이미지 업로드에 실패했습니다.");
+        setIsUploading(false);
+      },
+      async () => {
+        const url = await getDownloadURL(uploadTask.snapshot.ref);
+        setFormData(prev => ({ ...prev, imageUrl: url }));
+        setIsUploading(false);
+      }
+    );
   };
 
   const handleNoticeImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
@@ -996,12 +1004,22 @@ export default function Admin() {
     }
 
     setNoticeImgUploading(true);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setNewNotice(prev => ({ ...prev, imageUrl: reader.result as string }));
-      setNoticeImgUploading(false);
-    };
-    reader.readAsDataURL(file);
+    const storageRef = ref(storage, `images/notices/${Date.now()}_${file.name}`);
+    const uploadTask = uploadBytesResumable(storageRef, file);
+    
+    uploadTask.on('state_changed', 
+      null,
+      (error: any) => {
+        console.error("Upload failed", error);
+        alert("이미지 업로드에 실패했습니다.");
+        setNoticeImgUploading(false);
+      },
+      async () => {
+        const url = await getDownloadURL(uploadTask.snapshot.ref);
+        setNewNotice(prev => ({ ...prev, imageUrl: url }));
+        setNoticeImgUploading(false);
+      }
+    );
   };
 
   const handleEditNoticeImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
@@ -1014,12 +1032,22 @@ export default function Admin() {
     }
 
     setNoticeImgUploading(true);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setNoticeFormData(prev => ({ ...prev, imageUrl: reader.result as string }));
-      setNoticeImgUploading(false);
-    };
-    reader.readAsDataURL(file);
+    const storageRef = ref(storage, `images/notices/${Date.now()}_${file.name}`);
+    const uploadTask = uploadBytesResumable(storageRef, file);
+    
+    uploadTask.on('state_changed', 
+      null,
+      (error: any) => {
+        console.error("Upload failed", error);
+        alert("이미지 업로드에 실패했습니다.");
+        setNoticeImgUploading(false);
+      },
+      async () => {
+        const url = await getDownloadURL(uploadTask.snapshot.ref);
+        setNoticeFormData(prev => ({ ...prev, imageUrl: url }));
+        setNoticeImgUploading(false);
+      }
+    );
   };
 
   useEffect(() => {
@@ -1348,12 +1376,22 @@ export default function Admin() {
     }
 
     setReviewUploading(true);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setNewReview(prev => ({ ...prev, imageUrl: reader.result as string }));
-      setReviewUploading(false);
-    };
-    reader.readAsDataURL(file);
+    const storageRef = ref(storage, `images/reviews/${Date.now()}_${file.name}`);
+    const uploadTask = uploadBytesResumable(storageRef, file);
+    
+    uploadTask.on('state_changed', 
+      null,
+      (error: any) => {
+        console.error("Upload failed", error);
+        alert("이미지 업로드에 실패했습니다.");
+        setReviewUploading(false);
+      },
+      async () => {
+        const url = await getDownloadURL(uploadTask.snapshot.ref);
+        setNewReview(prev => ({ ...prev, imageUrl: url }));
+        setReviewUploading(false);
+      }
+    );
   };
 
   const handleAddReview = async (e: FormEvent) => {
