@@ -23,6 +23,7 @@ import { initGA, trackPageView } from "./utils/analytics";
 import { FixedHeader } from "./components/FixedHeader";
 import { translate } from "./utils/translate";
 import { TranslatedText } from "./components/TranslatedText";
+import { supabase } from "./lib/supabase";
 import { SecureVerticalPlayer } from "./components/SecureVerticalPlayer";
 
 const ProtectedRoute = ({ children, adminOnly = false }: { children: React.ReactNode, adminOnly?: boolean }) => {
@@ -200,8 +201,9 @@ function HomePage() {
   } = useAuth();
 
   const [searchParams] = useSearchParams();
-  const [view, setView] = useState<"landing" | "grid">("landing");
+
   const [posts, setPosts] = useState<ClassPost[]>([]);
+  const [adminCategories, setAdminCategories] = useState<any[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [banners, setBanners] = useState<Notice[]>([]);
   const [reviews, setReviews] = useState<StudentReview[]>([]);
@@ -210,6 +212,8 @@ function HomePage() {
   const [bannersLoading, setBannersLoading] = useState(true);
   const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("ALL");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 15;
   const navigate = useNavigate();
 
   // Active Tab: 'courses' | 'profile'
@@ -499,27 +503,36 @@ function HomePage() {
   };
 
   useEffect(() => {
-    const q = query(
-      collection(db, "posts"), 
-      orderBy("order", "asc"),
-      orderBy("createdAt", "desc")
-    );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as ClassPost[];
-      
-      setPosts(docs);
-      setLoading(false);
-    }, (error) => {
-      console.error("Error fetching posts:", error);
-      const isQuota = error.message?.includes("Quota") || error.code === "resource-exhausted" || error.code === "permission-denied";
-      if (isQuota) {
-        setIsQuotaExceeded(true);
+    // Fetch posts from Supabase
+    const fetchPosts = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("posts")
+          .select("*")
+          .order("order", { ascending: true })
+          .order("createdAt", { ascending: false });
+          
+        if (error) {
+          console.error("Supabase error fetching posts:", error);
+          setLoading(false);
+          return;
+        }
+        
+        if (data && data.length > 0) {
+          setPosts(data as ClassPost[]);
+        }
+      } catch (err) {
+        console.error("Error fetching posts:", err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-    });
+    };
+    
+    fetchPosts();
+    
+    const postsChannel = supabase.channel('public:posts')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, fetchPosts)
+      .subscribe();
 
     const noticeQ = query(collection(db, "notices"), where("isActive", "==", true), orderBy("createdAt", "desc"));
     const unsubscribeNotices = onSnapshot(noticeQ, (snapshot) => {
@@ -569,27 +582,36 @@ function HomePage() {
       }
     });
 
+    const categoriesQ = query(collection(db, "categories"), orderBy("name", "asc"));
+    const unsubscribeCategories = onSnapshot(categoriesQ, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setAdminCategories(docs);
+    }, (error) => {
+      console.error("Error fetching categories:", error);
+    });
+
     return () => {
-      unsubscribe();
+      supabase.removeChannel(postsChannel);
       unsubscribeNotices();
       unsubscribeReviews();
       unsubscribeQuestions();
+      unsubscribeCategories();
     };
   }, []);
 
-  const handleLoadMore = () => {
-    setView("grid");
-    window.scrollTo(0, 0);
-  };
-
   const handleBackToHome = () => {
-    setView("landing");
     window.scrollTo(0, 0);
   };
 
   const displayPosts = posts.length === 0 ? INITIAL_POSTS : posts;
 
-  const rawCategories = Array.from(new Set(displayPosts.map(p => p.category?.trim().toUpperCase()).filter(Boolean) as string[]));
+  let rawCategories = adminCategories.map(c => c.name);
+  if (rawCategories.length === 0) {
+    rawCategories = Array.from(new Set(displayPosts.map(p => p.category?.trim().toUpperCase()).filter(Boolean) as string[]));
+  }
   rawCategories.sort((a, b) => {
     const isMasterA = a === "MASTERCLASS" || a.includes("MASTER");
     const isMasterB = b === "MASTERCLASS" || b.includes("MASTER");
@@ -606,7 +628,9 @@ function HomePage() {
   });
 
   const publicPosts = [...rawPublicPosts];
-  const displayClasses = view === "grid" ? publicPosts : publicPosts.slice(0, 9);
+  const totalPages = Math.ceil(publicPosts.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const displayClasses = publicPosts.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   return (
     <div className="min-h-screen bg-white selection:bg-black selection:text-white pt-[60px] md:pt-[100px] md:min-w-[1100px]">
@@ -671,20 +695,20 @@ function HomePage() {
               </div>
             )}
 
-            <AnimatePresence mode="wait">
-              {view === "landing" ? (
-                <motion.div
-                  key="landing-content"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.6 }}
-                >
+            <motion.div
+              key="landing-content"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.6 }}
+            >
 
               {/* Main Banner Heading */}
-              <div className="px-6 md:px-0 flex justify-center items-center mb-[45px] md:mb-[70px] mt-4">
+              <motion.div 
+                initial={{ opacity: 0, y: 15 }} whileInView={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} viewport={{ once: true }}
+                className="px-6 md:px-0 flex justify-center items-center mb-[45px] md:mb-[70px] mt-4 select-none"
+              >
                 <h2 className="text-[14px] font-normal uppercase tracking-[0.3em] text-black text-center">Bake Happiness</h2>
-              </div>
+              </motion.div>
 
               {/* Premium Split Hero Banner (Left: Interactive Image, Right: Clean Navigation Tabs) */}
               <section className="mb-[85px] md:mb-[100px] mt-0 px-4 md:px-0">
@@ -905,17 +929,69 @@ function HomePage() {
               </section>
 
               {/* Collection Section */}
-              <div className="px-6 md:px-0 flex justify-center items-center mb-[45px] md:mb-[70px]">
+              <motion.div 
+                id="eat-happiness-section"
+                initial={{ opacity: 0, y: 15 }} whileInView={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} viewport={{ once: true }}
+                className="px-6 md:px-0 flex justify-center items-center mb-[45px] md:mb-[70px] select-none"
+              >
                 <h2 className="text-[14px] font-normal uppercase tracking-[0.3em] text-black text-center">Eat Happiness</h2>
+              </motion.div>
+
+
+
+              {/* Category Tabs */}
+              <div className="px-6 md:px-0 mb-8 md:mb-16">
+                {/* Mobile View: Wrapping Pill Buttons for 100% Visibility */}
+                <div className="flex flex-wrap justify-center gap-2 md:hidden pb-2">
+                  {categories.map((cat) => {
+                    const isActive = selectedCategory === cat;
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => { setSelectedCategory(cat); setCurrentPage(1); }}
+                        className={`text-[10px] font-semibold uppercase tracking-wider px-3.5 py-1.5 rounded-full border transition-all ${
+                          isActive 
+                            ? "bg-black border-black text-white" 
+                            : "bg-white border-zinc-200 text-zinc-500 hover:border-zinc-400"
+                        }`}
+                      >
+                        {translate(cat, lang)}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop View: Elegant Minimal Underlined Line */}
+                <div className="hidden md:flex justify-center gap-8 border-b border-zinc-100 pb-4">
+                  {categories.map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => { setSelectedCategory(cat); setCurrentPage(1); }}
+                      className={`text-[11px] font-black uppercase tracking-[0.2em] transition-all relative pb-4 ${
+                        selectedCategory === cat 
+                          ? "text-black" 
+                          : "text-zinc-400 hover:text-black"
+                      }`}
+                    >
+                      {translate(cat, lang)}
+                      {selectedCategory === cat && (
+                        <motion.div 
+                           layoutId="activeCategory"
+                          className="absolute bottom-0 left-0 w-full h-[2px] bg-black"
+                        />
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              <main className="min-h-[600px] mb-8">
+              <main className="min-h-[600px] mb-8 md:mb-16">
                 {loading ? (
                   <div className="py-32 flex flex-col items-center gap-4">
                      <div className="w-8 h-8 border border-zinc-200 border-t-black rounded-full animate-spin"></div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-3 md:grid-cols-4 gap-x-2 md:gap-x-8 gap-y-4 px-2 md:px-0">
+                  <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-2 md:gap-x-6 gap-y-6 md:gap-y-12 px-2 md:px-0">
                     {displayClasses.map((item, idx) => (
                       <GridItem 
                         key={item.id}
@@ -930,35 +1006,58 @@ function HomePage() {
                         isSoldOut={item.isSoldOut}
                         price={item.price}
                         index={idx}
+                        uniform={true}
                       />
                     ))}
                   </div>
                 )}
               </main>
 
-              {posts.length > 9 && (
-                <div className="flex justify-center pt-8 pb-[115px] md:pb-32">
-                  <button 
-                    onClick={handleLoadMore}
-                    className="group flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-900 border-b border-zinc-900 pb-1 hover:text-zinc-400 hover:border-zinc-400 transition-all"
-                  >
-                    {translate("더 많은 제품보러가기", lang)}
-                  </button>
+              {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-2 mt-4 mb-24">
+                  {Array.from({ length: totalPages }).map((_, i) => {
+                    const pageNum = i + 1;
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => {
+                          setCurrentPage(pageNum);
+                          const element = document.getElementById("eat-happiness-section");
+                          if (element) {
+                            const offset = 80;
+                            const elementPosition = element.getBoundingClientRect().top;
+                            const offsetPosition = elementPosition + window.pageYOffset - offset;
+                            window.scrollTo({ top: offsetPosition, behavior: "smooth" });
+                          }
+                        }}
+                        className={`w-8 h-8 flex items-center justify-center text-[12px] font-bold rounded-full transition-all cursor-pointer ${
+                          currentPage === pageNum 
+                            ? "bg-black text-white" 
+                            : "text-zinc-500 hover:bg-zinc-100"
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 
               {/* Question Q&A Preview Section */}
               <section className="pb-24 bg-white pt-[50px] md:pt-24 border-t border-zinc-100/60">
-                <div className="px-6 md:px-0 flex flex-col justify-center items-center mb-[50px]">
+                <motion.div 
+                  initial={{ opacity: 0, y: 15 }} whileInView={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} viewport={{ once: true }}
+                  className="px-6 md:px-0 flex flex-col justify-center items-center mb-[50px] select-none"
+                >
                   <h2 className="text-[14px] font-normal uppercase tracking-[0.3em] text-black text-center mb-1">QUESTION</h2>
                   <p className="text-zinc-400 text-[11px] font-bold uppercase tracking-wider text-center">{translate("푸이마에게 질문하세요", lang)}</p>
-                </div>
+                </motion.div>
 
                 <div className="max-w-[850px] mx-auto px-6">
                   {homeQuestions.length === 0 ? (
                     <div className="py-12 text-center border border-dashed border-zinc-200 rounded-xl bg-zinc-50/20">
                       <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">No questions registered yet.</p>
-                      <p className="text-zinc-400 text-[11px] font-semibold mt-1">{translate("푸이마 마스터에게 첫 번째 질문을 해보세요!", lang)}</p>
+                      <p className="text-zinc-400 text-[11px] font-semibold mt-1">{translate("푸이마에 첫 번째 질문을 해보세요!", lang)}</p>
                     </div>
                   ) : (
                     <div className="border border-zinc-200 rounded-xl overflow-hidden divide-y divide-zinc-100 bg-white shadow-sm/30">
@@ -1034,9 +1133,12 @@ function HomePage() {
 
               {/* Student Review Ticker Section */}
               <section className="pb-32 overflow-hidden bg-white pt-32">
-                <div className="px-6 md:px-0 flex justify-center items-center mb-[70px]">
+                <motion.div 
+                  initial={{ opacity: 0, y: 15 }} whileInView={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} viewport={{ once: true }}
+                  className="px-6 md:px-0 flex justify-center items-center mb-[70px] select-none"
+                >
                   <h2 className="text-[14px] font-normal uppercase tracking-[0.3em] text-black text-center">REVIEW</h2>
-                </div>
+                </motion.div>
 
                 <div className="relative flex">
                   <motion.div 
@@ -1089,99 +1191,6 @@ function HomePage() {
                 </div>
               </section>
             </motion.div>
-          ) : (
-            <motion.div
-              key="grid-content"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.6 }}
-            >
-              {/* Category Tabs */}
-              <div className="px-6 md:px-0 mb-8 md:mb-16">
-                {/* Mobile View: Wrapping Pill Buttons for 100% Visibility */}
-                <div className="flex flex-wrap gap-2 md:hidden pb-2">
-                  {categories.map((cat) => {
-                    const isActive = selectedCategory === cat;
-                    return (
-                      <button
-                        key={cat}
-                        onClick={() => setSelectedCategory(cat)}
-                        className={`text-[10px] font-semibold uppercase tracking-wider px-3.5 py-1.5 rounded-full border transition-all ${
-                          isActive 
-                            ? "bg-black border-black text-white" 
-                            : "bg-white border-zinc-200 text-zinc-500 hover:border-zinc-400"
-                        }`}
-                      >
-                        {translate(cat, lang)}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Desktop View: Elegant Minimal Underlined Line */}
-                <div className="hidden md:flex gap-8 border-b border-zinc-100 pb-4">
-                  {categories.map((cat) => (
-                    <button
-                      key={cat}
-                      onClick={() => setSelectedCategory(cat)}
-                      className={`text-[11px] font-black uppercase tracking-[0.2em] transition-all relative pb-4 ${
-                        selectedCategory === cat 
-                          ? "text-black" 
-                          : "text-zinc-300 hover:text-zinc-600"
-                      }`}
-                    >
-                      {translate(cat, lang)}
-                      {selectedCategory === cat && (
-                        <motion.div 
-                           layoutId="activeCategory"
-                          className="absolute bottom-0 left-0 w-full h-[2px] bg-black"
-                        />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <main className="min-h-[600px] mb-16 md:mb-32">
-                {loading ? (
-                  <div className="py-32 flex flex-col items-center gap-4">
-                    <div className="w-8 h-8 border border-zinc-200 border-t-black rounded-full animate-spin"></div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-2 md:gap-x-6 gap-y-6 md:gap-y-12 px-2 md:px-0">
-                    {publicPosts.map((item, idx) => (
-                      <GridItem 
-                        key={item.id}
-                        title={item.title}
-                        titleEn={item.titleEn}
-                        lang={lang}
-                        category={item.category || ""}
-                        image={imageMap[item.image] || item.image || pastryImg}
-                        imageUrl={item.imageUrl}
-                        naverUrl={item.naverUrl}
-                        originalPrice={item.originalPrice}
-                        isSoldOut={item.isSoldOut}
-                        price={item.price}
-                        index={idx}
-                        uniform={true}
-                      />
-                    ))}
-                  </div>
-                )}
-              </main>
-
-              <div className="flex justify-center py-24 border-t border-zinc-100">
-                <button 
-                  onClick={handleBackToHome}
-                  className="group flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-900 border-b border-zinc-900 pb-1 hover:text-zinc-400 hover:border-zinc-400 transition-all cursor-pointer"
-                >
-                  {translate("돌아가기", lang)}
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         <footer className="bg-white border-t border-zinc-100 pt-16 pb-24 px-6 md:px-12">
           <div className="max-w-[1100px] mx-auto">

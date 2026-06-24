@@ -26,7 +26,7 @@ import {
   Users, Clock, ShieldCheck, HelpCircle, UserX, ChevronRight, User as UserIcon,
   Menu, Bell, Settings, Search, Upload, Image as ImageIcon,
   GripVertical, Eye, EyeOff, BarChart3, ExternalLink, TrendingUp, Globe,
-  Laptop, RefreshCw, Lock, BookOpen, Video
+  Laptop, RefreshCw, Lock, BookOpen, Video, Sparkles
 } from "lucide-react";
 import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { translateTextWithAI } from "../utils/translate";
@@ -204,6 +204,31 @@ export default function Admin() {
   const [translatingNewNotice, setTranslatingNewNotice] = useState(false);
   const [translatingEditNotice, setTranslatingEditNotice] = useState(false);
   const [isSavingReview, setIsSavingReview] = useState(false);
+  const [translatingPostName, setTranslatingPostName] = useState(false);
+  
+  const handleTranslatePostName = async () => {
+    if (!formData.title) return;
+    setTranslatingPostName(true);
+    try {
+      const translated = await translateTextWithAI(formData.title);
+      setFormData(prev => ({ ...prev, titleEn: translated }));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setTranslatingPostName(false);
+    }
+  };
+
+  const formatPriceStr = (value: string | number | undefined) => {
+    if (!value) return "";
+    const numStr = value.toString().replace(/[^0-9]/g, "");
+    if (!numStr) return "";
+    return Number(numStr).toLocaleString("ko-KR");
+  };
+
+  const parsePriceStr = (value: string) => {
+    return value.replace(/[^0-9]/g, "");
+  };
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<Post>>({});
   const [dataLoading, setDataLoading] = useState(true);
@@ -845,6 +870,8 @@ export default function Admin() {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragY = useRef<number | null>(null);
   const scrollInterval = useRef<number | null>(null);
+  const draggedIdxRef = useRef<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   // Autosave for Class/Post editing
   useEffect(() => {
@@ -1529,6 +1556,14 @@ export default function Admin() {
 
     handleAutoSaveAction(async () => {
       if (editingCategory) {
+        // Cascade category name change to posts
+        const oldCat = categories.find(c => c.id === editingCategory);
+        if (oldCat && oldCat.name !== data.name) {
+          const postsToUpdate = posts.filter(p => p.category === oldCat.name);
+          for (const p of postsToUpdate) {
+            await updateDoc(doc(db, "posts", p.id), { category: data.name });
+          }
+        }
         await updateDoc(doc(db, "categories", editingCategory), data);
         setEditingCategory(null);
       } else {
@@ -2198,7 +2233,20 @@ export default function Admin() {
                       </div>
                       <div className="flex gap-3">
                         <button 
-                          onClick={() => setActiveTab("register")}
+                          onClick={() => {
+                            setEditingId(null);
+                            setFormData({
+                              title: "",
+                              titleEn: "",
+                              price: "",
+                              originalPrice: "",
+                              imageUrl: "",
+                              category: categories.length > 0 ? categories[0].name : "",
+                              naverUrl: "",
+                              naver_product_id: ""
+                            });
+                            setActiveTab("register");
+                          }}
                           className="bg-black text-white px-6 py-3 rounded-2xl font-bold text-sm hover:bg-zinc-800 transition-all active:scale-95 flex items-center gap-2"
                         >
                           <Plus size={18} />
@@ -2349,9 +2397,29 @@ export default function Admin() {
                             이미지
                           </div>
 
+                          {/* Category Header */}
+                          <div className="w-20 text-center flex-shrink-0 text-[10px] uppercase tracking-wider font-bold hidden sm:block">
+                            카테고리
+                          </div>
+
                           {/* Title Header */}
                           <div className="flex-grow min-w-0 text-[10px] uppercase tracking-wider font-bold pl-2">
-                            상품명
+                            한글명
+                          </div>
+
+                          {/* English Title Header */}
+                          <div className="w-32 flex-shrink-0 text-center text-[10px] uppercase tracking-wider font-bold hidden lg:block">
+                            영문명
+                          </div>
+
+                          {/* Sale Price Header */}
+                          <div className="w-20 flex-shrink-0 text-right text-[10px] uppercase tracking-wider font-bold hidden sm:block">
+                            판매가격
+                          </div>
+
+                          {/* Regular Price Header */}
+                          <div className="w-20 flex-shrink-0 text-right text-[10px] uppercase tracking-wider font-bold hidden md:block">
+                            정상가격
                           </div>
 
                           {/* Status Quick Actions Header */}
@@ -2366,38 +2434,55 @@ export default function Admin() {
                         </div>
                       )}
 
-                      <Reorder.Group 
-                        axis="y" 
-                        values={posts} 
-                        onReorder={handleReorder}
-                        className="grid grid-cols-1 gap-1.5"
-                      >
+                      <div className="flex flex-col">
                         {filteredPosts.map((post, idx) => (
-                          <Reorder.Item 
-                            key={post.id} 
-                            value={post}
-                            drag={!searchProductQuery ? "y" : false}
-                            onDragStart={startAutoScroll}
-                            onDragEnd={stopAutoScroll}
-                            onDrag={handleDrag}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            whileDrag={{ 
-                              scale: 1.01, 
-                              boxShadow: "0 10px 20px rgba(0,0,0,0.1)",
-                              zIndex: 50
+                          <div 
+                            key={post.id}
+                            draggable={!searchProductQuery}
+                            onDragStart={(e) => {
+                              draggedIdxRef.current = idx;
+                              e.dataTransfer.effectAllowed = 'move';
+                              // 드래그 시작 시 약간 투명하게
+                              (e.currentTarget as HTMLElement).style.opacity = '0.5';
                             }}
-                            transition={{
-                              layout: { type: "spring", stiffness: 500, damping: 30, mass: 0.8 },
-                              opacity: { duration: 0.2 }
+                            onDragEnd={(e) => {
+                              (e.currentTarget as HTMLElement).style.opacity = '1';
+                              draggedIdxRef.current = null;
+                              setDragOverIdx(null);
+                            }}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              e.dataTransfer.dropEffect = 'move';
+                              if (draggedIdxRef.current !== null && draggedIdxRef.current !== idx) {
+                                setDragOverIdx(idx);
+                              }
+                            }}
+                            onDragLeave={() => {
+                              setDragOverIdx(prev => prev === idx ? null : prev);
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              const fromIdx = draggedIdxRef.current;
+                              if (fromIdx === null || fromIdx === idx) return;
+                              // 순서 재배열
+                              const newPosts = [...posts];
+                              const draggedPostId = filteredPosts[fromIdx].id;
+                              const targetPostId = filteredPosts[idx].id;
+                              const realFrom = newPosts.findIndex(p => p.id === draggedPostId);
+                              const realTo = newPosts.findIndex(p => p.id === targetPostId);
+                              if (realFrom === -1 || realTo === -1) return;
+                              const [moved] = newPosts.splice(realFrom, 1);
+                              newPosts.splice(realTo, 0, moved);
+                              handleReorder(newPosts);
+                              draggedIdxRef.current = null;
+                              setDragOverIdx(null);
                             }}
                             onClick={(e) => handleRowClick(e, post, idx)}
-                            className={`px-4 py-3 rounded-xl flex items-center gap-4 group transition-[background-color,border-color,box-shadow,color] duration-150 relative cursor-pointer select-none ${
+                            className={`mb-1.5 last:mb-0 px-4 py-3 rounded-xl flex items-center gap-4 group transition-[background-color,border-color,box-shadow,color,border-top] duration-150 relative cursor-pointer select-none ${
                               selectedPostIds.includes(post.id) 
                                 ? "bg-zinc-100 text-black shadow-sm" 
                                 : "hover:bg-zinc-50 bg-white text-zinc-900"
-                            }`}
+                            } ${dragOverIdx === idx ? "border-t-2 border-t-black" : ""}`}
                           >
                             {/* Drag Handle */}
                             {!searchProductQuery ? (
@@ -2429,29 +2514,42 @@ export default function Admin() {
                               )}
                             </div>
 
-                            {/* Title & Info */}
-                            <div className="flex-grow min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                {post.category ? (
-                                  <span className="text-[9px] font-black px-2 py-0.5 rounded-full border shrink-0 tracking-wider bg-zinc-100 border-zinc-200 text-zinc-800">
-                                    {post.category}
-                                  </span>
-                                ) : (
-                                  <span className="text-[9px] font-black px-2 py-0.5 rounded-full border shrink-0 tracking-wider bg-zinc-50 border-zinc-150 text-zinc-400">
-                                    미분류
-                                  </span>
-                                )}
-                                <h4 className="text-sm font-bold truncate tracking-tight">{post.title}</h4>
-                                {post.titleEn && (
-                                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">/ {post.titleEn}</span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2 mt-1">
-                                <span className="text-[11px] font-bold text-black">{post.price}</span>
+                            {/* Category */}
+                            <div className="w-20 flex-shrink-0 hidden sm:flex items-center justify-center">
+                              {post.category ? (
+                                <span className="text-[9px] font-black px-2 py-0.5 rounded-full border shrink-0 tracking-wider bg-zinc-100 border-zinc-200 text-zinc-800">
+                                  {post.category}
+                                </span>
+                              ) : (
+                                <span className="text-[9px] font-black px-2 py-0.5 rounded-full border shrink-0 tracking-wider bg-zinc-50 border-zinc-150 text-zinc-400">
+                                  미분류
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Korean Name */}
+                            <div className="flex-grow min-w-0 pl-2">
+                              <h4 className="text-[13px] font-bold text-zinc-900 truncate tracking-tight">{post.title}</h4>
+                            </div>
+
+                            {/* English Name */}
+                            <div className="w-32 flex-shrink-0 hidden lg:block text-center">
+                              <span className="text-[11px] text-zinc-400 font-medium truncate block px-2">{post.titleEn || '-'}</span>
+                            </div>
+
+                            {/* Sale Price */}
+                            <div className="w-20 flex-shrink-0 text-right hidden sm:block">
+                              <div className="flex flex-col items-end">
+                                <span className="text-[12px] font-bold text-black">{post.price ? formatPriceStr(post.price.toString()) : '-'}</span>
                                 {post.isSoldOut && (
-                                  <span className="bg-red-50 text-red-500 text-[8px] font-black uppercase px-1.5 py-0.5 rounded">Sold Out</span>
+                                  <span className="bg-red-50 text-red-500 text-[8px] font-black uppercase px-1 py-0.5 rounded mt-0.5">Sold Out</span>
                                 )}
                               </div>
+                            </div>
+
+                            {/* Regular Price */}
+                            <div className="w-20 flex-shrink-0 text-right hidden md:block">
+                              <span className="text-[11px] font-medium text-zinc-400 line-through">{post.originalPrice ? formatPriceStr(post.originalPrice.toString()) : '-'}</span>
                             </div>
 
                             {/* Quick Actions (Status) */}
@@ -2508,9 +2606,9 @@ export default function Admin() {
                                 <Trash2 size={16} />
                               </button>
                             </div>
-                          </Reorder.Item>
+                          </div>
                         ))}
-                      </Reorder.Group>
+                      </div>
                     </div>
                   </div>
                   
@@ -2558,137 +2656,155 @@ export default function Admin() {
                         className="flex items-center gap-2 bg-black text-white px-8 py-3 rounded-2xl font-bold text-sm hover:bg-zinc-800 transition-all active:scale-[0.98] shadow-lg shadow-black/10"
                       >
                         <Save size={18} />
-                        {editingId ? "수정하기" : "클래스 발행"}
+                        {editingId ? "수정하기" : "상품 등록"}
                       </button>
                     </div>
                   </div>
                   
                   <div className="pb-10">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                     <div className="space-y-8">
-                      <div>
-                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-3">한글명</label>
-                        <input 
-                          type="text" 
-                          value={formData.title || ""} 
-                          onChange={e => setFormData({...formData, title: e.target.value})}
-                          placeholder="클래스 제목을 입력하세요..."
-                          className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-3">영문명</label>
-                        <input 
-                          type="text" 
-                          value={formData.titleEn || ""} 
-                          onChange={e => setFormData({...formData, titleEn: e.target.value})}
-                          placeholder="Enter English title..."
-                          className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
-                        />
-                        <p className="mt-2 text-[10px] text-zinc-400 font-medium">ENG 선택시 표시되는 이름입니다.</p>
-                      </div>
-
-                      <div>
-                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-3">대표 이미지</label>
-                        <div className="relative group">
+                      {/* Row 1 */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
+                        <div>
+                          <label className="block text-[13px] font-extrabold uppercase tracking-[0.2em] text-zinc-400 mb-3">한글명</label>
                           <input 
-                            type="file" 
-                            accept="image/*"
-                            onChange={handleImageUpload}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                            type="text" 
+                            value={formData.title || ""} 
+                            onChange={e => setFormData({...formData, title: e.target.value})}
+                            placeholder="클래스 제목을 입력하세요..."
+                            className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-[13px] font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
                           />
-                          <div className={`w-full aspect-video rounded-[32px] border-2 border-dashed transition-all flex flex-col items-center justify-center p-6 text-center ${
-                            formData.imageUrl ? "border-black/10 bg-zinc-50" : "border-zinc-200 hover:border-black/20 bg-white"
-                          }`}>
-                            {formData.imageUrl ? (
-                              <div className="relative w-full h-full">
-                                <img 
-                                  src={formData.imageUrl} 
-                                  alt="Preview" 
-                                  className="w-full h-full object-cover rounded-2xl"
-                                />
-                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all rounded-2xl flex items-center justify-center text-white text-xs font-bold">
-                                  이미지 변경
-                                </div>
-                              </div>
-                            ) : (
-                              <>
-                                <div className="w-12 h-12 bg-zinc-100 rounded-2xl flex items-center justify-center mb-4 text-zinc-400 group-hover:text-black transition-colors">
-                                  <Upload size={24} />
-                                </div>
-                                <p className="text-sm font-bold mb-1">클릭하여 업로드하거나 파일을 여기로 드래그하세요</p>
-                                <p className="text-[10px] text-zinc-400 font-medium uppercase tracking-widest">JPG, PNG, WEBP (최대 5MB)</p>
-                              </>
-                            )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[13px] font-extrabold uppercase tracking-[0.2em] text-zinc-400 mb-3">판매 가격</label>
+                            <input 
+                              type="text" 
+                              value={formatPriceStr(formData.price)} 
+                              onChange={e => setFormData({...formData, price: parsePriceStr(e.target.value)})}
+                              placeholder="49,900"
+                              className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-[13px] font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[13px] font-extrabold uppercase tracking-[0.2em] text-zinc-400 mb-3">정상 가격</label>
+                            <input 
+                              type="text" 
+                              value={formatPriceStr(formData.originalPrice)} 
+                              onChange={e => setFormData({...formData, originalPrice: parsePriceStr(e.target.value)})}
+                              placeholder="69,900"
+                              className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-[13px] font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
+                            />
                           </div>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
+                      {/* Row 2 */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
                         <div>
-                          <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-3">스토어 링크</label>
+                          <div className="flex justify-between items-center mb-3 min-h-[28px]">
+                            <label className="block text-[13px] font-extrabold uppercase tracking-[0.2em] text-zinc-400">영문명</label>
+                            <button
+                              type="button"
+                              onClick={handleTranslatePostName}
+                              disabled={translatingPostName || !formData.title}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 rounded-lg text-xs font-bold text-zinc-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <Sparkles size={12} className={translatingPostName ? "animate-pulse text-blue-500" : "text-blue-500"} />
+                              {translatingPostName ? "번역 중..." : "AI 자동 번역"}
+                            </button>
+                          </div>
+                          <input 
+                            type="text" 
+                            value={formData.titleEn || ""} 
+                            onChange={e => setFormData({...formData, titleEn: e.target.value})}
+                            placeholder="Enter English title..."
+                            className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-[13px] font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
+                          />
+                          <p className="mt-2 text-[10px] text-zinc-400 font-medium">ENG 선택시 표시되는 이름입니다.</p>
+                        </div>
+                        <div>
+                          <div className="flex items-center mb-3 min-h-[28px]">
+                            <label className="block text-[13px] font-extrabold uppercase tracking-[0.2em] text-zinc-400">카테고리</label>
+                          </div>
+                          <select 
+                            value={formData.category || ""} 
+                            onChange={e => setFormData({...formData, category: e.target.value})}
+                            className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-[13px] font-medium focus:outline-none focus:ring-4 focus:ring-black/5 appearance-none cursor-pointer transition-all"
+                          >
+                            <option value="">카테고리 선택</option>
+                            {categories.map(cat => (
+                              <option key={cat.id} value={cat.name}>{cat.name}</option>
+                            ))}
+                          </select>
+                          <p className="mt-2 text-[10px] text-zinc-400 font-medium">카테고리 관리는 왼쪽 메뉴에서 가능합니다.</p>
+                        </div>
+                      </div>
+
+                      {/* Row 3 */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
+                        <div>
+                          <label className="block text-[13px] font-extrabold uppercase tracking-[0.2em] text-zinc-400 mb-3">스토어 링크</label>
                           <input 
                             type="text" 
                             value={formData.naverUrl || ""} 
                             onChange={e => setFormData({...formData, naverUrl: e.target.value})}
                             placeholder="Naver Smart Store URL"
-                            className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
+                            className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-[13px] font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-3">네이버 상품 번호</label>
+                          <label className="block text-[13px] font-extrabold uppercase tracking-[0.2em] text-zinc-400 mb-3">네이버 상품 번호</label>
                           <input 
                             type="text" 
                             value={formData.naver_product_id || ""} 
                             onChange={e => setFormData({...formData, naver_product_id: e.target.value})}
                             placeholder="예: 123456789"
-                            className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-8">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-3">판매 가격</label>
-                          <input 
-                            type="text" 
-                            value={formData.price || ""} 
-                            onChange={e => setFormData({...formData, price: e.target.value})}
-                            placeholder="₩49,900"
-                            className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-3">정상 가격</label>
-                          <input 
-                            type="text" 
-                            value={formData.originalPrice || ""} 
-                            onChange={e => setFormData({...formData, originalPrice: e.target.value})}
-                            placeholder="₩69,900"
-                            className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
+                            className="w-full p-4 bg-zinc-50/60 border border-zinc-200 rounded-2xl text-[13px] font-medium focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
                           />
                         </div>
                       </div>
 
-                      <div>
-                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-3">카테고리</label>
-                        <select 
-                          value={formData.category || ""} 
-                          onChange={e => setFormData({...formData, category: e.target.value})}
-                          className="w-full p-4 bg-zinc-50 border border-zinc-200 rounded-2xl text-sm font-black focus:outline-none focus:ring-4 focus:ring-black/5 appearance-none cursor-pointer"
-                        >
-                          <option value="">카테고리 선택</option>
-                          {categories.map(cat => (
-                            <option key={cat.id} value={cat.name}>{cat.name}</option>
-                          ))}
-                        </select>
-                        <p className="mt-2 text-[10px] text-zinc-400 font-medium">카테고리 관리는 왼쪽 메뉴에서 가능합니다.</p>
+                      {/* Row 4 */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
+                        <div>
+                          <label className="block text-[13px] font-extrabold uppercase tracking-[0.2em] text-zinc-400 mb-3">대표 이미지</label>
+                          <div className="relative group">
+                            <input 
+                              type="file" 
+                              accept="image/*"
+                              onChange={handleImageUpload}
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                            />
+                            <div className={`w-full aspect-video rounded-[32px] border-2 border-dashed transition-all flex flex-col items-center justify-center p-6 text-center ${
+                              formData.imageUrl ? "border-black/10 bg-zinc-50" : "border-zinc-200 hover:border-black/20 bg-white"
+                            }`}>
+                              {formData.imageUrl ? (
+                                <div className="relative w-full h-full">
+                                  <img 
+                                    src={formData.imageUrl} 
+                                    alt="Preview" 
+                                    className="w-full h-full object-cover rounded-2xl"
+                                  />
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all rounded-2xl flex items-center justify-center text-white text-xs font-bold">
+                                    이미지 변경
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="w-12 h-12 bg-zinc-100 rounded-2xl flex items-center justify-center mb-4 text-zinc-400 group-hover:text-black transition-colors">
+                                    <Upload size={24} />
+                                  </div>
+                                  <p className="text-sm font-bold mb-1">클릭하여 업로드하거나 파일을 여기로 드래그하세요</p>
+                                  <p className="text-[10px] text-zinc-400 font-medium uppercase tracking-widest">JPG, PNG, WEBP (최대 5MB)</p>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="hidden lg:block"></div>
                       </div>
                     </div>
-                  </div>
                   
                   </div>
                 </motion.div>

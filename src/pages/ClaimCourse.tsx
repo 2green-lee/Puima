@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { useAuth } from "../lib/AuthContext";
+import { useAuth } from "../contexts/AuthContext";
 import { Loader2, CheckCircle, XCircle } from "lucide-react";
 import { motion } from "motion/react";
 

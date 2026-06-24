@@ -37,7 +37,7 @@ const translationDictionary: Record<string, string> = {
   "비밀글입니다.": "This is a private post.",
   "익명": "Anonymous",
   "푸이마에게 질문하세요": "Ask PUIMA anything",
-  "푸이마 마스터에게 첫 번째 질문을 해보세요!": "Be the first to ask PUIMA master!",
+  "푸이마에 첫 번째 질문을 해보세요!": "Be the first to ask PUIMA!",
 
   // Footer - Business Info
   "상호명 :": "Business Name:",
